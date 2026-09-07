@@ -52,10 +52,10 @@ prompt
 server.log
 # Skills directory
 /skills/storage/
-storage/
-upload/
-workspace-*
-tool-results/
+/storage/
+/upload/
+/workspace-*
+/tool-results/
 *.db
 *.db-journal
 scripts/sqlite_dump.json

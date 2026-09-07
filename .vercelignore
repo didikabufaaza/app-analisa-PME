@@ -1,0 +1,9 @@
+.env*
+storage/
+upload/
+workspace-*
+tool-results/
+*.db
+*.db-journal
+scripts/sqlite_dump.json
+.git

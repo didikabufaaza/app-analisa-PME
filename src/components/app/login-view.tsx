@@ -12,10 +12,10 @@ import type { UserInfo } from "@/types/pme";
 import { cn } from "@/lib/utils";
 
 const FEATURES = [
-  { icon: ScanLine, title: "Ekstraksi PDF Otomatis", desc: "AI membaca PDF PME apa pun template-nya: parameter, nilai peserta, target, dan Z-score." },
-  { icon: BrainCircuit, title: "Interpretasi & Root Cause", desc: "Analisis AI: kemungkinan penyebab, investigasi, tindakan korektif & preventif." },
+  { icon: ScanLine, title: "Ekstraksi Laporan Otomatis", desc: "Membaca dan memproses berkas laporan PME apa pun formatnya: parameter, nilai peserta, target, dan Z-score." },
+  { icon: BrainCircuit, title: "Interpretasi & Root Cause", desc: "Analisis klinis: investigasi akar masalah, kemungkinan penyebab, tindakan korektif & preventif." },
   { icon: FileBarChart, title: "Laporan PDF & Excel", desc: "Laporan siap audit dengan executive summary, grafik, dan CAPA." },
-  { icon: ShieldCheck, title: "Aturan Z-Score Deterministik", desc: "Status akhir ditentukan rule engine backend — bukan oleh AI." },
+  { icon: ShieldCheck, title: "Validasi Sesuai Standar Mutu", desc: "Status akhir dan evaluasi dihitung berdasarkan standar ISO 13528 & Permenkes." },
 ];
 
 export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
@@ -80,23 +80,23 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
           </div>
           <div>
             <p className="text-xl font-bold tracking-tight">didikpme</p>
-            <p className="text-xs text-teal-200/80">PME AI Z-Score Analyzer</p>
+            <p className="text-xs text-teal-200/80">Evaluasi Z-Score & PME Laboratorium</p>
           </div>
         </header>
 
         <main className="relative z-10 max-w-xl space-y-8 py-10">
           <div className="space-y-4">
             <Badge variant="secondary" className="bg-teal-400/15 text-teal-100 ring-1 ring-teal-300/30 gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" /> Gemini AI Edition
+              <Sparkles className="h-3.5 w-3.5" /> Clinical Quality Suite
             </Badge>
             <h1 className="text-3xl lg:text-[2.6rem] font-bold leading-[1.15] tracking-tight">
               Analisis Pemantapan Mutu Eksternal menjadi{" "}
               <span className="text-teal-300">otomatis, akurat, dan teraudit.</span>
             </h1>
             <p className="text-teal-100/70 leading-relaxed">
-              Cukup unggah PDF hasil PME laboratorium Anda — AI mengekstrak data, backend memvalidasi
-              Z-score secara deterministik, lalu menghasilkan interpretasi, analisis akar masalah,
-              CAPA, dan laporan siap audit.
+              Cukup unggah PDF hasil PME laboratorium Anda — sistem memvalidasi dan mengekstrak data
+              Z-score secara otomatis, lalu menghasilkan interpretasi klinis, analisis akar masalah,
+              CAPA, dan laporan evaluasi mutu siap audit.
             </p>
           </div>
 

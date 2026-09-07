@@ -150,14 +150,14 @@ export function SettingsView() {
       if (err instanceof ApiError && (err.status === 403 || err.status === 404)) {
         setAiConfig(null); // hide silently
       } else {
-        setAiConfigError(err instanceof ApiError ? err.message : "Gagal memuat konfigurasi AI.");
+        setAiConfigError(err instanceof ApiError ? err.message : "Gagal memuat konfigurasi engine.");
       }
     } finally {
       setAiConfigLoading(false);
     }
   }, []);
 
-  // ===== Section 3: AI usage =====
+  // ===== Section 3: Usage =====
   const [usage, setUsage] = useState<AiUsageData | null>(null);
   const [usageLoading, setUsageLoading] = useState(true);
   const [usageError, setUsageError] = useState<string | null>(null);
@@ -169,7 +169,7 @@ export function SettingsView() {
       const data = await apiGet<AiUsageData>("/api/ai-usage");
       setUsage(data);
     } catch (err) {
-      setUsageError(err instanceof ApiError ? err.message : "Gagal memuat penggunaan AI.");
+      setUsageError(err instanceof ApiError ? err.message : "Gagal memuat penggunaan kapasitas.");
     } finally {
       setUsageLoading(false);
     }
@@ -196,7 +196,7 @@ export function SettingsView() {
     <div className="flex flex-col gap-6">
       <div>
         <h2 className="text-xl font-semibold tracking-tight">Pengaturan</h2>
-        <p className="text-sm text-muted-foreground">Aturan penilaian Z-score, konfigurasi AI, dan pemakaian kuota.</p>
+        <p className="text-sm text-muted-foreground">Aturan penilaian Z-score, konfigurasi engine evaluasi, dan pemakaian kapasitas.</p>
       </div>
 
       {/* ===== Section 1: Aturan Z-Score ===== */}
@@ -326,12 +326,12 @@ export function SettingsView() {
         </CardContent>
       </Card>
 
-      {/* ===== Section 2: Konfigurasi AI (ADMIN only) ===== */}
+      {/* ===== Section 2: Konfigurasi Engine (ADMIN only) ===== */}
       {isAdmin ? (
         aiConfigLoading ? (
           <Card>
             <CardContent className="flex items-center gap-2 py-8 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> Memuat konfigurasi AI…
+              <Loader2 className="h-4 w-4 animate-spin" /> Memuat konfigurasi engine…
             </CardContent>
           </Card>
         ) : aiConfigError ? (
@@ -339,7 +339,7 @@ export function SettingsView() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bot className="h-5 w-5 text-teal-600" />
-                Konfigurasi AI
+                Konfigurasi Engine Analisis
               </CardTitle>
             </CardHeader>
             <CardContent>
@@ -359,9 +359,9 @@ export function SettingsView() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Bot className="h-5 w-5 text-teal-600" />
-                Konfigurasi AI
+                Konfigurasi Engine Analisis
               </CardTitle>
-              <CardDescription>Status penyedia AI yang digunakan untuk ekstraksi dan analisis.</CardDescription>
+              <CardDescription>Status engine pemrosesan yang digunakan untuk ekstraksi dan evaluasi.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -455,14 +455,14 @@ export function SettingsView() {
         ) : null
       ) : null}
 
-      {/* ===== Section 3: Kuota & Penggunaan AI ===== */}
+      {/* ===== Section 3: Kuota & Penggunaan Pemrosesan ===== */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Gauge className="h-5 w-5 text-teal-600" />
-            Kuota &amp; Penggunaan AI
+            Kapasitas Pemrosesan Bulanan
           </CardTitle>
-          <CardDescription>Pemakaian kuota AI bulan ini untuk seluruh operasi ekstraksi dan analisis.</CardDescription>
+          <CardDescription>Pemakaian kapasitas pemrosesan bulan ini untuk seluruh operasi ekstraksi dan evaluasi.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           {usageError ? (
@@ -499,7 +499,7 @@ export function SettingsView() {
                     {fmtInt(usage.summary.successfulRequests)} / {fmtInt(usage.summary.limit)} permintaan ({usagePct}%)
                   </span>
                 </div>
-                <Progress value={usagePct} aria-label={`Penggunaan kuota AI ${usagePct}%`} />
+                <Progress value={usagePct} aria-label={`Penggunaan kapasitas ${usagePct}%`} />
               </div>
 
               <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -546,7 +546,7 @@ export function SettingsView() {
                       {(usage.recentLogs ?? []).length === 0 ? (
                         <TableRow>
                           <TableCell colSpan={6} className="py-6 text-center text-sm text-muted-foreground">
-                            Belum ada permintaan AI tercatat.
+                            Belum ada riwayat pemrosesan tercatat.
                           </TableCell>
                         </TableRow>
                       ) : (

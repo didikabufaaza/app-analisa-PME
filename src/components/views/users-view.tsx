@@ -50,7 +50,7 @@ const ALL_MENUS: { key: string; label: string; desc: string; superAdminOnly?: bo
   { key: "reports", label: "Laporan Lengkap", desc: "Tabel rekapitulasi mutu dan ekspor PDF/Excel Model 1 & 2" },
   { key: "review", label: "Review Center", desc: "Verifikasi manual parameter dengan status review" },
   { key: "capa", label: "CAPA", desc: "Pengelolaan tiket tindakan perbaikan & pencegahan" },
-  { key: "settings", label: "Pengaturan", desc: "Konfigurasi batas aturan Z-score dan pemantauan AI" },
+  { key: "settings", label: "Pengaturan", desc: "Konfigurasi batas aturan Z-score dan kapasitas sistem" },
   { key: "audit", label: "Log Audit", desc: "Rekaman jejak aktivitas seluruh pengguna" },
   { key: "users", label: "Pengaturan User", desc: "Manajemen akun pengguna dan hak akses (Superadmin)", superAdminOnly: true },
 ];

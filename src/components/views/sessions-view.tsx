@@ -85,10 +85,10 @@ const PROCESSING_STATUSES: SessionStatus[] = ["UPLOADED", "EXTRACTING", "VALIDAT
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
   UPLOADED: "Diunggah",
-  EXTRACTING: "Ekstraksi AI",
+  EXTRACTING: "Ekstraksi Data",
   VALIDATING: "Validasi",
   REVIEW_REQUIRED: "Perlu Review",
-  ANALYZING: "Analisis AI",
+  ANALYZING: "Analisis Evaluasi",
   COMPLETED: "Selesai",
   FAILED: "Gagal",
 };
@@ -288,7 +288,7 @@ export function SessionsView() {
       await apiUpload<{ session: { id: string; status: string } }>("/api/pme/upload", fd);
       toast({
         title: "Unggahan berhasil",
-        description: "PME masuk antrean — ekstraksi AI dimulai otomatis.",
+        description: "PME masuk antrean — ekstraksi data dimulai otomatis.",
       });
       setFile(null);
       setUploadOpen(false);
@@ -425,7 +425,7 @@ export function SessionsView() {
       <div>
         <h2 className="text-lg font-bold tracking-tight">Sesi Analisis PME</h2>
         <p className="text-sm text-muted-foreground">
-          Unggah laporan Proficiency Testing, pantau pipeline AI, dan telusuri hasil Z-score per parameter.
+          Unggah laporan Proficiency Testing, pantau proses evaluasi, dan telusuri hasil Z-score per parameter.
         </p>
       </div>
 
@@ -538,7 +538,7 @@ export function SessionsView() {
                 <p className="mx-auto mt-1 max-w-sm text-sm text-muted-foreground">
                   {hasActiveFilter
                     ? "Coba ubah kata kunci pencarian atau filter status."
-                    : "Unggah laporan hasil PME pertama Anda — AI akan mengekstrak parameter dan menghitung Z-score secara otomatis."}
+                    : "Unggah laporan hasil PME pertama Anda — sistem akan mengekstrak parameter dan menghitung Z-score secara otomatis."}
                 </p>
               </div>
               {hasActiveFilter ? (
@@ -822,7 +822,7 @@ export function SessionsView() {
           <DialogHeader>
             <DialogTitle>Unggah PDF PME</DialogTitle>
             <DialogDescription>
-              Unggah laporan hasil Proficiency Testing (PDF). AI akan mengekstrak parameter, memvalidasi data, dan
+              Unggah laporan hasil Proficiency Testing (PDF). Sistem akan mengekstrak parameter, memvalidasi data, dan
               menghitung Z-score secara otomatis.
             </DialogDescription>
           </DialogHeader>
@@ -922,7 +922,7 @@ export function SessionsView() {
             <AlertDialogTitle>Hapus sesi PME ini?</AlertDialogTitle>
             <AlertDialogDescription>
               Sesi <span className="font-semibold">{deleteTarget?.file?.fileName ?? deleteTarget?.id}</span> beserta
-              seluruh hasil ekstraksi, analisis AI, riwayat CAPA, dan berkas terkait di Google Drive akan dihapus secara permanen.
+              seluruh hasil ekstraksi, analisis evaluasi, riwayat CAPA, dan berkas terkait di Google Drive akan dihapus secara permanen.
               Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -950,7 +950,7 @@ export function SessionsView() {
             <AlertDialogTitle>Hapus {selectedIds.size} berkas PME terpilih?</AlertDialogTitle>
             <AlertDialogDescription>
               Sebanyak <span className="font-semibold">{selectedIds.size} berkas dan sesi PME</span> yang dipilih beserta
-              seluruh hasil ekstraksi, analisis AI, riwayat CAPA, dan berkas terkait di Google Drive akan dihapus secara permanen.
+              seluruh hasil ekstraksi, analisis evaluasi, riwayat CAPA, dan berkas terkait di Google Drive akan dihapus secara permanen.
               Tindakan ini tidak dapat dibatalkan.
             </AlertDialogDescription>
           </AlertDialogHeader>

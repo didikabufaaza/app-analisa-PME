@@ -76,7 +76,7 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
   doc.setFontSize(15);
   doc.text("Laporan Analisis PME & Rencana Mutu Laboratorium", 14, 34);
   doc.setFontSize(9.5);
-  doc.text("Pemantapan Mutu Eksternal (External Quality Assessment) — Berbasis AI Gemini", 14, 44);
+  doc.text("Pemantapan Mutu Eksternal (External Quality Assessment) — Evaluasi Terstandar", 14, 44);
   doc.text(`Dicetak: ${new Date().toLocaleString("id-ID")}`, 14, 52);
 
   doc.setTextColor(30, 30, 30);
@@ -98,7 +98,7 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
       ["Nomor Peserta (ID)", session.participantId || "-"],
       ["Nama Berkas PDF", session.file?.fileName || "-"],
       ["Versi Aturan Z-Score", session.ruleVersion || "v1.0-default"],
-      ["AI Engine Analisis", `${session.aiProvider || "gemini"} (Gemini 3.6 Flash)`],
+      ["Metode Validasi", "Standar ISO 13528 & Permenkes"],
     ],
     headStyles: { fillColor: [13, 122, 105], fontSize: 9 },
     styles: { fontSize: 8.5 },
@@ -133,7 +133,7 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
   autoTable(doc, {
     startY: y,
     theme: "striped",
-    head: [["Parameter", "Hasil Peserta", "Target / Mean", "SDPA", "Z-Score", "Status Mutu", "Keyakinan AI"]],
+    head: [["Parameter", "Hasil Peserta", "Target / Mean", "SDPA", "Z-Score", "Status Mutu", "Akurasi Data"]],
     body: results.map((r) => {
       const conf = Math.min(r.parameterConfidence, r.participantConfidence, r.targetConfidence, r.zScoreConfidence);
       return [
@@ -151,7 +151,7 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
     columnStyles: { 0: { cellWidth: 42 } },
   });
 
-  /* ---------- TABEL KOMPREHENSIF Z-SCORE DENGAN KOLOM AI LENGKAP ---------- */
+  /* ---------- TABEL KOMPREHENSIF Z-SCORE DENGAN KOLOM EVALUASI LENGKAP ---------- */
   // Disajikan dalam halaman baru berorientasi LANDSCAPE agar seluruh kolom terbaca jelas
   doc.addPage("a4", "landscape");
   const landW = doc.internal.pageSize.getWidth();
@@ -160,7 +160,7 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
   doc.rect(0, 0, landW, 20, "F");
   doc.setTextColor(255, 255, 255);
   doc.setFontSize(14);
-  doc.text("4. Evaluasi Mendalam Hasil Z-Score & Rencana Tindakan Mutu (Analisis AI)", 14, 13);
+  doc.text("4. Evaluasi Mendalam Hasil Z-Score & Rencana Tindakan Mutu", 14, 13);
 
   doc.setTextColor(30, 30, 30);
   doc.setFontSize(9);
@@ -345,7 +345,7 @@ export async function generateExcelReport(sessionId: string, organizationId: str
   if (!session) throw new Error("Sesi PME tidak ditemukan");
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "didikpme - PME AI Analyzer";
+  wb.creator = "didikpme - Evaluasi Mutu PME";
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Hasil PME Teknis");
@@ -357,7 +357,7 @@ export async function generateExcelReport(sessionId: string, organizationId: str
     { header: "Z-score", key: "zscore", width: 14 },
     { header: "Peer Group", key: "peergroup", width: 20 },
     { header: "Status Mutu", key: "status", width: 16 },
-    { header: "Confidence AI", key: "confidence", width: 14 },
+    { header: "Akurasi Data", key: "confidence", width: 14 },
     { header: "Interpretasi Klinis", key: "interpretation", width: 50 },
     { header: "Kemungkinan Penyebab", key: "cause", width: 45 },
     { header: "Langkah Investigasi", key: "investigation", width: 45 },
@@ -408,7 +408,7 @@ export async function generateExcelReport(sessionId: string, organizationId: str
     ["Nomor Peserta", session.participantId],
     ["Nama Berkas PDF", session.file?.fileName],
     ["Versi Aturan Z-Score", session.ruleVersion],
-    ["AI Provider", session.aiProvider],
+    ["Metode Validasi", "Standar ISO 13528 & Permenkes"],
     ["Tanggal Unggah", session.createdAt.toLocaleString("id-ID")],
   ].forEach(([f, v]) => info.addRow({ f, v: v ?? "-" }));
 
@@ -432,7 +432,7 @@ export async function generateExcelReportModel2(sessionId: string, organizationI
   if (!session) throw new Error("Sesi PME tidak ditemukan");
 
   const wb = new ExcelJS.Workbook();
-  wb.creator = "didikpme - PME AI Analyzer";
+  wb.creator = "didikpme - Evaluasi Mutu PME";
   wb.created = new Date();
 
   const ws = wb.addWorksheet("Sheet1");

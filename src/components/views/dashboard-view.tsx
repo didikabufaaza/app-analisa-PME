@@ -118,7 +118,7 @@ const SESSION_BADGE: Record<SessionStatus, { label: string; className: string; p
     className: "border-amber-500/25 bg-amber-500/10 text-amber-700 dark:text-amber-300",
   },
   ANALYZING: {
-    label: "Analisis AI",
+    label: "Analisis Evaluasi",
     className: "border-teal-500/25 bg-teal-500/10 text-teal-700 dark:text-teal-300",
     pulse: true,
   },
@@ -384,7 +384,7 @@ function DashboardEmpty({ onNavigateSessions }: { onNavigateSessions: () => void
           </span>
           <h2 className="text-lg font-semibold">Belum ada data PME</h2>
           <p className="max-w-sm text-sm text-muted-foreground">
-            Unggah berkas hasil PME (PDF) untuk mulai menganalisis Z-score dengan bantuan AI.
+            Unggah berkas hasil PME (PDF) untuk mulai mengevaluasi Z-score secara otomatis.
             Ringkasan kinerja laboratorium Anda akan tampil di sini.
           </p>
           <Button onClick={onNavigateSessions} className="mt-2 gap-2 bg-teal-700 text-white hover:bg-teal-800">
@@ -460,7 +460,7 @@ export function DashboardView() {
         <div>
           <h2 className="text-lg font-semibold tracking-tight sm:text-xl">Ringkasan Kinerja PME</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Pantau hasil uji profisiensi, distribusi Z-score, dan keyakinan AI secara menyeluruh.
+            Pantau hasil uji profisiensi, distribusi Z-score, dan akurasi evaluasi secara menyeluruh.
           </p>
         </div>
         <div className="flex items-center gap-3">
@@ -623,10 +623,10 @@ export function DashboardView() {
           )}
         </ChartCard>
 
-        {/* Keyakinan AI (wide donut + bucket breakdown) */}
+        {/* Akurasi Ekstraksi (wide donut + bucket breakdown) */}
         <ChartCard
-          title="Keyakinan AI (Confidence)"
-          description="Distribusi keyakinan ekstraksi AI per parameter"
+          title="Akurasi Ekstraksi Data"
+          description="Tingkat keyakinan validasi data per parameter"
           className="lg:col-span-2"
           action={
             <Badge variant="secondary" className="gap-1 bg-teal-500/10 text-teal-700 dark:text-teal-300">
@@ -636,10 +636,10 @@ export function DashboardView() {
           }
         >
           {aiData.length === 0 || counts.totalParameter === 0 ? (
-            <ChartEmpty message="Belum ada data keyakinan AI." />
+            <ChartEmpty message="Belum ada data akurasi." />
           ) : (
             <div className="flex flex-col items-center gap-6 sm:flex-row sm:gap-10">
-              <div className="relative h-64 w-64 shrink-0" role="img" aria-label="Grafik donat keyakinan AI">
+              <div className="relative h-64 w-64 shrink-0" role="img" aria-label="Grafik donat akurasi ekstraksi">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie

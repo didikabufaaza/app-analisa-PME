@@ -65,18 +65,18 @@ const PROCESSING_STATUSES: SessionStatus[] = ["UPLOADED", "EXTRACTING", "VALIDAT
 
 const STEPS: { key: SessionStatus; label: string }[] = [
   { key: "UPLOADED", label: "Unggah" },
-  { key: "EXTRACTING", label: "Ekstraksi AI" },
+  { key: "EXTRACTING", label: "Ekstraksi Data" },
   { key: "VALIDATING", label: "Validasi" },
-  { key: "ANALYZING", label: "Analisis AI" },
+  { key: "ANALYZING", label: "Analisis Evaluasi" },
   { key: "COMPLETED", label: "Selesai" },
 ];
 
 const STATUS_LABEL: Record<SessionStatus, string> = {
   UPLOADED: "Diunggah",
-  EXTRACTING: "Ekstraksi AI",
+  EXTRACTING: "Ekstraksi Data",
   VALIDATING: "Validasi",
   REVIEW_REQUIRED: "Perlu Review",
-  ANALYZING: "Analisis AI",
+  ANALYZING: "Analisis Evaluasi",
   COMPLETED: "Selesai",
   FAILED: "Gagal",
 };
@@ -535,15 +535,15 @@ export function SessionDetailView() {
     try {
       await apiSend<{ ok: boolean; status: string }>(`/api/pme/${session.id}/analyze`, "POST");
       toast({
-        title: "Analisis AI sesi dimulai",
-        description: "Parameter terpilih sedang dianalisis oleh AI — hasil akan muncul otomatis.",
+        title: "Analisis evaluasi sesi dimulai",
+        description: "Parameter terpilih sedang dianalisis — hasil akan muncul otomatis.",
       });
       void load(true);
     } catch (err) {
       if (handleAuthLoss(err)) return;
       const msg = err instanceof Error ? err.message : "Terjadi kesalahan.";
       toast({
-        title: err instanceof ApiError && err.code === "AI_USAGE_LIMIT_REACHED" ? "Kuota AI habis" : "Analisis AI gagal",
+        title: err instanceof ApiError && err.code === "AI_USAGE_LIMIT_REACHED" ? "Kapasitas evaluasi habis" : "Analisis evaluasi gagal",
         description: msg,
         variant: "destructive",
       });
@@ -558,7 +558,7 @@ export function SessionDetailView() {
     try {
       await apiSend(`/api/pme/results/${r.id}/analyze`, "POST");
       toast({
-        title: "Analisis AI dimulai",
+        title: "Analisis evaluasi dimulai",
         description: `Menganalisis parameter "${r.parameterName}" — temuan akan muncul otomatis.`,
       });
       void load(true);
@@ -566,7 +566,7 @@ export function SessionDetailView() {
       if (handleAuthLoss(err)) return;
       setAnalyzingIds((prev) => prev.filter((id) => id !== r.id));
       toast({
-        title: "Analisis AI gagal",
+        title: "Analisis evaluasi gagal",
         description: err instanceof Error ? err.message : "Terjadi kesalahan.",
         variant: "destructive",
       });
@@ -852,7 +852,7 @@ export function SessionDetailView() {
               <p className="text-sm font-bold text-violet-900 dark:text-violet-300">Sebagian data perlu review</p>
               <p className="mt-0.5 text-xs text-violet-800 dark:text-violet-300/90">
                 {session.statusDetail ??
-                  "Beberapa parameter memerlukan verifikasi manual sebelum analisis AI dapat dilanjutkan."}
+                  "Beberapa parameter memerlukan verifikasi manual sebelum evaluasi dapat dilanjutkan."}
               </p>
             </div>
           </div>
@@ -927,7 +927,7 @@ export function SessionDetailView() {
             }
           />
           <IdentityItem icon={Scale} label="Versi Rule" value={session.ruleVersion ?? "—"} />
-          <IdentityItem icon={Sparkles} label="AI Provider" value={session.aiProvider ?? "—"} />
+          <IdentityItem icon={Sparkles} label="Engine Evaluasi" value="Standard ISO/Permenkes" />
         </CardContent>
       </Card>
 
@@ -939,7 +939,7 @@ export function SessionDetailView() {
           ) : (
             <FileDown className="h-4 w-4 text-teal-600" aria-hidden />
           )}
-          PDF Model 1 (Z-Score AI)
+          PDF Model 1 (Laporan Evaluasi)
         </Button>
         <Button variant="outline" size="sm" onClick={() => void handleExport("excel")} disabled={exporting !== null} className="border-teal-600/30 text-teal-800 dark:text-teal-300 hover:bg-teal-50">
           {exporting === "excel" ? (
@@ -970,14 +970,14 @@ export function SessionDetailView() {
           className="bg-teal-700 text-white hover:bg-teal-800"
           onClick={() => void handleAnalyzeSession()}
           disabled={processing || sessionAnalyzing}
-          title={processing ? "Tunggu pipeline selesai" : "Analisis AI untuk seluruh parameter yang memenuhi syarat"}
+          title={processing ? "Tunggu proses selesai" : "Analisis evaluasi untuk seluruh parameter yang memenuhi syarat"}
         >
           {sessionAnalyzing ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
             <Sparkles className="h-4 w-4" aria-hidden />
           )}
-          Analisis AI
+          Analisis Evaluasi
         </Button>
         <Button
           variant="outline"
@@ -1014,7 +1014,7 @@ export function SessionDetailView() {
               <p className="text-sm font-medium">Belum ada hasil parameter</p>
               <p className="max-w-sm text-xs text-muted-foreground">
                 {processing
-                  ? "Ekstraksi AI sedang berlangsung — hasil akan muncul di sini secara otomatis."
+                  ? "Ekstraksi data sedang berlangsung — hasil akan muncul di sini secara otomatis."
                   : "Hasil ekstraksi tidak tersedia. Coba jalankan ulang pipeline melalui tombol Reproses."}
               </p>
             </div>
@@ -1180,8 +1180,8 @@ export function SessionDetailView() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-muted-foreground hover:text-teal-700"
-                                title={isAnalyzing ? "Analisis AI sedang berjalan…" : "Analisis parameter ini dengan AI"}
-                                aria-label={`Analisis AI untuk ${r.parameterName}`}
+                                title={isAnalyzing ? "Analisis evaluasi sedang berjalan…" : "Analisis evaluasi parameter ini"}
+                                aria-label={`Analisis evaluasi untuk ${r.parameterName}`}
                                 disabled={processing || isAnalyzing}
                                 onClick={() => void handleAnalyzeResult(r)}
                               >
@@ -1197,8 +1197,8 @@ export function SessionDetailView() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-muted-foreground hover:text-teal-700"
-                                title="Lihat temuan AI"
-                                aria-label={`Temuan AI untuk ${r.parameterName}`}
+                                title="Lihat temuan evaluasi"
+                                aria-label={`Temuan evaluasi untuk ${r.parameterName}`}
                                 onClick={() => setFindingResult(r)}
                               >
                                 <BrainCircuit className="h-4 w-4" aria-hidden />
@@ -1219,7 +1219,7 @@ export function SessionDetailView() {
                                 variant="ghost"
                                 size="icon"
                                 className="h-8 w-8 text-muted-foreground hover:text-teal-700"
-                                title="Buat CAPA dari temuan AI"
+                                title="Buat CAPA dari temuan evaluasi"
                                 aria-label={`Buat CAPA untuk ${r.parameterName}`}
                                 onClick={() => openCapa(r)}
                               >
@@ -1255,7 +1255,7 @@ export function SessionDetailView() {
                                 </div>
                                 <div>
                                   <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                                    Rincian Confidence AI
+                                    Rincian Tingkat Akurasi Data
                                   </p>
                                   <div className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1.5 text-xs">
                                     {(
@@ -1278,7 +1278,7 @@ export function SessionDetailView() {
                                   </div>
                                   <p className="mt-1.5 text-[11px] text-muted-foreground">
                                     Status review: {r.reviewStatus === "NONE" ? "belum direview" : r.reviewStatus.toLowerCase()} ·
-                                    analisis AI: {r.analysisStatus === "PENDING" ? "berjalan" : r.analysisStatus === "DONE" ? "selesai" : "dilewati"}
+                                    evaluasi klinis: {r.analysisStatus === "PENDING" ? "berjalan" : r.analysisStatus === "DONE" ? "selesai" : "dilewati"}
                                   </p>
                                 </div>
                               </div>
@@ -1501,17 +1501,17 @@ export function SessionDetailView() {
         </DialogContent>
       </Dialog>
 
-      {/* --------------------------- AI Finding dialog --------------------------- */}
+      {/* --------------------------- Finding dialog --------------------------- */}
       <Dialog open={!!findingResult} onOpenChange={(open) => !open && setFindingResult(null)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-2xl">
           {findingResult?.aiAnalysis && (
             <>
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
-                  <BrainCircuit className="h-5 w-5 text-teal-700" aria-hidden /> Temuan AI —{" "}
+                  <BrainCircuit className="h-5 w-5 text-teal-700" aria-hidden /> Temuan Evaluasi —{" "}
                   <span className="truncate">{findingResult.parameterName}</span>
                 </DialogTitle>
-                <DialogDescription>Interpretasi otomatis AI atas hasil Z-score parameter ini.</DialogDescription>
+                <DialogDescription>Interpretasi klinis dan evaluasi atas hasil Z-score parameter ini.</DialogDescription>
               </DialogHeader>
 
               <div className="space-y-3">
@@ -1644,7 +1644,7 @@ export function SessionDetailView() {
                 rows={3}
                 value={capaForm.finding}
                 onChange={(e) => setCapaForm((f) => ({ ...f, finding: e.target.value }))}
-                placeholder="Temuan dari analisis AI atau investigasi manual"
+                placeholder="Temuan dari evaluasi sistem atau investigasi manual"
               />
             </div>
             <div className="grid gap-1.5">

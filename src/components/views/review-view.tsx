@@ -253,9 +253,9 @@ export function ReviewView() {
       {/* Header */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight">Pusat Review AI</h2>
+          <h2 className="text-xl font-semibold tracking-tight">Pusat Review & Verifikasi</h2>
           <p className="text-sm text-muted-foreground">
-            Periksa hasil ekstraksi yang memerlukan konfirmasi manusia sebelum dianalisis.
+            Periksa hasil ekstraksi yang memerlukan verifikasi manual sebelum evaluasi dilanjutkan.
           </p>
         </div>
         <div className="text-sm text-muted-foreground">
@@ -332,7 +332,7 @@ export function ReviewView() {
             <CheckCircle2 className="h-12 w-12 text-emerald-500" />
             <p className="text-base font-medium">Tidak ada item yang memerlukan review</p>
             <p className="max-w-md text-sm text-muted-foreground">
-              Semua hasil ekstraksi telah diproses. Item baru akan muncul di sini jika AI menandai ketidakpastian.
+              Semua hasil ekstraksi telah diproses. Item baru akan muncul di sini jika sistem mendeteksi ketidaksesuaian atau keraguan data.
             </p>
           </CardContent>
         </Card>
@@ -461,7 +461,7 @@ export function ReviewView() {
           <DialogHeader>
             <DialogTitle>Ubah Hasil Ekstraksi</DialogTitle>
             <DialogDescription>
-              Perbaiki nilai hasil bacaan AI. Kolom yang dibiarkan kosong tidak diubah. Nilai akan divalidasi ulang.
+              Perbaiki nilai hasil ekstraksi berkas. Kolom yang dibiarkan kosong tidak diubah. Nilai akan divalidasi ulang.
             </DialogDescription>
           </DialogHeader>
           {editForm ? (

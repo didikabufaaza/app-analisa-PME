@@ -185,7 +185,7 @@ export function ReportsView() {
             className="border-teal-600 text-teal-800 dark:text-teal-300 hover:bg-teal-50"
           >
             <FileText className="mr-1.5 h-4 w-4 text-teal-600" />
-            {exporting === "pdf" ? "Mengunduh..." : "PDF Model 1 (Z-Score AI)"}
+            {exporting === "pdf" ? "Mengunduh..." : "PDF Model 1 (Laporan Evaluasi)"}
           </Button>
 
           <Button
@@ -429,7 +429,7 @@ export function ReportsView() {
                     <th className="p-3 font-semibold text-muted-foreground min-w-[140px]">Hasil Peserta & Target</th>
                     <th className="p-3 font-semibold text-muted-foreground w-24 text-center">Z-Score</th>
                     <th className="p-3 font-semibold text-muted-foreground w-32 text-center">Status Evaluasi</th>
-                    <th className="p-3 font-semibold text-muted-foreground min-w-[280px]">Interpretasi & Rencana Perbaikan (AI)</th>
+                    <th className="p-3 font-semibold text-muted-foreground min-w-[280px]">Interpretasi & Rencana Perbaikan</th>
                     <th className="p-3 font-semibold text-muted-foreground w-28 text-center">CAPA</th>
                   </tr>
                 </thead>
@@ -489,7 +489,7 @@ export function ReportsView() {
                               Hasil memuaskan. Pertahankan pemeliharaan berkala instrumen dan kontrol IQC.
                             </p>
                           ) : (
-                            <p className="text-[11px] text-muted-foreground italic">Belum ada analisis AI tersimpan.</p>
+                            <p className="text-[11px] text-muted-foreground italic">Belum ada analisis evaluasi tersimpan.</p>
                           )}
                         </td>
                         <td className="p-3 text-center">

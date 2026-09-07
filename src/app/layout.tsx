@@ -14,10 +14,10 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "didikpme — PME AI Z-Score Analyzer",
+  title: "didikpme — Evaluasi Z-Score & PME Laboratorium",
   description:
-    "Aplikasi SaaS AI untuk membaca, memvalidasi, dan menganalisis hasil Pemantapan Mutu Eksternal (PME) laboratorium dari file PDF secara otomatis.",
-  keywords: ["PME", "Z-score", "laboratorium klinik", "proficiency testing", "EQAS", "AI analyzer"],
+    "Sistem otomatis untuk membaca, memvalidasi, dan mengevaluasi hasil Pemantapan Mutu Eksternal (PME) laboratorium klinik dari berkas laporan.",
+  keywords: ["PME", "Z-score", "laboratorium klinik", "proficiency testing", "EQAS", "evaluasi mutu"],
   authors: [{ name: "didikpme" }],
   icons: {
     icon: "/logo.svg",

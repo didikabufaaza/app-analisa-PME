@@ -43,7 +43,7 @@ const VIEW_TITLES: Record<AppView, string> = {
   sessions: "Sesi PME",
   "session-detail": "Detail Sesi PME",
   reports: "Laporan Lengkap & Evaluasi Mutu",
-  review: "AI Review Center",
+  review: "Pusat Verifikasi Data",
   capa: "Tindakan Korektif & Preventif (CAPA)",
   settings: "Pengaturan",
   audit: "Log Audit",
@@ -133,7 +133,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       </div>
       <div className="leading-tight">
         <p className="text-base font-bold tracking-tight">didikpme</p>
-        <p className="text-[10px] text-muted-foreground">PME AI Z-Score Analyzer</p>
+        <p className="text-[10px] text-muted-foreground">Evaluasi Z-Score & PME</p>
       </div>
     </div>
   );
@@ -142,17 +142,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="mx-3 mb-3 rounded-lg border bg-muted/40 p-3">
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1 font-medium">
-          <Sparkles className="h-3 w-3 text-teal-600" /> Kuota AI bulan ini
+          <Sparkles className="h-3 w-3 text-teal-600" /> Kapasitas Evaluasi Bulanan
         </span>
         <button onClick={() => refreshUser()} aria-label="Segarkan kuota">
           <RefreshCw className="h-3 w-3 hover:text-foreground" />
         </button>
       </div>
       <div className="mt-1.5">
-        <Progress value={usagePct} className="h-1.5" aria-label={`Penggunaan kuota AI ${usagePct}%`} />
+        <Progress value={usagePct} className="h-1.5" aria-label={`Kapasitas evaluasi ${usagePct}%`} />
       </div>
       <p className="mt-1.5 text-[11px] text-muted-foreground">
-        {usage.used}/{usage.limit} analisis · plan {user.organization.plan}
+        {usage.used}/{usage.limit} evaluasi · plan {user.organization.plan}
       </p>
     </div>
   ) : null;
@@ -267,9 +267,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <footer className="mt-auto border-t bg-muted/30">
           <div className="flex flex-col items-center justify-between gap-1 px-4 py-3.5 text-xs text-muted-foreground sm:flex-row sm:px-6">
             <p>
-              <span className="font-semibold text-foreground/70">didikpme</span> — PME AI Z-Score Analyzer · Gemini AI Edition
+              <span className="font-semibold text-foreground/70">didikpme</span> — Evaluasi Z-Score & PME Laboratorium · Standar ISO 15189
             </p>
-            <p>© {new Date().getFullYear()} didikpme. Status akhir Z-score ditentukan rule engine deterministik.</p>
+            <p>© {new Date().getFullYear()} didikpme. Evaluasi akhir Z-score diverifikasi sesuai standar mutu.</p>
           </div>
         </footer>
       </div>

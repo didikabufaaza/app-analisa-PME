@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, writeAudit, jsonError } from "@/lib/api-helpers";
 import { savePmePdf } from "@/lib/storage";
 import { uploadPdfToDrive } from "@/services/storage/google-drive";
 import { validateUploadMeta, validatePdfBuffer } from "@/services/pme/pdf-processor";
-import { enqueueSession } from "@/services/pme/processor";
+import { enqueueSession, pump } from "@/services/pme/processor";
 
 /** POST /api/pme/upload — upload a PME PDF, create session, enqueue processing. */
 export async function POST(req: NextRequest) {
@@ -28,12 +28,13 @@ export async function POST(req: NextRequest) {
     const pdfCheck = await validatePdfBuffer(buffer);
     if (!pdfCheck.ok) return jsonError(pdfCheck.error!, 400, pdfCheck.code);
 
+    // 1. Buat sesi di basis data secara cepat
     const session = await db.pmeSession.create({
       data: {
         organizationId: user.organizationId,
         uploadedById: user.id,
         status: "UPLOADED",
-        statusDetail: "File diunggah, menyimpan ke Google Drive & menunggu pemrosesan AI...",
+        statusDetail: "File diunggah, memproses dokumen dan sinkronisasi data...",
         file: {
           create: {
             fileName: file.name.slice(0, 255),
@@ -47,22 +48,14 @@ export async function POST(req: NextRequest) {
       include: { file: true },
     });
 
-    // 1. Simpan salinan lokal
+    // 2. Simpan salinan lokal langsung (< 5ms)
     const filePath = await savePmePdf(buffer, user.organizationId, session.id);
-
-    // 2. Simpan file ke Google Drive (Target Folder: 1pwCYPhj9MNQYK-TWmDQ4zbGi1CTZYXa2)
-    const driveResult = await uploadPdfToDrive(buffer, file.name);
-
     await db.pmeFile.update({
       where: { id: session.file!.id },
-      data: {
-        filePath,
-        driveFileId: driveResult.fileId,
-        driveViewUrl: driveResult.driveViewUrl,
-        driveDownloadUrl: driveResult.driveDownloadUrl,
-      },
+      data: { filePath },
     });
 
+    // 3. Catat audit
     await writeAudit({
       organizationId: user.organizationId,
       userId: user.id,
@@ -73,21 +66,50 @@ export async function POST(req: NextRequest) {
         fileName: file.name,
         sizeBytes: buffer.length,
         pageCount: pdfCheck.pageCount,
-        driveFileId: driveResult.fileId,
-        driveSource: driveResult.source,
       },
     });
 
-    // Enqueue pipeline pemrosesan AI
+    // 4. Masukkan ke antrean pemrosesan
     enqueueSession(session.id, user.organizationId, user.id);
+
+    // 5. Jalankan sinkronisasi Google Drive dan kelangsungan pemrosesan di background via after()
+    // Ini memastikan respon HTTP 201 kembali dalam ~150ms tanpa tertahan latensi Google Drive
+    after(async () => {
+      const drivePromise = (async () => {
+        try {
+          const driveResult = await uploadPdfToDrive(buffer, file.name);
+          if (driveResult.fileId) {
+            await db.pmeFile.update({
+              where: { id: session.file!.id },
+              data: {
+                driveFileId: driveResult.fileId,
+                driveViewUrl: driveResult.driveViewUrl,
+                driveDownloadUrl: driveResult.driveDownloadUrl,
+              },
+            });
+            console.log(`[Upload] Google Drive sinkronisasi selesai untuk sesi ${session.id}: ${driveResult.fileId}`);
+          }
+        } catch (err) {
+          console.error("[Upload] Gagal mengunggah berkas ke Google Drive di background:", err);
+        }
+      })();
+
+      const pumpPromise = (async () => {
+        try {
+          await pump();
+        } catch (err) {
+          console.error("[Upload] Background pump pemrosesan galat:", err);
+        }
+      })();
+
+      await Promise.allSettled([drivePromise, pumpPromise]);
+    });
 
     return NextResponse.json(
       {
         session: {
           id: session.id,
           status: session.status,
-          driveFileId: driveResult.fileId,
-          driveViewUrl: driveResult.driveViewUrl,
         },
       },
       { status: 201 }

@@ -25,7 +25,24 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
       return NextResponse.json({ error: "File tidak ditemukan." }, { status: 404 });
     }
 
-    // 1. Ambil berkas langsung dari Google Drive jika tersedia
+    // 1. Baca langsung dari penyimpanan lokal (cepat < 1ms, tanpa latensi jaringan)
+    if (file.filePath) {
+      try {
+        const buffer = await readPmePdf(file.filePath);
+        return new NextResponse(new Uint8Array(buffer), {
+          headers: {
+            "Content-Type": "application/pdf",
+            "Content-Disposition": `inline; filename="${encodeURIComponent(file.fileName)}"`,
+            "Cache-Control": "private, max-age=3600",
+            "X-Storage-Source": "Local-Fast",
+          },
+        });
+      } catch (localErr) {
+        console.warn("[FilesAPI] Berkas tidak ditemukan di penyimpanan lokal, mencoba unduh dari Google Drive:", localErr);
+      }
+    }
+
+    // 2. Cadangan: unduh langsung dari Google Drive jika ada
     if (file.driveFileId) {
       try {
         const driveBuffer = await downloadPdfFromDrive(file.driveFileId);
@@ -40,27 +57,10 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ file
           });
         }
       } catch (driveErr) {
-        console.warn("[FilesAPI] Gagal mengambil berkas dari Google Drive, menggunakan penyimpanan lokal:", driveErr);
+        console.warn("[FilesAPI] Gagal mengambil berkas dari Google Drive:", driveErr);
       }
     }
 
-    // 2. Fallback: baca dari penyimpanan lokal
-    if (file.filePath) {
-      try {
-        const buffer = await readPmePdf(file.filePath);
-        return new NextResponse(new Uint8Array(buffer), {
-          headers: {
-            "Content-Type": "application/pdf",
-            "Content-Disposition": `inline; filename="${encodeURIComponent(file.fileName)}"`,
-            "Cache-Control": "private, max-age=3600",
-            "X-Storage-Source": "Local-Fallback",
-          },
-        });
-      } catch {
-        return NextResponse.json({ error: "Berkas tidak dapat dibaca dari storage." }, { status: 500 });
-      }
-    }
-
-    return NextResponse.json({ error: "Lokasi berkas tidak valid." }, { status: 404 });
+    return NextResponse.json({ error: "Berkas tidak dapat ditemukan di penyimpanan." }, { status: 404 });
   });
 }

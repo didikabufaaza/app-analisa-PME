@@ -37,13 +37,13 @@ export function isProcessing(sessionId: string): boolean {
   return queue.activeSessionIds.has(sessionId);
 }
 
-export function enqueueSession(sessionId: string, organizationId: string, userId?: string | null): void {
-  if (queue.activeSessionIds.has(sessionId)) return;
+export function enqueueSession(sessionId: string, organizationId: string, userId?: string | null): Promise<void> {
+  if (queue.activeSessionIds.has(sessionId)) return Promise.resolve();
   queue.jobs.push({ sessionId, organizationId, userId });
-  void pump();
+  return pump();
 }
 
-async function pump(): Promise<void> {
+export async function pump(): Promise<void> {
   if (queue.running) return;
   queue.running = true;
   try {
@@ -125,25 +125,31 @@ export async function processSession(job: Job): Promise<void> {
     await setStage(sessionId, "EXTRACTING", "Membaca & mengklasifikasi dokumen PDF...");
     await logStage(sessionId, "CLASSIFY", "STARTED");
     let buffer: Buffer | null = null;
-    if (session.file.driveFileId) {
+    // 1. Prioritaskan membaca langsung dari penyimpanan lokal (sangat cepat < 1ms)
+    if (session.file.filePath) {
+      try {
+        buffer = await readPmePdf(session.file.filePath);
+      } catch (e) {
+        console.warn("[processor] Gagal membaca dari storage lokal, mencoba Google Drive:", e);
+      }
+    }
+    // 2. Cadangan jika berkas lokal tidak ada (misalnya cold restart serverless)
+    if (!buffer && session.file.driveFileId) {
       try {
         buffer = await downloadPdfFromDrive(session.file.driveFileId);
       } catch (e) {
-        console.warn("[processor] Gagal membaca dari Google Drive, mencoba storage lokal:", e);
+        console.warn("[processor] Gagal membaca dari Google Drive:", e);
       }
     }
-    if (!buffer && session.file.filePath) {
-      buffer = await readPmePdf(session.file.filePath);
-    }
     if (!buffer) {
-      throw new Error("Berkas PDF tidak dapat ditemukan di Google Drive maupun di storage lokal.");
+      throw new Error("Berkas PDF tidak dapat ditemukan di penyimpanan lokal maupun di Google Drive.");
     }
     const doc = await normalizeDocument(buffer, session.file.fileName, true);
     await db.pmeFile.update({ where: { id: session.file.id }, data: { pageCount: doc.pageCount, pdfClass: doc.pdfClass } });
     await logStage(sessionId, "CLASSIFY", "SUCCESS", `${doc.pdfClass}, ${doc.pageCount} halaman`);
 
-    /* ---------- 2. AI extraction (Gemini primary, fallback enabled) ---------- */
-    await setStage(sessionId, "EXTRACTING", "AI sedang membaca dokumen (ekstraksi data)...");
+    /* ---------- 2. Data extraction (Gemini primary, fallback enabled) ---------- */
+    await setStage(sessionId, "EXTRACTING", "Sistem sedang membaca dokumen (ekstraksi data)...");
     await logStage(sessionId, "EXTRACT", "STARTED");
 
     const { extraction, providerName } = await extractPMEData(
@@ -249,9 +255,9 @@ export async function processSession(job: Job): Promise<void> {
       : `${dataRows.length} hasil divalidasi (aturan ${rule.ruleVersion})`;
     await logStage(sessionId, "VALIDATE", "SUCCESS", validateMsg);
 
-    /* ---------- 4. AI analysis for non-satisfactory results ---------- */
+    /* ---------- 4. Evaluation for non-satisfactory results ---------- */
     if (hasReview) {
-      await setStage(sessionId, "REVIEW_REQUIRED", "Beberapa data memerlukan review manual sebelum analisis AI.");
+      await setStage(sessionId, "REVIEW_REQUIRED", "Beberapa data memerlukan review manual sebelum evaluasi lanjutan.");
       await logStage(sessionId, "COMPLETE", "SUCCESS", "Status: REVIEW_REQUIRED");
       return;
     }
@@ -274,14 +280,14 @@ export async function processSession(job: Job): Promise<void> {
 }
 
 /**
- * Analyze stage: AI interpretation for WARNING/UNSATISFACTORY results.
+ * Analyze stage: interpretation for WARNING/UNSATISFACTORY results.
  * Satisfactory results are marked SKIPPED (available on-demand from the UI).
  */
 export async function runAnalysisStage(sessionId: string, organizationId: string, userId?: string | null, limit = 10, singleResultId?: string): Promise<{ analyzed: number; skippedQuota: boolean }> {
   const session = await db.pmeSession.findFirst({ where: { id: sessionId, organizationId } });
   if (!session) return { analyzed: 0, skippedQuota: false };
 
-  await setStage(sessionId, "ANALYZING", "AI menganalisis hasil yang perlu perhatian...");
+  await setStage(sessionId, "ANALYZING", "Sistem menganalisis hasil yang perlu perhatian...");
 
   const candidates = await db.pmeResult.findMany({
     where: {
@@ -334,8 +340,8 @@ export async function runAnalysisStage(sessionId: string, organizationId: string
   let analyzed = 0;
   let skippedQuota = false;
 
-  // Analisis kandidat secara paralel (concurrency batch: 3) untuk memangkas waktu proses hingga 300%
-  const BATCH_SIZE = 3;
+  // Analisis kandidat secara paralel (concurrency batch: 4) untuk memangkas waktu proses hingga maksimal
+  const BATCH_SIZE = 4;
   for (let i = 0; i < candidates.length; i += BATCH_SIZE) {
     const batch = candidates.slice(i, i + BATCH_SIZE);
     await Promise.all(

@@ -1,7 +1,7 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { withAuth, writeAudit } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
-import { enqueueSession, isProcessing } from "@/services/pme/processor";
+import { enqueueSession, isProcessing, pump } from "@/services/pme/processor";
 
 /** POST /api/pme/:id/process — (re)process a session through the full pipeline. */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -23,6 +23,15 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       entityId: id,
     });
     enqueueSession(id, user.organizationId, user.id);
+
+    after(async () => {
+      try {
+        await pump();
+      } catch (err) {
+        console.error("[reprocess] pump error:", err);
+      }
+    });
+
     return NextResponse.json({ ok: true, status: "UPLOADED" });
   });
 }

@@ -1,10 +1,10 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, writeAudit } from "@/lib/api-helpers";
 import { runAnalysisStage, isProcessing } from "@/services/pme/processor";
 import { QuotaExceededError, countMonthlyUsage } from "@/services/ai/extraction-service";
 
-/** POST /api/pme/:id/analyze — run AI analysis for all pending results of the session (async). */
+/** POST /api/pme/:id/analyze — run analysis for all pending results of the session (async). */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(req, async ({ user }) => {
     const { id } = await params;
@@ -15,7 +15,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     const used = await countMonthlyUsage(user.organizationId);
     if (used >= user.organization.monthlyAiLimit) {
       return NextResponse.json(
-        { error: "Kuota analisis AI bulan ini telah tercapai.", code: "AI_USAGE_LIMIT_REACHED" },
+        { error: "Kuota analisis bulan ini telah tercapai.", code: "USAGE_LIMIT_REACHED" },
         { status: 429 }
       );
     }
@@ -28,13 +28,17 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       entityId: id,
     });
 
-    // fire-and-forget; the UI polls GET /api/pme/:id for progress
-    void runAnalysisStage(id, user.organizationId, user.id).catch((err) => {
-      console.error("[analyze-session-async]", err);
-      if (!(err instanceof QuotaExceededError)) {
-        void db.pmeSession
-          .update({ where: { id }, data: { status: "COMPLETED", statusDetail: "Analisis selesai dengan sebagian galat." } })
-          .catch(() => undefined);
+    // Execute in background via after() to guarantee serverless execution survives response
+    after(async () => {
+      try {
+        await runAnalysisStage(id, user.organizationId, user.id);
+      } catch (err) {
+        console.error("[analyze-session-async]", err);
+        if (!(err instanceof QuotaExceededError)) {
+          await db.pmeSession
+            .update({ where: { id }, data: { status: "COMPLETED", statusDetail: "Analisis selesai dengan sebagian catatan." } })
+            .catch(() => undefined);
+        }
       }
     });
 

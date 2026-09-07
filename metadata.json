@@ -1,6 +1,0 @@
-{
-  "name": "Evaluasi PME Hematologi - BBLK Palembang",
-  "description": "Format evaluasi Pemantauan Mutu Eksternal (PME) Hematologi kelompok per parameter berdasarkan data Lapor Hasil BBLK Palembang 2025.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}

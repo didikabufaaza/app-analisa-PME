@@ -1,0 +1,266 @@
+// PME AI Analyzer - didikpme
+// Prisma schema (SQLite adaptation of PRD PostgreSQL spec)
+// JSON fields are stored as TEXT containing serialized JSON (SQLite has no JSONB)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Organization {
+  id             String   @id @default(cuid())
+  name           String
+  slug           String   @unique
+  plan           String   @default("FREE") // FREE | PRO | ENTERPRISE
+  monthlyAiLimit Int      @default(10)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  users        User[]
+  laboratories Laboratory[]
+  pmeSessions  PmeSession[]
+  aiUsageLogs  AiUsageLog[]
+  auditLogs    AuditLog[]
+  capaActions  CapaAction[]
+  zscoreRules  ZscoreRule[]
+}
+
+model Laboratory {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  code           String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId])
+}
+
+model User {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  email          String   @unique
+  passwordHash   String
+  role           String   @default("ADMIN") // SUPERADMIN | ADMIN | SUPERVISOR | ANALYST
+  menuAccess     String?  // JSON array of accessible menu keys e.g. ["dashboard","sessions","reports"]
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  aiUsageLogs AiUsageLog[]
+  auditLogs   AuditLog[]
+
+  @@index([organizationId])
+}
+
+model PmeSession {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  uploadedById   String?
+  provider       String? // PME provider e.g. "IKMLI", "PROMAN"
+  program        String?
+  cycle          String?
+  period         String?
+  participantId  String?
+  laboratoryName String?
+  status         String   @default("UPLOADED") // UPLOADED | EXTRACTING | VALIDATING | REVIEW_REQUIRED | ANALYZING | COMPLETED | FAILED
+  statusDetail   String? // human readable processing stage detail
+  errorMessage   String?
+  errorCode      String? // AI_USAGE_LIMIT_REACHED | GEMINI_API_ERROR | ...
+  ruleVersion    String? // z-score rule version used
+  aiProvider     String? // provider used for extraction (gemini / internal-fallback)
+  rawExtraction  String? // JSON text of raw AI extraction
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  file         PmeFile?
+  results      PmeResult[]
+  aiUsageLogs  AiUsageLog[]
+  extractionLogs ExtractionLog[]
+  capaActions  CapaAction[]
+  reports      Report[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+}
+
+model PmeFile {
+  id               String   @id @default(cuid())
+  sessionId        String   @unique
+  session          PmeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  fileName         String
+  filePath         String
+  driveFileId      String?
+  driveViewUrl     String?
+  driveDownloadUrl String?
+  mimeType         String
+  sizeBytes        Int
+  pageCount        Int?
+  pdfClass         String? // TEXT_PDF | SCANNED_PDF | MIXED_PDF
+  createdAt        DateTime @default(now())
+}
+
+model PmeResult {
+  id                    String   @id @default(cuid())
+  sessionId             String
+  session               PmeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  organizationId        String
+  parameterName         String
+  participantValue      Float?
+  targetValue           Float?
+  sdpa                  Float? // SD for proficiency assessment (from Target/Sdpa stacked column)
+  zScore                Float?
+  unit                  String?
+  method                String?
+  instrument            String?
+  peerGroup             String? // peer group used for stats: e.g. "Seluruh Peserta" | "Kelompok Metode" | "Kelompok Alat"
+  providerRemark        String? // provider's own assessment, e.g. "OK | Memuaskan"
+  parameterConfidence   Float    @default(0)
+  participantConfidence Float    @default(0)
+  targetConfidence      Float    @default(0)
+  zScoreConfidence      Float    @default(0)
+  sourcePage            Int?
+  sourceText            String?
+  sourceBbox            String? // JSON text e.g. [x1,y1,x2,y2]
+  validationStatus      String   @default("VALID") // VALID | REVIEW_REQUIRED
+  analysisStatus        String   @default("PENDING") // PENDING | DONE | SKIPPED
+  reviewStatus          String   @default("NONE") // NONE | ACCEPTED | EDITED | REJECTED
+  issues                String? // JSON array of issue codes: LOW_CONFIDENCE | MISSING_Z_SCORE | MISSING_VALUE | SIGN_CONFLICT | OCR_CONFLICT
+  zStatus               String? // SATISFACTORY | WARNING | UNSATISFACTORY (computed by backend rule engine)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  aiAnalysis  AiAnalysis?
+  capaActions CapaAction[]
+
+  @@index([sessionId])
+  @@index([organizationId, validationStatus])
+  @@index([organizationId, zStatus])
+}
+
+model AiAnalysis {
+  id                 String   @id @default(cuid())
+  resultId           String   @unique
+  result             PmeResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  interpretation     String
+  possibleCauses     String // JSON array [{category, text}]
+  investigationSteps String // JSON array of strings
+  correctiveActions  String // JSON array of strings
+  preventiveActions  String // JSON array of strings
+  provider           String
+  model              String
+  promptVersion      String
+  createdAt          DateTime @default(now())
+
+  @@index([resultId])
+}
+
+model AiUsageLog {
+  id               String   @id @default(cuid())
+  organizationId   String
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId           String?
+  user             User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  pmeSessionId     String?
+  pmeSession       PmeSession? @relation(fields: [pmeSessionId], references: [id], onDelete: SetNull)
+  provider         String
+  model            String
+  operation        String // PDF_EXTRACTION | PME_ANALYSIS | REPORT_ANALYSIS
+  inputTokens      Int      @default(0)
+  outputTokens     Int      @default(0)
+  totalTokens      Int      @default(0)
+  processingTimeMs Int      @default(0)
+  status           String   @default("SUCCESS") // SUCCESS | FAILED
+  errorMessage     String?
+  createdAt        DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, operation])
+}
+
+model CapaAction {
+  id                  String   @id @default(cuid())
+  organizationId      String
+  organization        Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  sessionId           String?
+  session             PmeSession? @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+  resultId            String?
+  result              PmeResult? @relation(fields: [resultId], references: [id], onDelete: SetNull)
+  problem             String
+  finding             String?
+  rootCause           String?
+  immediateCorrection String?
+  correctiveAction    String?
+  preventiveAction    String?
+  pic                 String?
+  dueDate             DateTime?
+  verification        String?
+  evidence            String?
+  status              String   @default("OPEN") // OPEN | IN_PROGRESS | CLOSED
+  closedAt            DateTime?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  @@index([organizationId, status])
+}
+
+model ZscoreRule {
+  id                String   @id @default(cuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  ruleVersion       String
+  satisfactoryLimit Float    @default(2)
+  warningLimit      Float    @default(3)
+  effectiveDate     DateTime @default(now())
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+
+  @@index([organizationId, isActive])
+}
+
+model AuditLog {
+  id             String   @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String?
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  action         String // LOGIN | LOGOUT | UPLOAD | DELETE_SESSION | EDIT_RESULT | REVIEW_ACCEPT | REVIEW_REJECT | REPROCESS | CREATE_CAPA | UPDATE_CAPA | UPDATE_RULES | GENERATE_REPORT | ANALYZE
+  entityType     String?
+  entityId       String?
+  details        String? // JSON text
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, createdAt])
+}
+
+model Report {
+  id             String   @id @default(cuid())
+  organizationId String
+  sessionId      String
+  session        PmeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  format         String // PDF | EXCEL
+  fileName       String
+  generatedById  String?
+  createdAt      DateTime @default(now())
+
+  @@index([organizationId, sessionId])
+}
+
+model ExtractionLog {
+  id         String   @id @default(cuid())
+  sessionId  String
+  session    PmeSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  stage      String // CLASSIFY | EXTRACT | VALIDATE | ANALYZE | COMPLETE
+  status     String // STARTED | SUCCESS | FAILED
+  message    String?
+  createdAt  DateTime @default(now())
+
+  @@index([sessionId])
+}

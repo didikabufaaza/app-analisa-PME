@@ -13,37 +13,37 @@ export async function GET(req: NextRequest) {
     const status = url.searchParams.get("status")?.trim() || "";
     const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
 
-    const sessions = await db.pmeSession.findMany({
-      where: {
-        ...orgFilter,
-        ...(status ? { status } : {}),
-        ...(q
-          ? {
-              OR: [
-                { provider: { contains: q } },
-                { program: { contains: q } },
-                { cycle: { contains: q } },
-                { period: { contains: q } },
-                { laboratoryName: { contains: q } },
-                { file: { fileName: { contains: q } } },
-              ],
-            }
-          : {}),
-      },
-      include: {
-        file: { select: { fileName: true, sizeBytes: true, pageCount: true, pdfClass: true } },
-        _count: { select: { results: true, capaActions: true } },
-      },
-      orderBy: { createdAt: "desc" },
-      take: limit,
-    });
-
-    // status counts for the current tenant / view
-    const statusCounts = await db.pmeSession.groupBy({
-      by: ["status"],
-      where: orgFilter,
-      _count: { _all: true },
-    });
+    const [sessions, statusCounts] = await Promise.all([
+      db.pmeSession.findMany({
+        where: {
+          ...orgFilter,
+          ...(status ? { status } : {}),
+          ...(q
+            ? {
+                OR: [
+                  { provider: { contains: q } },
+                  { program: { contains: q } },
+                  { cycle: { contains: q } },
+                  { period: { contains: q } },
+                  { laboratoryName: { contains: q } },
+                  { file: { fileName: { contains: q } } },
+                ],
+              }
+            : {}),
+        },
+        include: {
+          file: { select: { fileName: true, sizeBytes: true, pageCount: true, pdfClass: true } },
+          _count: { select: { results: true, capaActions: true } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      db.pmeSession.groupBy({
+        by: ["status"],
+        where: orgFilter,
+        _count: { _all: true },
+      }),
+    ]);
 
     return NextResponse.json({
       sessions: sessions.map((s) => ({

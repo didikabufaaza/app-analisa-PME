@@ -1,6 +1,5 @@
 "use client";
 
-import { useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { LoginView } from "@/components/app/login-view";
 import { AppShell } from "@/components/app/app-shell";
@@ -15,38 +14,9 @@ import { AuditView } from "@/components/views/audit-view";
 import { UsersView } from "@/components/views/users-view";
 
 export default function Home() {
-  const { user, authLoading, setAuthLoading, view } = useAppStore();
+  const { user, view } = useAppStore();
 
-  // Initial session check
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const res = await fetch("/api/auth/me", { credentials: "same-origin" });
-        const data = res.ok ? await res.json() : null;
-        if (!cancelled) useAppStore.getState().setUser(data?.user ?? null);
-      } catch {
-        /* offline */
-      } finally {
-        if (!cancelled) setAuthLoading(false);
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  if (authLoading) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-3">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-teal-600/25 border-t-teal-700" />
-          <p className="text-sm text-muted-foreground">Memuat didikpme...</p>
-        </div>
-      </div>
-    );
-  }
-
+  // Setiap membuka aplikasi, wajib menampilkan form login terlebih dahulu
   if (!user) return <LoginView />;
 
   return (

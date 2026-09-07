@@ -6,8 +6,13 @@
  */
 import { promises as fs } from "fs";
 import { join } from "path";
+import { tmpdir } from "os";
 
-const STORAGE_ROOT = process.env.STORAGE_ROOT || join(process.cwd(), "storage");
+const STORAGE_ROOT =
+  process.env.STORAGE_ROOT ||
+  (process.env.VERCEL || process.env.AWS_LAMBDA_FUNCTION_NAME
+    ? join(tmpdir(), "pme-storage")
+    : join(process.cwd(), "storage"));
 
 export function buildPmePdfPath(organizationId: string, sessionId: string): string {
   return join(STORAGE_ROOT, organizationId, "pme", sessionId, "original.pdf");

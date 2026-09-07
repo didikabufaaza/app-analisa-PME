@@ -38,7 +38,7 @@ function getInitialTenantCookie(): string | null {
 
 export const useAppStore = create<AppState>((set, get) => ({
   user: null,
-  authLoading: true,
+  authLoading: false,
   view: "dashboard",
   activeSessionId: null,
   sidebarOpen: false,

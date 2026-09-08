@@ -87,6 +87,55 @@ export function getEffectiveOrgId(user: AuthenticatedUser, req: NextRequest): st
   return user.organizationId;
 }
 
+/**
+ * Filter audit log agar hanya mencatat aktivitas penting:
+ * 1. Upload (mengupload)
+ * 2. Create CAPA (creat CAPA)
+ * 3. Delete (delete sesi/pengguna/dsb)
+ * 4. Analyze (analisis)
+ * 5. Reprocess (reproses)
+ * Menghindari beban penyimpanan database.
+ */
+export function isAuditActionPermitted(action: string): boolean {
+  const act = action.toUpperCase().trim();
+  if (act.includes("UPLOAD")) return true;
+  if (act.includes("CREATE_CAPA") || act.includes("CAPA_CREATE")) return true;
+  if (act.includes("DELETE")) return true;
+  if (act.includes("ANALYZE")) return true;
+  if (act.includes("REPROCESS")) return true;
+  return false;
+}
+
+/**
+ * Autodelete log audit permanen setiap 2 hari (retensi 48 jam).
+ * Menghapus rekaman yang lebih lama dari 2 hari lalu.
+ */
+let lastPurgeTimestamp = 0;
+export async function purgeOldAuditLogs(force = false): Promise<number> {
+  const now = Date.now();
+  // Throttle auto-delete maksimal sekali setiap 5 menit agar tidak membebani query
+  if (!force && now - lastPurgeTimestamp < 5 * 60 * 1000) {
+    return 0;
+  }
+  lastPurgeTimestamp = now;
+
+  try {
+    const twoDaysAgo = new Date(now - 2 * 24 * 60 * 60 * 1000);
+    const deleted = await db.auditLog.deleteMany({
+      where: {
+        createdAt: { lt: twoDaysAgo },
+      },
+    });
+    if (deleted.count > 0) {
+      console.log(`[audit-purge] Menghapus permanen ${deleted.count} log audit yang lebih lama dari 2 hari.`);
+    }
+    return deleted.count;
+  } catch (err) {
+    console.error("[audit-purge-failed]", err);
+    return 0;
+  }
+}
+
 export async function writeAudit(params: {
   organizationId: string;
   userId?: string | null;
@@ -95,7 +144,15 @@ export async function writeAudit(params: {
   entityId?: string;
   details?: unknown;
 }) {
+  // Hanya catat aksi yang diizinkan (upload, create CAPA, delete, analyze, reproses)
+  if (!isAuditActionPermitted(params.action)) {
+    return;
+  }
+
   try {
+    // Jalankan pembersihan berkala log lama (> 2 hari)
+    void purgeOldAuditLogs();
+
     await db.auditLog.create({
       data: {
         organizationId: params.organizationId,

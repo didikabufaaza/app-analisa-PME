@@ -21,13 +21,15 @@ interface AppState {
   activeSessionId: string | null;
   sidebarOpen: boolean;
   viewAsTenantId: string | null;
+  logoutReason: string | null;
   setUser: (user: UserInfo | null) => void;
   setAuthLoading: (loading: boolean) => void;
+  setLogoutReason: (reason: string | null) => void;
   navigate: (view: AppView, sessionId?: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   setViewAsTenantId: (tenantId: string | null) => void;
   refreshUser: () => Promise<void>;
-  logout: () => Promise<void>;
+  logout: (reason?: string | null) => Promise<void>;
 }
 
 function getInitialTenantCookie(): string | null {
@@ -43,8 +45,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   activeSessionId: null,
   sidebarOpen: false,
   viewAsTenantId: getInitialTenantCookie() || "ALL",
+  logoutReason: null,
   setUser: (user) => set({ user }),
   setAuthLoading: (authLoading) => set({ authLoading }),
+  setLogoutReason: (logoutReason) => set({ logoutReason }),
   navigate: (view, sessionId = null) =>
     set({ view, activeSessionId: sessionId, sidebarOpen: false }),
   setSidebarOpen: (sidebarOpen) => set({ sidebarOpen }),
@@ -73,12 +77,18 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ user: null });
     }
   },
-  logout: async () => {
+  logout: async (reason = null) => {
     if (typeof document !== "undefined") {
       document.cookie = `didikpme_view_as_tenant=; path=/; max-age=0; SameSite=Lax`;
     }
     await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
-    set({ user: null, view: "dashboard", activeSessionId: null, viewAsTenantId: "ALL" });
+    set({
+      user: null,
+      view: "dashboard",
+      activeSessionId: null,
+      viewAsTenantId: "ALL",
+      logoutReason: reason ?? null,
+    });
   },
 }));
 

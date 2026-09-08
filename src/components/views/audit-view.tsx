@@ -31,22 +31,26 @@ import {
 type BadgeStyle = string;
 
 const ACTION_BADGE: Record<string, BadgeStyle> = {
-  LOGIN: "bg-slate-100 text-slate-700 border-slate-200",
   UPLOAD: "bg-teal-100 text-teal-800 border-teal-200",
-  DELETE_SESSION: "bg-red-100 text-red-800 border-red-200",
-  EDIT_RESULT: "bg-amber-100 text-amber-800 border-amber-200",
-  REVIEW_ACCEPT: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  REVIEW_REJECT: "bg-red-100 text-red-800 border-red-200",
-  REPROCESS: "bg-teal-100 text-teal-800 border-teal-200",
   CREATE_CAPA: "bg-violet-100 text-violet-800 border-violet-200",
-  UPDATE_CAPA: "bg-violet-100 text-violet-800 border-violet-200",
-  UPDATE_RULES: "bg-amber-100 text-amber-800 border-amber-200",
-  GENERATE_REPORT: "bg-emerald-100 text-emerald-800 border-emerald-200",
-  ANALYZE: "bg-teal-100 text-teal-800 border-teal-200",
-  REGISTER: "bg-emerald-100 text-emerald-800 border-emerald-200",
+  DELETE_SESSION: "bg-red-100 text-red-800 border-red-200",
+  DELETE_USER: "bg-red-100 text-red-800 border-red-200",
+  ANALYZE: "bg-blue-100 text-blue-800 border-blue-200",
+  REPROCESS: "bg-amber-100 text-amber-800 border-amber-200",
 };
 
 const DEFAULT_BADGE = "bg-slate-100 text-slate-700 border-slate-200";
+
+function getActionBadge(action: string): string {
+  const act = action.toUpperCase();
+  if (ACTION_BADGE[act]) return ACTION_BADGE[act];
+  if (act.includes("DELETE")) return "bg-red-100 text-red-800 border-red-200";
+  if (act.includes("UPLOAD")) return "bg-teal-100 text-teal-800 border-teal-200";
+  if (act.includes("CAPA")) return "bg-violet-100 text-violet-800 border-violet-200";
+  if (act.includes("ANALYZE")) return "bg-blue-100 text-blue-800 border-blue-200";
+  if (act.includes("REPROCESS")) return "bg-amber-100 text-amber-800 border-amber-200";
+  return DEFAULT_BADGE;
+}
 
 function fmtTimestamp(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -141,7 +145,9 @@ export function AuditView() {
               <span className="text-sm font-normal text-muted-foreground">({filtered.length} entri)</span>
             ) : null}
           </CardTitle>
-          <CardDescription>Daftar semua aksi penting yang terjadi pada sistem.</CardDescription>
+          <CardDescription>
+            Jejak aktivitas penting (Unggah, Buat CAPA, Hapus, Analisis, Reproses) dengan autodelete permanen otomatis setiap 2 hari untuk efisiensi penyimpanan database.
+          </CardDescription>
           <div className="relative mt-1 max-w-sm">
             <Search className="absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
             <Input
@@ -212,7 +218,7 @@ export function AuditView() {
                             </div>
                           </TableCell>
                           <TableCell>
-                            <Badge variant="outline" className={`border ${ACTION_BADGE[log.action] ?? DEFAULT_BADGE}`}>
+                            <Badge variant="outline" className={`border ${getActionBadge(log.action)}`}>
                               {log.action}
                             </Badge>
                           </TableCell>

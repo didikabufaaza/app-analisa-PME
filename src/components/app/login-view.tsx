@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Eye, EyeOff, Loader2, FlaskConical, ScanLine, BrainCircuit, FileBarChart, ShieldCheck, ArrowRight, Sparkles } from "lucide-react";
+import { Eye, EyeOff, Loader2, FlaskConical, ScanLine, BrainCircuit, FileBarChart, ShieldCheck, ArrowRight, Sparkles, Clock } from "lucide-react";
 import { apiSend, ApiError } from "@/lib/api-client";
 import { useAppStore } from "@/lib/store";
 import type { UserInfo } from "@/types/pme";
@@ -20,6 +20,8 @@ const FEATURES = [
 
 export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
   const setUser = useAppStore((s) => s.setUser);
+  const logoutReason = useAppStore((s) => s.logoutReason);
+  const setLogoutReason = useAppStore((s) => s.setLogoutReason);
   const [mode, setMode] = useState<"login" | "register">("login");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -35,6 +37,7 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
     e.preventDefault();
     setError(null);
     setSuccessMessage(null);
+    setLogoutReason(null);
     setLoading(true);
     try {
       if (mode === "login") {
@@ -186,6 +189,13 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
                 </button>
               </div>
             </div>
+
+            {logoutReason && (
+              <div role="alert" className="rounded-lg border border-amber-500/30 bg-amber-500/10 px-3.5 py-2.5 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2">
+                <Clock className="h-4 w-4 shrink-0 text-amber-600 mt-0.5" />
+                <span>{logoutReason}</span>
+              </div>
+            )}
 
             {successMessage && (
               <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">

@@ -26,6 +26,7 @@ import {
   Building2,
 } from "lucide-react";
 import type { TenantOption } from "@/types/pme";
+import { useIdleLogout } from "@/hooks/use-idle-logout";
 
 const NAV: { key: AppView; label: string; icon: typeof LayoutDashboard; superAdminOnly?: boolean }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -54,6 +55,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, view, navigate, sidebarOpen, setSidebarOpen, refreshUser, viewAsTenantId, setViewAsTenantId } = useAppStore();
   const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
   const [tenants, setTenants] = useState<TenantOption[]>([]);
+
+  // Aktifkan auto-logout ketika tidak ada aktivitas selama 3 menit
+  useIdleLogout();
 
   useEffect(() => {
     refreshUser();

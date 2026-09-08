@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, getEffectiveOrgId } from "@/lib/api-helpers";
 
+const pmeCache = new Map<string, { data: unknown; expiresAt: number }>();
+
 /** GET /api/pme — list PME sessions for the authenticated tenant (or selected tenant if Superadmin). */
 export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
@@ -12,6 +14,14 @@ export async function GET(req: NextRequest) {
     const q = url.searchParams.get("q")?.trim() || "";
     const status = url.searchParams.get("status")?.trim() || "";
     const limit = Math.min(Number(url.searchParams.get("limit")) || 50, 100);
+
+    const cacheKey = `pme:${orgId}:${q}:${status}:${limit}`;
+    const cached = pmeCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.data, {
+        headers: { "X-Cache": "HIT", "Cache-Control": "private, max-age=3" },
+      });
+    }
 
     const [sessions, statusCounts] = await Promise.all([
       db.pmeSession.findMany({
@@ -45,7 +55,7 @@ export async function GET(req: NextRequest) {
       }),
     ]);
 
-    return NextResponse.json({
+    const payload = {
       sessions: sessions.map((s) => ({
         id: s.id,
         provider: s.provider,
@@ -66,6 +76,12 @@ export async function GET(req: NextRequest) {
         capaCount: s._count.capaActions,
       })),
       statusCounts: Object.fromEntries(statusCounts.map((c) => [c.status, c._count._all])),
+    };
+
+    pmeCache.set(cacheKey, { data: payload, expiresAt: Date.now() + 3000 });
+
+    return NextResponse.json(payload, {
+      headers: { "X-Cache": "MISS", "Cache-Control": "private, max-age=3" },
     });
   });
 }

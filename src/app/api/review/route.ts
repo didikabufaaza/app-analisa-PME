@@ -3,7 +3,9 @@ import { db } from "@/lib/db";
 import { withAuth, getEffectiveOrgId } from "@/lib/api-helpers";
 import { parseIssues, type IssueCode } from "@/services/pme/validation-engine";
 
-/** Category mapping for the AI Review Center (PRD section #33). */
+const reviewCache = new Map<string, { data: unknown; expiresAt: number }>();
+
+/** Category mapping for the Review Center (PRD section #33). */
 function categorize(issues: IssueCode[]): string {
   if (issues.includes("OCR_CONFLICT")) return "OCR Conflict";
   if (issues.includes("SIGN_CONFLICT")) return "Possible Numeric Error";
@@ -18,6 +20,14 @@ export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
     const orgId = getEffectiveOrgId(user, req);
     const orgFilter = orgId === "ALL" ? {} : { organizationId: orgId };
+
+    const cacheKey = `review:${orgId}`;
+    const cached = reviewCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.data, {
+        headers: { "X-Cache": "HIT", "Cache-Control": "private, max-age=5" },
+      });
+    }
 
     const results = await db.pmeResult.findMany({
       where: {
@@ -66,6 +76,11 @@ export async function GET(req: NextRequest) {
       return acc;
     }, {});
 
-    return NextResponse.json({ items, categoryCounts, total: items.length });
+    const payload = { items, categoryCounts, total: items.length };
+    reviewCache.set(cacheKey, { data: payload, expiresAt: Date.now() + 5000 });
+
+    return NextResponse.json(payload, {
+      headers: { "X-Cache": "MISS", "Cache-Control": "private, max-age=5" },
+    });
   });
 }

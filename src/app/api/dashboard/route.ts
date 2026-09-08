@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, getEffectiveOrgId } from "@/lib/api-helpers";
 
+const dashboardCache = new Map<string, { data: unknown; expiresAt: number }>();
+
 /**
  * GET /api/dashboard — aggregate KPIs + chart data for the tenant.
  * Includes: totals, z-score distribution, parameter status, PME trend,
@@ -11,6 +13,14 @@ export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
     const orgId = getEffectiveOrgId(user, req);
     const orgFilter = orgId === "ALL" ? {} : { organizationId: orgId };
+
+    const cacheKey = `dashboard:${orgId}`;
+    const cached = dashboardCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.data, {
+        headers: { "X-Cache": "HIT", "Cache-Control": "private, max-age=5" },
+      });
+    }
 
     const [totalSessions, results, recentSessions] = await Promise.all([
       db.pmeSession.count({ where: orgFilter }),
@@ -124,7 +134,7 @@ export async function GET(req: NextRequest) {
       { name: "Perlu Review", value: counts.reviewRequired, key: "REVIEW" },
     ].filter((s) => s.value > 0);
 
-    return NextResponse.json({
+    const payload = {
       counts,
       zDistribution: buckets,
       parameterStatus,
@@ -139,6 +149,12 @@ export async function GET(req: NextRequest) {
         status: s.status,
         createdAt: s.createdAt,
       })),
+    };
+
+    dashboardCache.set(cacheKey, { data: payload, expiresAt: Date.now() + 5000 });
+
+    return NextResponse.json(payload, {
+      headers: { "X-Cache": "MISS", "Cache-Control": "private, max-age=5" },
     });
   });
 }

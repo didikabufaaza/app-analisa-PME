@@ -39,6 +39,7 @@ import {
   ShieldAlert,
   ShieldCheck,
   Check,
+  CheckCircle,
   Building2,
   KeyRound,
   Lock,
@@ -225,6 +226,25 @@ export function UsersView() {
     }
   };
 
+  const handleApproveUser = async (targetUser: ManagedUser) => {
+    try {
+      await apiSend(`/api/admin/users/${targetUser.id}`, "PATCH", { isActive: true });
+      toast({
+        title: "Akun Berhasil Disetujui",
+        description: `Akun ${targetUser.name} (${targetUser.email}) telah disetujui dan kini dapat login ke aplikasi.`,
+      });
+      setUsersList((prev) =>
+        prev.map((u) => (u.id === targetUser.id ? { ...u, isActive: true } : u))
+      );
+    } catch (err) {
+      toast({
+        title: "Gagal menyetujui akun",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan.",
+        variant: "destructive",
+      });
+    }
+  };
+
   if (!isSuper) {
     return (
       <Card className="border-red-500/20 bg-red-500/5 p-6 text-center">
@@ -381,14 +401,26 @@ export function UsersView() {
                               "text-[10px]",
                               u.isActive
                                 ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
-                                : "bg-red-500/15 text-red-700 dark:text-red-300 border-red-500/30"
+                                : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
                             )}
                           >
-                            {u.isActive ? "Aktif" : "Nonaktif"}
+                            {u.isActive ? "Aktif" : "Menunggu Persetujuan"}
                           </Badge>
                         </td>
                         <td className="p-3 text-center">
                           <div className="flex items-center justify-center gap-1.5">
+                            {!u.isActive && !isOwnAccount && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handleApproveUser(u)}
+                                className="h-7 px-2 text-[11px] bg-emerald-600 hover:bg-emerald-700 text-white border-none shadow-sm gap-1"
+                                title="Setujui dan Aktifkan Akun"
+                              >
+                                <CheckCircle className="h-3.5 w-3.5" />
+                                Setujui
+                              </Button>
+                            )}
                             <Button
                               variant="ghost"
                               size="icon"

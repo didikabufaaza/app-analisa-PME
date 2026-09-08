@@ -1,6 +1,6 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
-import { hashPassword, signSession, getSessionCookieName, checkRateLimit } from "@/lib/auth";
+import { hashPassword, checkRateLimit } from "@/lib/auth";
 import { writeAudit } from "@/lib/api-helpers";
 
 /** Register a new organization + admin user (tenant onboarding). */
@@ -48,7 +48,13 @@ export async function POST(req: NextRequest) {
         plan: "FREE",
         monthlyAiLimit: 10,
         users: {
-          create: { name, email, passwordHash, role: "ADMIN" },
+          create: {
+            name,
+            email,
+            passwordHash,
+            role: "ADMIN",
+            isActive: false, // Wajib: Menunggu persetujuan Superadmin sebelum aktif
+          },
         },
         laboratories: {
           create: { name: laboratoryName, code: "LAB-01" },
@@ -61,43 +67,39 @@ export async function POST(req: NextRequest) {
     });
 
     const user = org.users[0];
-    const token = await signSession({
-      userId: user.id,
-      organizationId: org.id,
-      role: user.role,
-      email: user.email,
-      name: user.name,
+
+    after(async () => {
+      try {
+        await writeAudit({
+          organizationId: org.id,
+          userId: user.id,
+          action: "REGISTER",
+          entityType: "Organization",
+          entityId: org.id,
+          details: { organizationName, status: "PENDING_APPROVAL" },
+        });
+      } catch (e) {
+        console.error("[register-audit-error]", e);
+      }
     });
 
-    await writeAudit({
-      organizationId: org.id,
-      userId: user.id,
-      action: "REGISTER",
-      entityType: "Organization",
-      entityId: org.id,
-      details: { organizationName },
-    });
-
-    const res = NextResponse.json(
+    return NextResponse.json(
       {
+        ok: true,
+        pendingApproval: true,
+        message:
+          "Pendaftaran berhasil! Akun Anda sedang menunggu persetujuan dari Superadmin. Silakan hubungi Superadmin untuk mengaktifkan akun Anda sebelum masuk.",
         user: {
           id: user.id,
           name: user.name,
           email: user.email,
           role: user.role,
+          isActive: false,
           organization: { id: org.id, name: org.name, plan: org.plan },
         },
       },
       { status: 201 }
     );
-    res.cookies.set(getSessionCookieName(), token, {
-      httpOnly: true,
-      sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
-      path: "/",
-      maxAge: 7 * 24 * 60 * 60,
-    });
-    return res;
   } catch (err) {
     console.error("[register-error]", err);
     return NextResponse.json({ error: "Terjadi kesalahan saat registrasi." }, { status: 500 });

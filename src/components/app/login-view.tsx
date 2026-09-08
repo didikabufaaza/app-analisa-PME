@@ -24,6 +24,7 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -33,6 +34,7 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError(null);
+    setSuccessMessage(null);
     setLoading(true);
     try {
       if (mode === "login") {
@@ -40,14 +42,20 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
         setUser(data.user);
         onLogin?.(data.user);
       } else {
-        const data = await apiSend<{ user: UserInfo }>("/api/auth/register", "POST", {
+        const data = await apiSend<{ ok: boolean; pendingApproval?: boolean; message?: string; user?: UserInfo }>("/api/auth/register", "POST", {
           name,
           organizationName,
           email,
           password,
         });
-        setUser(data.user);
-        onLogin?.(data.user);
+        if (data.pendingApproval) {
+          setSuccessMessage(data.message || "Pendaftaran berhasil! Akun Anda sedang menunggu persetujuan dari Superadmin.");
+          setMode("login");
+          setPassword("");
+        } else if (data.user) {
+          setUser(data.user);
+          onLogin?.(data.user);
+        }
       }
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Terjadi kesalahan jaringan. Coba lagi.");
@@ -173,6 +181,12 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
                 </button>
               </div>
             </div>
+
+            {successMessage && (
+              <div role="status" className="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3.5 py-2.5 text-sm text-emerald-700 dark:text-emerald-300">
+                {successMessage}
+              </div>
+            )}
 
             {error && (
               <div role="alert" className="rounded-lg border border-destructive/30 bg-destructive/10 px-3.5 py-2.5 text-sm text-destructive">

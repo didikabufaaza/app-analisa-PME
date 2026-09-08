@@ -2,11 +2,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { withAuth, getEffectiveOrgId, jsonOk } from "@/lib/api-helpers";
 
+const reportsCache = new Map<string, { data: unknown; expiresAt: number }>();
+
 /** GET /api/reports — Query PME results with full multi-dimensional filters for Reports view. */
 export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
     const orgId = getEffectiveOrgId(user, req);
     const searchParams = req.nextUrl.searchParams;
+
+    const cacheKey = `reports:${orgId}:${searchParams.toString()}`;
+    const cached = reportsCache.get(cacheKey);
+    if (cached && cached.expiresAt > Date.now()) {
+      return NextResponse.json(cached.data, {
+        headers: { "X-Cache": "HIT", "Cache-Control": "private, max-age=5" },
+      });
+    }
 
     const sessionId = searchParams.get("sessionId");
     const program = searchParams.get("program");
@@ -122,7 +132,7 @@ export async function GET(req: NextRequest) {
     const uniqueCycles = Array.from(new Set(availableSessions.map((s) => s.cycle).filter(Boolean)));
     const uniquePeriods = Array.from(new Set(availableSessions.map((s) => s.period).filter(Boolean)));
 
-    return jsonOk({
+    const payload = {
       items: results,
       summary,
       filterOptions: {
@@ -131,6 +141,12 @@ export async function GET(req: NextRequest) {
         cycles: uniqueCycles,
         periods: uniquePeriods,
       },
+    };
+
+    reportsCache.set(cacheKey, { data: payload, expiresAt: Date.now() + 5000 });
+
+    return NextResponse.json(payload, {
+      headers: { "X-Cache": "MISS", "Cache-Control": "private, max-age=5" },
     });
   });
 }

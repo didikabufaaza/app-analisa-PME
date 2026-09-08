@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import { useAppStore } from "@/lib/store";
 import { LoginView } from "@/components/app/login-view";
 import { AppShell } from "@/components/app/app-shell";
@@ -15,21 +16,65 @@ import { UsersView } from "@/components/views/users-view";
 
 export default function Home() {
   const { user, view } = useAppStore();
+  const [visited, setVisited] = useState<Set<string>>(new Set(["dashboard"]));
+
+  useEffect(() => {
+    if (view && view !== "session-detail") {
+      setVisited((prev) => {
+        if (prev.has(view)) return prev;
+        const next = new Set(prev);
+        next.add(view);
+        return next;
+      });
+    }
+  }, [view]);
 
   // Setiap membuka aplikasi, wajib menampilkan form login terlebih dahulu
   if (!user) return <LoginView />;
 
   return (
     <AppShell>
-      {view === "dashboard" && <DashboardView />}
-      {view === "sessions" && <SessionsView />}
+      {visited.has("dashboard") && (
+        <div className={view === "dashboard" ? "block" : "hidden"}>
+          <DashboardView />
+        </div>
+      )}
+      {visited.has("sessions") && (
+        <div className={view === "sessions" ? "block" : "hidden"}>
+          <SessionsView />
+        </div>
+      )}
       {view === "session-detail" && <SessionDetailView />}
-      {view === "reports" && <ReportsView />}
-      {view === "review" && <ReviewView />}
-      {view === "capa" && <CapaView />}
-      {view === "settings" && <SettingsView />}
-      {view === "audit" && <AuditView />}
-      {view === "users" && <UsersView />}
+      {visited.has("reports") && (
+        <div className={view === "reports" ? "block" : "hidden"}>
+          <ReportsView />
+        </div>
+      )}
+      {visited.has("review") && (
+        <div className={view === "review" ? "block" : "hidden"}>
+          <ReviewView />
+        </div>
+      )}
+      {visited.has("capa") && (
+        <div className={view === "capa" ? "block" : "hidden"}>
+          <CapaView />
+        </div>
+      )}
+      {visited.has("settings") && (
+        <div className={view === "settings" ? "block" : "hidden"}>
+          <SettingsView />
+        </div>
+      )}
+      {visited.has("audit") && (
+        <div className={view === "audit" ? "block" : "hidden"}>
+          <AuditView />
+        </div>
+      )}
+      {visited.has("users") && (
+        <div className={view === "users" ? "block" : "hidden"}>
+          <UsersView />
+        </div>
+      )}
     </AppShell>
   );
 }

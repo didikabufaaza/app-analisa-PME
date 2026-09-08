@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
 import { verifyPassword, signSession, getSessionCookieName, checkRateLimit } from "@/lib/auth";
 import { writeAudit } from "@/lib/api-helpers";
@@ -14,17 +14,39 @@ export async function POST(req: NextRequest) {
     }
 
     const ip = req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() || "local";
-    if (!checkRateLimit(`login:${ip}:${email}`, 10, 5 * 60 * 1000)) {
+    if (!checkRateLimit(`login:${ip}:${email}`, 15, 5 * 60 * 1000)) {
       return NextResponse.json({ error: "Terlalu banyak percobaan login. Coba lagi dalam beberapa menit." }, { status: 429 });
     }
 
-    const user = await db.user.findUnique({ where: { email }, include: { organization: true } });
+    const user = await db.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        passwordHash: true,
+        role: true,
+        isActive: true,
+        menuAccess: true,
+        organizationId: true,
+        organization: {
+          select: { id: true, name: true, plan: true },
+        },
+      },
+    });
+
     if (!user || !(await verifyPassword(password, user.passwordHash))) {
       return NextResponse.json({ error: "Email atau password salah." }, { status: 401 });
     }
 
     if (!user.isActive) {
-      return NextResponse.json({ error: "Akun Anda telah dinonaktifkan. Hubungi administrator." }, { status: 403 });
+      return NextResponse.json(
+        {
+          error: "Akun Anda sedang menunggu persetujuan dari Superadmin. Silakan hubungi Superadmin untuk mengaktifkan akun Anda.",
+          code: "ACCOUNT_PENDING_APPROVAL",
+        },
+        { status: 403 }
+      );
     }
 
     const token = await signSession({
@@ -35,12 +57,19 @@ export async function POST(req: NextRequest) {
       name: user.name,
     });
 
-    await writeAudit({
-      organizationId: user.organizationId,
-      userId: user.id,
-      action: "LOGIN",
-      entityType: "User",
-      entityId: user.id,
+    // Write audit log in background so user receives login response instantly
+    after(async () => {
+      try {
+        await writeAudit({
+          organizationId: user.organizationId,
+          userId: user.id,
+          action: "LOGIN",
+          entityType: "User",
+          entityId: user.id,
+        });
+      } catch (e) {
+        console.error("[login-audit-error]", e);
+      }
     });
 
     let menuAccess: string[] | null = null;

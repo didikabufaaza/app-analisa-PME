@@ -15,7 +15,7 @@ import { AuditView } from "@/components/views/audit-view";
 import { UsersView } from "@/components/views/users-view";
 
 export default function Home() {
-  const { user, view } = useAppStore();
+  const { user, view, viewAsTenantId } = useAppStore();
   const [visited, setVisited] = useState<Set<string>>(new Set(["dashboard"]));
 
   useEffect(() => {
@@ -29,52 +29,59 @@ export default function Home() {
     }
   }, [view]);
 
+  // When switching tenant, reset visited views so only the active view mounts and fetches fresh data
+  useEffect(() => {
+    setVisited(new Set([view !== "session-detail" ? view : "dashboard"]));
+  }, [viewAsTenantId]);
+
   // Setiap membuka aplikasi, wajib menampilkan form login terlebih dahulu
   if (!user) return <LoginView />;
 
   return (
     <AppShell>
-      {visited.has("dashboard") && (
-        <div className={view === "dashboard" ? "block" : "hidden"}>
-          <DashboardView />
-        </div>
-      )}
-      {visited.has("sessions") && (
-        <div className={view === "sessions" ? "block" : "hidden"}>
-          <SessionsView />
-        </div>
-      )}
-      {view === "session-detail" && <SessionDetailView />}
-      {visited.has("reports") && (
-        <div className={view === "reports" ? "block" : "hidden"}>
-          <ReportsView />
-        </div>
-      )}
-      {visited.has("review") && (
-        <div className={view === "review" ? "block" : "hidden"}>
-          <ReviewView />
-        </div>
-      )}
-      {visited.has("capa") && (
-        <div className={view === "capa" ? "block" : "hidden"}>
-          <CapaView />
-        </div>
-      )}
-      {visited.has("settings") && (
-        <div className={view === "settings" ? "block" : "hidden"}>
-          <SettingsView />
-        </div>
-      )}
-      {visited.has("audit") && (
-        <div className={view === "audit" ? "block" : "hidden"}>
-          <AuditView />
-        </div>
-      )}
-      {visited.has("users") && (
-        <div className={view === "users" ? "block" : "hidden"}>
-          <UsersView />
-        </div>
-      )}
+      <div key={viewAsTenantId || "ALL"} className="min-w-0 flex-1">
+        {visited.has("dashboard") && (
+          <div className={view === "dashboard" ? "block" : "hidden"}>
+            <DashboardView />
+          </div>
+        )}
+        {visited.has("sessions") && (
+          <div className={view === "sessions" ? "block" : "hidden"}>
+            <SessionsView />
+          </div>
+        )}
+        {view === "session-detail" && <SessionDetailView />}
+        {visited.has("reports") && (
+          <div className={view === "reports" ? "block" : "hidden"}>
+            <ReportsView />
+          </div>
+        )}
+        {visited.has("review") && (
+          <div className={view === "review" ? "block" : "hidden"}>
+            <ReviewView />
+          </div>
+        )}
+        {visited.has("capa") && (
+          <div className={view === "capa" ? "block" : "hidden"}>
+            <CapaView />
+          </div>
+        )}
+        {visited.has("settings") && (
+          <div className={view === "settings" ? "block" : "hidden"}>
+            <SettingsView />
+          </div>
+        )}
+        {visited.has("audit") && (
+          <div className={view === "audit" ? "block" : "hidden"}>
+            <AuditView />
+          </div>
+        )}
+        {visited.has("users") && (
+          <div className={view === "users" ? "block" : "hidden"}>
+            <UsersView />
+          </div>
+        )}
+      </div>
     </AppShell>
   );
 }

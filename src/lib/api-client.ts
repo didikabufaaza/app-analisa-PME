@@ -1,4 +1,4 @@
-/** Typed API client for the didikpme frontend. All calls are same-origin relative paths. */
+import { useAppStore } from "@/lib/store";
 
 export class ApiError extends Error {
   status: number;
@@ -8,6 +8,19 @@ export class ApiError extends Error {
     this.status = status;
     this.code = code;
   }
+}
+
+function getTenantHeaders(): Record<string, string> {
+  if (typeof window === "undefined") return {};
+  try {
+    const tenantId = useAppStore.getState().viewAsTenantId;
+    if (tenantId && tenantId.trim()) {
+      return { "x-tenant-id": tenantId.trim() };
+    }
+  } catch {
+    /* ignore */
+  }
+  return {};
 }
 
 async function handle<T>(res: Response): Promise<T> {
@@ -24,28 +37,43 @@ async function handle<T>(res: Response): Promise<T> {
 }
 
 export async function apiGet<T>(path: string): Promise<T> {
-  const res = await fetch(path, { credentials: "same-origin" });
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    headers: { ...getTenantHeaders() },
+  });
   return handle<T>(res);
 }
 
 export async function apiSend<T>(path: string, method: "POST" | "PATCH" | "DELETE", body?: unknown): Promise<T> {
+  const headers: Record<string, string> = { ...getTenantHeaders() };
+  if (body !== undefined) {
+    headers["Content-Type"] = "application/json";
+  }
   const res = await fetch(path, {
     method,
     credentials: "same-origin",
-    headers: body !== undefined ? { "Content-Type": "application/json" } : undefined,
+    headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
   return handle<T>(res);
 }
 
 export async function apiUpload<T>(path: string, formData: FormData): Promise<T> {
-  const res = await fetch(path, { method: "POST", credentials: "same-origin", body: formData });
+  const res = await fetch(path, {
+    method: "POST",
+    credentials: "same-origin",
+    headers: { ...getTenantHeaders() },
+    body: formData,
+  });
   return handle<T>(res);
 }
 
 /** Download a file (PDF/XLSX) produced by the backend, with auth cookie. */
 export async function apiDownload(path: string, fallbackName: string): Promise<void> {
-  const res = await fetch(path, { credentials: "same-origin" });
+  const res = await fetch(path, {
+    credentials: "same-origin",
+    headers: { ...getTenantHeaders() },
+  });
   if (!res.ok) {
     const isJson = res.headers.get("content-type")?.includes("application/json");
     const body = isJson ? await res.json().catch(() => null) : null;

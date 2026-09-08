@@ -73,46 +73,51 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
 
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-background">
-      {/* Brand panel */}
-      <div className="relative lg:w-[52%] flex flex-col justify-between overflow-hidden bg-teal-950 text-white px-8 py-10 lg:px-14 lg:py-12">
-        <div aria-hidden className="absolute inset-0 opacity-[0.14]" style={{
-          backgroundImage: "radial-gradient(circle at 18% 22%, #2dd4bf55 0, transparent 42%), radial-gradient(circle at 82% 12%, #99f6e455 0, transparent 38%), radial-gradient(circle at 65% 85%, #0d948866 0, transparent 45%)",
-        }} />
-        <div aria-hidden className="absolute -right-24 -top-24 h-96 w-96 rounded-full border border-teal-300/20" />
-        <div aria-hidden className="absolute -right-10 top-32 h-64 w-64 rounded-full border border-teal-300/10" />
-        <div aria-hidden className="absolute inset-0" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.045) 1px, transparent 1px)", backgroundSize: "44px 44px" }} />
+      {/* Brand panel (70% width on desktop, clean background without boxes/grid) */}
+      <div className="relative w-full lg:w-[70%] flex flex-col justify-between overflow-hidden bg-gradient-to-br from-teal-950 via-[#072424] to-[#031515] text-white px-8 py-10 lg:px-14 lg:py-12 shrink-0">
+        {/* Subtle clean ambient lighting - NO grid lines / NO boxes */}
+        <div aria-hidden className="pointer-events-none absolute -top-32 -left-32 h-96 w-96 rounded-full bg-teal-500/10 blur-[100px]" />
+        <div aria-hidden className="pointer-events-none absolute -bottom-32 right-0 h-96 w-96 rounded-full bg-emerald-500/10 blur-[100px]" />
 
-        <header className="relative z-10 flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-white/10 ring-1 ring-white/25 backdrop-blur">
-            <FlaskConical className="h-6 w-6 text-teal-200" />
+        <header className="relative z-10 flex items-center gap-3.5">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/10 p-1.5 ring-1 ring-white/20 backdrop-blur shadow-md">
+            <img
+              src="/logo.png"
+              alt="di-dismartPME Logo"
+              className="h-full w-full object-contain"
+            />
           </div>
           <div>
-            <p className="text-xl font-bold tracking-tight">didikpme</p>
-            <p className="text-xs text-teal-200/80">Evaluasi Z-Score & PME Laboratorium</p>
+            <p className="text-2xl font-black tracking-tight text-white">di-dismartPME</p>
+            <p className="text-xs font-medium text-teal-200/80">Evaluasi Z-Score & PME Laboratorium</p>
           </div>
         </header>
 
-        <main className="relative z-10 max-w-xl space-y-8 py-10">
+        <main className="relative z-10 max-w-4xl space-y-8 py-8">
           <div className="space-y-4">
-            <Badge variant="secondary" className="bg-teal-400/15 text-teal-100 ring-1 ring-teal-300/30 gap-1.5">
-              <Sparkles className="h-3.5 w-3.5" /> Clinical Quality Suite
+            <Badge variant="secondary" className="bg-teal-400/15 text-teal-100 ring-1 ring-teal-300/30 gap-1.5 px-3 py-1">
+              <Sparkles className="h-3.5 w-3.5 text-teal-300" /> Clinical Quality Suite · Didik – Digital Smart PME
             </Badge>
-            <h1 className="text-3xl lg:text-[2.6rem] font-bold leading-[1.15] tracking-tight">
+            <h1 className="text-3xl lg:text-5xl font-bold leading-[1.18] tracking-tight max-w-3xl">
               Analisis Pemantapan Mutu Eksternal menjadi{" "}
-              <span className="text-teal-300">otomatis, akurat, dan teraudit.</span>
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-teal-200 via-teal-300 to-emerald-300">
+                otomatis, akurat, dan teraudit.
+              </span>
             </h1>
-            <p className="text-teal-100/70 leading-relaxed">
+            <p className="text-teal-100/75 leading-relaxed text-sm lg:text-base max-w-2xl">
               Cukup unggah PDF hasil PME laboratorium Anda — sistem memvalidasi dan mengekstrak data
               Z-score secara otomatis, lalu menghasilkan interpretasi klinis, analisis akar masalah,
               CAPA, dan laporan evaluasi mutu siap audit.
             </p>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
             {FEATURES.map((f) => (
-              <div key={f.title} className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm">
-                <f.icon className="h-5 w-5 text-teal-300" />
-                <p className="mt-2 text-sm font-semibold">{f.title}</p>
+              <div key={f.title} className="rounded-xl border border-white/10 bg-white/5 p-4 backdrop-blur-sm transition-colors hover:bg-white/[0.08]">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-400/15 text-teal-300">
+                  <f.icon className="h-5 w-5" />
+                </div>
+                <p className="mt-3 text-sm font-semibold text-white">{f.title}</p>
                 <p className="mt-1 text-xs leading-relaxed text-teal-100/60">{f.desc}</p>
               </div>
             ))}
@@ -120,14 +125,14 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
         </main>
 
         <footer className="relative z-10 flex items-center justify-between text-xs text-teal-100/50">
-          <span>© {new Date().getFullYear()} didikpme · Clinical Laboratory SaaS</span>
-          <span className="hidden sm:inline">ISO 15189 · Z-Score Rule Engine</span>
+          <span>© {new Date().getFullYear()} di-dismartPME · Clinical Laboratory SaaS</span>
+          <span className="hidden sm:inline">ISO 15189 · ISO 13528 · Z-Score Rule Engine</span>
         </footer>
       </div>
 
-      {/* Form panel */}
-      <div className="flex-1 flex items-center justify-center px-6 py-10 lg:px-12">
-        <div className="w-full max-w-md">
+      {/* Form panel (30% width on desktop) */}
+      <div className="w-full lg:w-[30%] shrink-0 flex items-center justify-center px-6 py-10 lg:px-8 bg-card border-l border-border/40">
+        <div className="w-full max-w-sm">
           <div className="mb-8 space-y-2">
             <h2 className="text-2xl font-bold tracking-tight">
               {mode === "login" ? "Masuk ke akun Anda" : "Buat organisasi baru"}

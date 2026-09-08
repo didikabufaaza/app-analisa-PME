@@ -127,13 +127,17 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   );
 
   const brand = (
-    <div className="flex items-center gap-2.5 px-5 pt-5 pb-3">
-      <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-teal-700 text-white">
-        <FlaskConical className="h-5 w-5" />
+    <div className="flex items-center gap-3 px-4 pt-5 pb-3">
+      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 p-1 ring-1 ring-teal-500/20 shadow-sm">
+        <img
+          src="/icon.png"
+          alt="di-dismartPME Logo"
+          className="h-full w-full object-contain"
+        />
       </div>
-      <div className="leading-tight">
-        <p className="text-base font-bold tracking-tight">didikpme</p>
-        <p className="text-[10px] text-muted-foreground">Evaluasi Z-Score & PME</p>
+      <div className="leading-tight min-w-0">
+        <p className="text-base font-bold tracking-tight text-foreground truncate">di-dismartPME</p>
+        <p className="text-[10px] text-muted-foreground font-medium truncate">Evaluasi Z-Score & PME</p>
       </div>
     </div>
   );
@@ -189,18 +193,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto flex items-center gap-3">
             {/* Superadmin Tenant Switcher */}
             {user.role === "SUPERADMIN" && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-900 dark:text-amber-200">
+              <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
                 <Eye className="h-3.5 w-3.5 text-amber-600 shrink-0" />
-                <span className="hidden sm:inline font-medium">Lihat Sebagai:</span>
+                <span className="hidden sm:inline font-semibold">Lihat Sebagai:</span>
                 <select
                   value={viewAsTenantId || "ALL"}
                   onChange={(e) => {
-                    const val = e.target.value;
-                    setViewAsTenantId(val);
-                    // trigger refresh of active view
-                    window.location.reload();
+                    setViewAsTenantId(e.target.value);
                   }}
-                  className="bg-transparent font-semibold text-xs focus:outline-none cursor-pointer border-none py-0.5 text-amber-950 dark:text-amber-100"
+                  className="bg-transparent font-semibold text-xs focus:outline-none cursor-pointer border-none py-0.5 text-amber-950 dark:text-amber-100 max-w-[180px] sm:max-w-[260px] truncate"
                 >
                   <option value="ALL" className="bg-background text-foreground font-medium">
                     🌐 Semua Organisasi (Global View)
@@ -267,9 +268,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         <footer className="mt-auto border-t bg-muted/30">
           <div className="flex flex-col items-center justify-between gap-1 px-4 py-3.5 text-xs text-muted-foreground sm:flex-row sm:px-6">
             <p>
-              <span className="font-semibold text-foreground/70">didikpme</span> — Evaluasi Z-Score & PME Laboratorium · Standar ISO 15189
+              <span className="font-semibold text-foreground/70">di-dismartPME</span> — Evaluasi Z-Score & PME Laboratorium · Standar ISO 15189
             </p>
-            <p>© {new Date().getFullYear()} didikpme. Evaluasi akhir Z-score diverifikasi sesuai standar mutu.</p>
+            <p>© {new Date().getFullYear()} di-dismartPME. Evaluasi akhir Z-score diverifikasi sesuai standar mutu.</p>
           </div>
         </footer>
       </div>

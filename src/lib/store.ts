@@ -53,7 +53,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (typeof document !== "undefined") {
       document.cookie = `didikpme_view_as_tenant=${val}; path=/; max-age=86400; SameSite=Lax`;
     }
-    set({ viewAsTenantId: val });
+    const currentView = get().view;
+    set({
+      viewAsTenantId: val,
+      activeSessionId: null,
+      view: currentView === "session-detail" ? "sessions" : currentView,
+    });
   },
   refreshUser: async () => {
     try {

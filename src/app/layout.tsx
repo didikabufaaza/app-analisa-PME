@@ -14,13 +14,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "didikpme — Evaluasi Z-Score & PME Laboratorium",
+  title: "di-dismartPME",
   description:
     "Sistem otomatis untuk membaca, memvalidasi, dan mengevaluasi hasil Pemantapan Mutu Eksternal (PME) laboratorium klinik dari berkas laporan.",
-  keywords: ["PME", "Z-score", "laboratorium klinik", "proficiency testing", "EQAS", "evaluasi mutu"],
-  authors: [{ name: "didikpme" }],
+  keywords: ["di-dismartPME", "PME", "Z-score", "laboratorium klinik", "proficiency testing", "EQAS", "evaluasi mutu"],
+  authors: [{ name: "di-dismartPME" }],
   icons: {
-    icon: "/logo.svg",
+    icon: [
+      { url: "/icon.png", sizes: "512x512", type: "image/png" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    shortcut: "/icon.png",
+    apple: "/apple-touch-icon.png",
   },
 };
 
@@ -31,6 +36,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="id" suppressHydrationWarning>
+      <head>
+        <link rel="icon" href="/icon.png" type="image/png" sizes="any" />
+        <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+      </head>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-background text-foreground`}
       >

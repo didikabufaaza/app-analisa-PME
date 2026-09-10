@@ -32,6 +32,15 @@ export const ISSUE_LABELS: Record<IssueCode, string> = {
 /** Critical fields per PRD section #22. */
 const CRITICAL_THRESHOLD = 0.85;
 
+export interface RawExtractionGroup {
+  name?: string | null;
+  count?: number | string | null;
+  target?: number | string | null;
+  sdpa?: number | string | null;
+  z_score?: number | string | null;
+  status?: string | null;
+}
+
 export interface RawExtractionResult {
   parameter: string | null;
   participant_value: number | string | null;
@@ -44,6 +53,9 @@ export interface RawExtractionResult {
   peer_group?: string | null;
   provider_category?: string | null;
   provider_remark?: string | null;
+  all_participants_group?: RawExtractionGroup | null;
+  method_group?: RawExtractionGroup | null;
+  instrument_group?: RawExtractionGroup | null;
   confidence?: {
     parameter?: number;
     participant_value?: number;
@@ -68,6 +80,21 @@ export interface ValidatedResult {
   instrument: string | null;
   peerGroup: string | null;
   providerRemark: string | null;
+  allParticipantsCount: number | null;
+  allParticipantsTarget: number | null;
+  allParticipantsSdpa: number | null;
+  allParticipantsZScore: number | null;
+  allParticipantsStatus: string | null;
+  methodCount: number | null;
+  methodTarget: number | null;
+  methodSdpa: number | null;
+  methodZScore: number | null;
+  methodStatus: string | null;
+  instrumentCount: number | null;
+  instrumentTarget: number | null;
+  instrumentSdpa: number | null;
+  instrumentZScore: number | null;
+  instrumentStatus: string | null;
   parameterConfidence: number;
   participantConfidence: number;
   targetConfidence: number;
@@ -155,16 +182,69 @@ export function validateResult(raw: RawExtractionResult): ValidatedResult {
     issues.push("OCR_CONFLICT");
   }
 
+  // Multi-group resolution (All participants, Method group, Instrument group)
+  const textParsed = parsePmeMultiGroupText(sourceText);
+
+  // All Participants Group
+  const allParticipantsCount =
+    toNumberStrict(raw.all_participants_group?.count).value ?? textParsed?.allParticipants?.count ?? null;
+  const allParticipantsTarget =
+    toNumberStrict(raw.all_participants_group?.target).value ?? textParsed?.allParticipants?.target ?? null;
+  const allParticipantsSdpa = toNumberStrict(raw.all_participants_group?.sdpa).value ?? null;
+  const allParticipantsZScore =
+    toNumberStrict(raw.all_participants_group?.z_score).value ?? textParsed?.allParticipants?.zScore ?? null;
+  const allParticipantsStatus =
+    raw.all_participants_group?.status?.trim() || textParsed?.allParticipants?.status || null;
+
+  // Method Group
+  const methodCount =
+    toNumberStrict(raw.method_group?.count).value ?? textParsed?.methodGroup?.count ?? null;
+  const methodTarget =
+    toNumberStrict(raw.method_group?.target).value ?? textParsed?.methodGroup?.target ?? null;
+  const methodSdpa = toNumberStrict(raw.method_group?.sdpa).value ?? null;
+  const methodZScore =
+    toNumberStrict(raw.method_group?.z_score).value ?? textParsed?.methodGroup?.zScore ?? null;
+  const methodStatus =
+    raw.method_group?.status?.trim() || textParsed?.methodGroup?.status || null;
+
+  // Instrument Group
+  const instrumentCount =
+    toNumberStrict(raw.instrument_group?.count).value ?? textParsed?.instrumentGroup?.count ?? null;
+  const instrumentTarget =
+    toNumberStrict(raw.instrument_group?.target).value ?? textParsed?.instrumentGroup?.target ?? null;
+  const instrumentSdpa = toNumberStrict(raw.instrument_group?.sdpa).value ?? null;
+  const instrumentZScore =
+    toNumberStrict(raw.instrument_group?.z_score).value ?? textParsed?.instrumentGroup?.zScore ?? null;
+  const instrumentStatus =
+    raw.instrument_group?.status?.trim() || textParsed?.instrumentGroup?.status || null;
+
+  // Resolve method & instrument names/codes
+  const method = raw.method ? String(raw.method).slice(0, 200) : textParsed?.methodCode || null;
+  const instrument = raw.instrument ? String(raw.instrument).slice(0, 200) : textParsed?.instrumentCode || null;
+
+  // Fallback for primary target & z-score if top-level was null
+  const finalTargetValue = targetValue ?? instrumentTarget ?? allParticipantsTarget;
+  const finalZScore = zScore ?? instrumentZScore ?? allParticipantsZScore;
+
+  // Re-check missing issues with multi-group fallbacks
+  if (finalTargetValue !== null && issues.includes("MISSING_VALUE") && participantValue !== null) {
+    const idx = issues.indexOf("MISSING_VALUE");
+    if (idx >= 0) issues.splice(idx, 1);
+  }
+  if (finalZScore !== null && issues.includes("MISSING_Z_SCORE")) {
+    const idx = issues.indexOf("MISSING_Z_SCORE");
+    if (idx >= 0) issues.splice(idx, 1);
+  }
+
   // source validation
   const sourcePage = typeof raw.source?.page === "number" && Number.isFinite(raw.source.page) ? raw.source.page : null;
-  const sourceText = raw.source?.text ? String(raw.source.text).slice(0, 1000) : null;
   const bbox = Array.isArray(raw.source?.bbox) && raw.source.bbox.length === 4 ? raw.source.bbox.map(Number) : null;
   if (!sourcePage) issues.push("MISSING_SOURCE");
 
   // cross-field validation: expected sign of z = sign(participant - target) when target > 0
-  if (participantValue !== null && targetValue !== null && zScore !== null && targetValue > 0) {
-    const diff = participantValue - targetValue;
-    if (Math.abs(zScore) >= 0.5 && diff !== 0 && Math.sign(diff) !== Math.sign(zScore)) {
+  if (participantValue !== null && finalTargetValue !== null && finalZScore !== null && finalTargetValue > 0) {
+    const diff = participantValue - finalTargetValue;
+    if (Math.abs(finalZScore) >= 0.5 && diff !== 0 && Math.sign(diff) !== Math.sign(finalZScore)) {
       issues.push("SIGN_CONFLICT");
     }
   }
@@ -175,17 +255,32 @@ export function validateResult(raw: RawExtractionResult): ValidatedResult {
   return {
     parameterName,
     participantValue,
-    targetValue,
-    sdpa: sdpa.value,
-    zScore,
+    targetValue: finalTargetValue,
+    sdpa: sdpa.value ?? instrumentSdpa ?? allParticipantsSdpa,
+    zScore: finalZScore,
     unit: raw.unit ? String(raw.unit).slice(0, 100) : null,
-    method: raw.method ? String(raw.method).slice(0, 200) : null,
-    instrument: raw.instrument ? String(raw.instrument).slice(0, 200) : null,
-    peerGroup: raw.peer_group ? String(raw.peer_group).slice(0, 200) : null,
+    method,
+    instrument,
+    peerGroup: raw.peer_group ? String(raw.peer_group).slice(0, 200) : instrument ? "Kelompok Alat" : "Seluruh Peserta",
     providerRemark:
       raw.provider_remark || raw.provider_category
         ? [raw.provider_category, raw.provider_remark].filter(Boolean).join(" | ").slice(0, 200) || null
-        : null,
+        : instrumentStatus || allParticipantsStatus || null,
+    allParticipantsCount,
+    allParticipantsTarget,
+    allParticipantsSdpa,
+    allParticipantsZScore,
+    allParticipantsStatus,
+    methodCount,
+    methodTarget,
+    methodSdpa,
+    methodZScore,
+    methodStatus,
+    instrumentCount,
+    instrumentTarget,
+    instrumentSdpa,
+    instrumentZScore,
+    instrumentStatus,
     parameterConfidence,
     participantConfidence,
     targetConfidence,
@@ -195,6 +290,58 @@ export function validateResult(raw: RawExtractionResult): ValidatedResult {
     sourceBbox: bbox ? JSON.stringify(bbox) : null,
     issues,
     validationStatus,
+  };
+}
+
+/** Robust regex parser for Indonesian PME multi-group text lines (BBLK / PNPME). */
+export function parsePmeMultiGroupText(text: string | null | undefined): {
+  methodCode?: string;
+  instrumentCode?: string;
+  allParticipants?: { count?: number; target?: number; zScore?: number; status?: string };
+  methodGroup?: { count?: number; target?: number; zScore?: number; status?: string };
+  instrumentGroup?: { count?: number; target?: number; zScore?: number; status?: string };
+} | null {
+  if (!text) return null;
+  const clean = text.trim().replace(/\s+/g, " ");
+
+  // Pattern: parameter ... <methodCode> <instrumentCode> <participantVal> <N1> <Target1> <Z1> <Status1> <N2> <Target2> <Z2> <Status2> <N3> <Target3> <Z3> <Status3>
+  // Example: "5 MCV 53 305206 105.7 290 96.86 1.92 OK Memuaskan 176 96.40 2.31 $ Peringatan 13 104.93 0.73 OK Memuaskan"
+  const m = clean.match(
+    /\b(\d{1,5})\s+(\d{3,8})\s+([0-9\.\,]+)\s+(\d+)\s+([0-9\.\,]+)\s+([+-]?[0-9\.\,]+)\s+([A-Za-z\$\*\@\s]+?)\s+(\d+)\s+([0-9\.\,]+)\s+([+-]?[0-9\.\,]+)\s+([A-Za-z\$\*\@\s]+?)\s+(\d+)\s+([0-9\.\,]+)\s+([+-]?[0-9\.\,]+)(?:\s+([A-Za-z\$\*\@\s]+))?$/
+  );
+
+  if (!m) return null;
+
+  const toN = (v: string) => {
+    const parsed = Number.parseFloat(v.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+  const toInt = (v: string) => {
+    const parsed = Number.parseInt(v, 10);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  };
+
+  return {
+    methodCode: m[1],
+    instrumentCode: m[2],
+    allParticipants: {
+      count: toInt(m[4]),
+      target: toN(m[5]),
+      zScore: toN(m[6]),
+      status: m[7]?.trim(),
+    },
+    methodGroup: {
+      count: toInt(m[8]),
+      target: toN(m[9]),
+      zScore: toN(m[10]),
+      status: m[11]?.trim(),
+    },
+    instrumentGroup: {
+      count: toInt(m[12]),
+      target: toN(m[13]),
+      zScore: toN(m[14]),
+      status: m[15]?.trim(),
+    },
   };
 }
 

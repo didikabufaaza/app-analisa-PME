@@ -333,6 +333,152 @@ function AiListCard({
   );
 }
 
+function MultiGroupCompare({ r }: { r: PmeResultData }) {
+  const hasGroups =
+    r.instrumentTarget !== null ||
+    r.instrumentZScore !== null ||
+    r.methodTarget !== null ||
+    r.methodZScore !== null ||
+    r.allParticipantsTarget !== null ||
+    r.allParticipantsZScore !== null;
+
+  if (!hasGroups) return null;
+
+  return (
+    <div className="mt-3 rounded-lg border border-border/80 bg-background/50 p-3">
+      <div className="flex items-center justify-between pb-2 border-b border-border/60">
+        <p className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+          <Layers className="h-3.5 w-3.5 text-teal-600" />
+          Komparasi Z-Score Berdasarkan Kelompok Evaluasi
+        </p>
+        <span className="text-[10px] text-muted-foreground">
+          ISO 15189 / Evaluasi Peer Group
+        </span>
+      </div>
+      <div className="mt-2.5 grid gap-2.5 sm:grid-cols-3">
+        {/* Kelompok Alat */}
+        <div className="rounded-md border border-teal-200/90 bg-teal-50/50 p-2.5 dark:border-teal-900/60 dark:bg-teal-950/20">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-teal-900 dark:text-teal-200">
+              Kelompok Alat
+            </span>
+            {r.instrument ? (
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px] border-teal-300 bg-white dark:bg-teal-900/40 text-teal-800 dark:text-teal-200 font-mono">
+                {r.instrument}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">Alat Sejenis</Badge>
+            )}
+          </div>
+          <div className="mt-2 space-y-1 text-xs">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Peserta (N):</span>
+              <span className="font-medium text-foreground">{r.instrumentCount ?? "—"}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Target:</span>
+              <span className="font-medium text-foreground">{fmtNum(r.instrumentTarget)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>SDPA:</span>
+              <span className="font-medium text-foreground">{fmtNum(r.instrumentSdpa)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground pt-0.5 border-t border-teal-200/60 dark:border-teal-900/40">
+              <span className="font-semibold text-teal-950 dark:text-teal-100">Nilai Z:</span>
+              <span className="font-mono font-bold text-sm text-teal-900 dark:text-teal-200">{fmtZ(r.instrumentZScore)}</span>
+            </div>
+            {r.instrumentStatus && (
+              <div className="pt-1">
+                <Badge variant="outline" className="px-1.5 py-0 text-[10px] border-teal-300 bg-teal-100/80 text-teal-900 dark:border-teal-800 dark:bg-teal-900/60 dark:text-teal-200">
+                  {r.instrumentStatus}
+                </Badge>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Kelompok Metode */}
+        <div className="rounded-md border border-blue-200/90 bg-blue-50/50 p-2.5 dark:border-blue-900/60 dark:bg-blue-950/20">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-blue-900 dark:text-blue-200">
+              Kelompok Metode
+            </span>
+            {r.method ? (
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px] border-blue-300 bg-white dark:bg-blue-900/40 text-blue-800 dark:text-blue-200 font-mono">
+                {r.method}
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="px-1.5 py-0 text-[10px]">Metode Sejenis</Badge>
+            )}
+          </div>
+          <div className="mt-2 space-y-1 text-xs">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Peserta (N):</span>
+              <span className="font-medium text-foreground">{r.methodCount ?? "—"}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Target:</span>
+              <span className="font-medium text-foreground">{fmtNum(r.methodTarget)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>SDPA:</span>
+              <span className="font-medium text-foreground">{fmtNum(r.methodSdpa)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground pt-0.5 border-t border-blue-200/60 dark:border-blue-900/40">
+              <span className="font-semibold text-blue-950 dark:text-blue-100">Nilai Z:</span>
+              <span className="font-mono font-bold text-sm text-blue-900 dark:text-blue-200">{fmtZ(r.methodZScore)}</span>
+            </div>
+            {r.methodStatus && (
+              <div className="pt-1">
+                <Badge variant="outline" className="px-1.5 py-0 text-[10px] border-blue-300 bg-blue-100/80 text-blue-900 dark:border-blue-800 dark:bg-blue-900/60 dark:text-blue-200">
+                  {r.methodStatus}
+                </Badge>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Seluruh Peserta */}
+        <div className="rounded-md border border-slate-200 bg-slate-50/60 p-2.5 dark:border-slate-800 dark:bg-slate-900/40">
+          <div className="flex items-center justify-between gap-1">
+            <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+              Seluruh Peserta
+            </span>
+            <Badge variant="outline" className="px-1.5 py-0 text-[10px]">
+              Konsensus Global
+            </Badge>
+          </div>
+          <div className="mt-2 space-y-1 text-xs">
+            <div className="flex justify-between text-muted-foreground">
+              <span>Peserta (N):</span>
+              <span className="font-medium text-foreground">{r.allParticipantsCount ?? "—"}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>Target:</span>
+              <span className="font-medium text-foreground">{fmtNum(r.allParticipantsTarget)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground">
+              <span>SDPA:</span>
+              <span className="font-medium text-foreground">{fmtNum(r.allParticipantsSdpa)}</span>
+            </div>
+            <div className="flex justify-between text-muted-foreground pt-0.5 border-t border-slate-200 dark:border-slate-800">
+              <span className="font-semibold text-foreground">Nilai Z:</span>
+              <span className="font-mono font-bold text-sm text-foreground">{fmtZ(r.allParticipantsZScore)}</span>
+            </div>
+            {r.allParticipantsStatus && (
+              <div className="pt-1">
+                <Badge variant="outline" className="px-1.5 py-0 text-[10px] border-slate-300 bg-slate-200/70 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                  {r.allParticipantsStatus}
+                </Badge>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ----------------------------------- types ------------------------------------ */
 
 interface DetailResponse {
@@ -1282,6 +1428,7 @@ export function SessionDetailView() {
                                   </p>
                                 </div>
                               </div>
+                              <MultiGroupCompare r={r} />
                             </div>
                           </TableCell>
                         </TableRow>
@@ -1515,9 +1662,50 @@ export function SessionDetailView() {
               </DialogHeader>
 
               <div className="space-y-3">
+                <MultiGroupCompare r={findingResult} />
+
+                {findingResult.aiAnalysis.biasAnalysis && (
+                  <div className="rounded-lg border border-amber-300/80 bg-amber-50/70 p-3 dark:border-amber-800/70 dark:bg-amber-950/30">
+                    <p className="text-[11px] font-bold uppercase tracking-wider text-amber-900 dark:text-amber-300 flex items-center gap-1.5">
+                      <Scale className="h-4 w-4 text-amber-600" />
+                      Analisis Bias Analitik (Alat vs Metode vs Lab)
+                    </p>
+                    <p className="mt-1.5 whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">
+                      {findingResult.aiAnalysis.biasAnalysis}
+                    </p>
+                  </div>
+                )}
+
+                {(findingResult.aiAnalysis.instrumentEvaluation || findingResult.aiAnalysis.methodEvaluation) && (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {findingResult.aiAnalysis.instrumentEvaluation && (
+                      <div className="rounded-lg border border-teal-200/90 bg-teal-50/50 p-3 dark:border-teal-900/60 dark:bg-teal-950/20">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-teal-900 dark:text-teal-300 flex items-center gap-1.5">
+                          <Wrench className="h-3.5 w-3.5 text-teal-600" />
+                          Evaluasi Kelompok Alat
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">
+                          {findingResult.aiAnalysis.instrumentEvaluation}
+                        </p>
+                      </div>
+                    )}
+                    {findingResult.aiAnalysis.methodEvaluation && (
+                      <div className="rounded-lg border border-blue-200/90 bg-blue-50/50 p-3 dark:border-blue-900/60 dark:bg-blue-950/20">
+                        <p className="text-[10px] font-bold uppercase tracking-wide text-blue-900 dark:text-blue-300 flex items-center gap-1.5">
+                          <FlaskConical className="h-3.5 w-3.5 text-blue-600" />
+                          Evaluasi Kelompok Metode
+                        </p>
+                        <p className="mt-1 whitespace-pre-wrap text-xs leading-relaxed text-foreground/90">
+                          {findingResult.aiAnalysis.methodEvaluation}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 <div className="rounded-lg border border-teal-200 bg-teal-50/70 p-3 dark:border-teal-900 dark:bg-teal-950/40">
                   <p className="text-[10px] font-bold uppercase tracking-wide text-teal-800 dark:text-teal-300">
-                    Interpretasi
+                    Interpretasi Klinis Mutu
                   </p>
                   <p className="mt-1 whitespace-pre-wrap text-sm leading-relaxed text-foreground/90">
                     {findingResult.aiAnalysis.interpretation}

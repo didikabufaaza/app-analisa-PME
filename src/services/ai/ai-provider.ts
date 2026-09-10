@@ -43,6 +43,29 @@ export interface PMEResultExtraction {
   peer_group?: string | null;
   provider_category?: string | null;
   provider_remark?: string | null;
+  all_participants_group?: {
+    count?: number | string | null;
+    target?: number | string | null;
+    sdpa?: number | string | null;
+    z_score?: number | string | null;
+    status?: string | null;
+  } | null;
+  method_group?: {
+    name?: string | null;
+    count?: number | string | null;
+    target?: number | string | null;
+    sdpa?: number | string | null;
+    z_score?: number | string | null;
+    status?: string | null;
+  } | null;
+  instrument_group?: {
+    name?: string | null;
+    count?: number | string | null;
+    target?: number | string | null;
+    sdpa?: number | string | null;
+    z_score?: number | string | null;
+    status?: string | null;
+  } | null;
   confidence: {
     parameter: number;
     participant_value: number;
@@ -91,6 +114,29 @@ export interface PMEAnalysisInput {
   unit?: string | null;
   method?: string | null;
   instrument?: string | null;
+  all_participants_group?: {
+    count?: number | null;
+    target?: number | null;
+    sdpa?: number | null;
+    z_score?: number | null;
+    status?: string | null;
+  } | null;
+  method_group?: {
+    name?: string | null;
+    count?: number | null;
+    target?: number | null;
+    sdpa?: number | null;
+    z_score?: number | null;
+    status?: string | null;
+  } | null;
+  instrument_group?: {
+    name?: string | null;
+    count?: number | null;
+    target?: number | null;
+    sdpa?: number | null;
+    z_score?: number | null;
+    status?: string | null;
+  } | null;
   history?: PMEHistoryEntry[];
 }
 
@@ -100,6 +146,9 @@ export interface PMEAnalysis {
   investigation_steps: string[];
   corrective_actions: string[];
   preventive_actions: string[];
+  instrument_evaluation?: string;
+  method_evaluation?: string;
+  bias_analysis?: string;
 }
 
 export interface AIProvider {

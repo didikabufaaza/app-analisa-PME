@@ -123,6 +123,26 @@ model PmeResult {
   instrument            String?
   peerGroup             String? // peer group used for stats: e.g. "Seluruh Peserta" | "Kelompok Metode" | "Kelompok Alat"
   providerRemark        String? // provider's own assessment, e.g. "OK | Memuaskan"
+
+  // Multi-group PME Evaluation (All participants, Method group, Instrument group)
+  allParticipantsCount  Int?
+  allParticipantsTarget Float?
+  allParticipantsSdpa   Float?
+  allParticipantsZScore Float?
+  allParticipantsStatus String?
+
+  methodCount           Int?
+  methodTarget          Float?
+  methodSdpa            Float?
+  methodZScore          Float?
+  methodStatus          String?
+
+  instrumentCount       Int?
+  instrumentTarget      Float?
+  instrumentSdpa        Float?
+  instrumentZScore      Float?
+  instrumentStatus      String?
+
   parameterConfidence   Float    @default(0)
   participantConfidence Float    @default(0)
   targetConfidence      Float    @default(0)
@@ -147,18 +167,21 @@ model PmeResult {
 }
 
 model AiAnalysis {
-  id                 String   @id @default(cuid())
-  resultId           String   @unique
-  result             PmeResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
-  interpretation     String
-  possibleCauses     String // JSON array [{category, text}]
-  investigationSteps String // JSON array of strings
-  correctiveActions  String // JSON array of strings
-  preventiveActions  String // JSON array of strings
-  provider           String
-  model              String
-  promptVersion      String
-  createdAt          DateTime @default(now())
+  id                   String    @id @default(cuid())
+  resultId             String    @unique
+  result               PmeResult @relation(fields: [resultId], references: [id], onDelete: Cascade)
+  interpretation       String
+  possibleCauses       String // JSON array [{category, text}]
+  investigationSteps   String // JSON array of strings
+  correctiveActions    String // JSON array of strings
+  preventiveActions    String // JSON array of strings
+  instrumentEvaluation String? // Evaluasi performa spesifik terhadap Kelompok Alat
+  methodEvaluation     String? // Evaluasi performa spesifik terhadap Kelompok Metode
+  biasAnalysis         String? // Analisis bias analitik bawaan alat vs deviasi metode vs variasi internal lab
+  provider             String
+  model                String
+  promptVersion        String
+  createdAt            DateTime  @default(now())
 
   @@index([resultId])
 }

@@ -73,3 +73,38 @@ export async function POST(req: NextRequest) {
     return jsonOk({ tenant: org }, { status: 201 });
   });
 }
+
+/** PATCH /api/admin/tenants — Update organization quota / plan (Superadmin only). */
+export async function PATCH(req: NextRequest) {
+  return withSuperAdmin(req, async ({ user }) => {
+    const body = await req.json().catch(() => null);
+    if (!body || !body.id) return jsonError("ID organisasi wajib disertakan", 400);
+
+    const monthlyAiLimit = Number(body.monthlyAiLimit);
+    if (!Number.isFinite(monthlyAiLimit) || monthlyAiLimit < 0) {
+      return jsonError("Kapasitas kuota bulanan harus berupa angka valid >= 0", 400);
+    }
+
+    const updateData: { monthlyAiLimit: number; plan?: string } = { monthlyAiLimit };
+    if (body.plan) {
+      updateData.plan = String(body.plan).toUpperCase();
+    }
+
+    const updated = await db.organization.update({
+      where: { id: body.id },
+      data: updateData,
+    });
+
+    await writeAudit({
+      organizationId: updated.id,
+      userId: user.id,
+      action: "UPDATE_TENANT_QUOTA",
+      entityType: "Organization",
+      entityId: updated.id,
+      details: { monthlyAiLimit, plan: updated.plan },
+    });
+
+    return jsonOk({ tenant: updated });
+  });
+}
+

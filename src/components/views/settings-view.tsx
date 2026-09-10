@@ -4,11 +4,14 @@ import { useCallback, useEffect, useState } from "react";
 import {
   AlertTriangle,
   Bot,
+  Building2,
   CheckCircle2,
   Coins,
+  Edit2,
   Gauge,
   KeyRound,
   Loader2,
+  RefreshCw,
   Save,
   Server,
   SlidersHorizontal,
@@ -24,6 +27,14 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
@@ -35,6 +46,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { cn } from "@/lib/utils";
+
+interface TenantItem {
+  id: string;
+  name: string;
+  slug: string;
+  plan: string;
+  monthlyAiLimit: number;
+  createdAt: string;
+  _count?: { users: number; pmeSessions: number };
+}
 
 interface ZscoreRulesResponse {
   rules: ZscoreRuleData[];
@@ -72,7 +94,85 @@ function StatusDot({ ok }: { ok: boolean }) {
 export function SettingsView() {
   const { toast } = useToast();
   const user = useAppStore((s) => s.user);
-  const isAdmin = user?.role === "ADMIN";
+  const isSuper = user?.role === "SUPERADMIN";
+  const isAdmin = user?.role === "ADMIN" || isSuper;
+
+  // ===== Section 4: Tenants Quota Management (SUPERADMIN only) =====
+  const [tenants, setTenants] = useState<TenantItem[]>([]);
+  const [tenantsLoading, setTenantsLoading] = useState(false);
+  const [quotaDialogOpen, setQuotaDialogOpen] = useState(false);
+  const [selectedTenant, setSelectedTenant] = useState<TenantItem | null>(null);
+  const [editLimit, setEditLimit] = useState("");
+  const [editPlan, setEditPlan] = useState("PRO");
+  const [savingQuota, setSavingQuota] = useState(false);
+
+  const fetchTenants = useCallback(async () => {
+    if (user?.role !== "SUPERADMIN") return;
+    setTenantsLoading(true);
+    try {
+      const res = await apiGet<{ tenants: TenantItem[] }>("/api/admin/tenants");
+      setTenants(res.tenants || []);
+    } catch {
+      // ignore
+    } finally {
+      setTenantsLoading(false);
+    }
+  }, [user?.role]);
+
+  useEffect(() => {
+    if (isSuper) {
+      void fetchTenants();
+    }
+  }, [isSuper, fetchTenants]);
+
+  const openQuotaDialogForCurrent = () => {
+    if (!user) return;
+    const currentT = tenants.find((t) => t.id === user.organization?.id) || {
+      id: user.organization?.id || "",
+      name: user.organization?.name || "Organisasi Saat Ini",
+      slug: "",
+      plan: user.organization?.plan || "PRO",
+      monthlyAiLimit: user.organization?.monthlyAiLimit || 100,
+      createdAt: "",
+    };
+    setSelectedTenant(currentT);
+    setEditLimit(String(currentT.monthlyAiLimit));
+    setEditPlan(currentT.plan || "PRO");
+    setQuotaDialogOpen(true);
+  };
+
+  async function handleSaveQuota() {
+    if (!selectedTenant) return;
+    const limitNum = Number(editLimit);
+    if (!Number.isFinite(limitNum) || limitNum < 0) {
+      toast({ title: "Nilai tidak valid", description: "Batas kuota harus berupa angka valid >= 0.", variant: "destructive" });
+      return;
+    }
+    setSavingQuota(true);
+    try {
+      await apiSend("/api/admin/tenants", "PATCH", {
+        id: selectedTenant.id,
+        monthlyAiLimit: limitNum,
+        plan: editPlan,
+      });
+      toast({
+        title: "Kuota berhasil diperbarui",
+        description: `Kapasitas untuk ${selectedTenant.name} diset menjadi ${limitNum} evaluasi/bulan (${editPlan}).`,
+      });
+      setQuotaDialogOpen(false);
+      void fetchTenants();
+      void fetchUsage();
+      useAppStore.getState().refreshUser();
+    } catch (err) {
+      toast({
+        title: "Gagal memperbarui kuota",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingQuota(false);
+    }
+  }
 
   // ===== Section 1: Z-Score rules =====
   const [rules, setRules] = useState<ZscoreRuleData[]>([]);
@@ -493,11 +593,31 @@ export function SettingsView() {
               ) : null}
 
               <div>
-                <div className="mb-2 flex items-center justify-between text-sm">
-                  <span className="font-medium">Kuota Bulanan</span>
-                  <span className="text-muted-foreground">
-                    {fmtInt(usage.summary.successfulRequests)} / {fmtInt(usage.summary.limit)} permintaan ({usagePct}%)
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
+                  <span className="font-medium flex items-center gap-2">
+                    Kuota Bulanan
+                    {isSuper && (
+                      <Badge variant="outline" className="text-[10px] border-teal-500/30 bg-teal-50 text-teal-800 dark:bg-teal-950 dark:text-teal-300">
+                        Superadmin
+                      </Badge>
+                    )}
                   </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-muted-foreground">
+                      {fmtInt(usage.summary.successfulRequests)} / {fmtInt(usage.summary.limit)} permintaan ({usagePct}%)
+                    </span>
+                    {isSuper && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="h-7 px-2.5 text-xs border-teal-600 text-teal-700 hover:bg-teal-50 gap-1.5 shadow-sm"
+                        onClick={openQuotaDialogForCurrent}
+                      >
+                        <Edit2 className="h-3 w-3" />
+                        Ubah Kuota
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 <Progress value={usagePct} aria-label={`Penggunaan kapasitas ${usagePct}%`} />
               </div>
@@ -589,6 +709,180 @@ export function SettingsView() {
           ) : null}
         </CardContent>
       </Card>
+
+      {/* ===== Section 4: Kelola Kuota Organisasi / Laboratorium (SUPERADMIN only) ===== */}
+      {isSuper && (
+        <Card className="border-teal-600/30 shadow-sm">
+          <CardHeader>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-base">
+                  <Building2 className="h-5 w-5 text-teal-600" />
+                  Kelola Kuota Organisasi & Laboratorium (Superadmin)
+                </CardTitle>
+                <CardDescription className="text-xs mt-1">
+                  Atur alokasi kapasitas pemrosesan bulanan dan tipe paket untuk setiap laboratorium atau organisasi pengguna.
+                </CardDescription>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="h-8 text-xs gap-1.5 self-start sm:self-auto"
+                onClick={() => void fetchTenants()}
+                disabled={tenantsLoading}
+              >
+                <RefreshCw className={cn("h-3.5 w-3.5", tenantsLoading && "animate-spin")} />
+                Segarkan Data
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-hidden rounded-md border">
+              <Table>
+                <TableHeader className="bg-muted/60">
+                  <TableRow>
+                    <TableHead>Nama Laboratorium / Organisasi</TableHead>
+                    <TableHead>Paket (Plan)</TableHead>
+                    <TableHead>Kapasitas Bulanan</TableHead>
+                    <TableHead>Pengguna Terdaftar</TableHead>
+                    <TableHead className="text-center">Aksi</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {tenants.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={5} className="py-6 text-center text-sm text-muted-foreground">
+                        {tenantsLoading ? "Memuat data organisasi..." : "Belum ada data organisasi."}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    tenants.map((t) => (
+                      <TableRow key={t.id} className="hover:bg-muted/40 transition-colors">
+                        <TableCell>
+                          <p className="font-semibold text-foreground text-sm">{t.name}</p>
+                          <p className="text-[11px] text-muted-foreground font-mono">ID: {t.id}</p>
+                        </TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="outline"
+                            className={cn(
+                              "text-xs font-semibold",
+                              t.plan === "ENTERPRISE"
+                                ? "bg-purple-100 text-purple-800 border-purple-300"
+                                : t.plan === "PRO"
+                                ? "bg-teal-100 text-teal-800 border-teal-300"
+                                : "bg-slate-100 text-slate-700 border-slate-300"
+                            )}
+                          >
+                            {t.plan}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <span className="font-bold text-teal-800 dark:text-teal-300 text-sm tabular-nums">
+                            {fmtInt(t.monthlyAiLimit)}
+                          </span>{" "}
+                          <span className="text-xs text-muted-foreground">evaluasi / bulan</span>
+                        </TableCell>
+                        <TableCell className="text-sm text-muted-foreground tabular-nums">
+                          {t._count?.users ?? 0} akun pengguna
+                        </TableCell>
+                        <TableCell className="text-center">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="h-8 text-xs border-teal-600 text-teal-700 hover:bg-teal-50 gap-1.5 shadow-sm"
+                            onClick={() => {
+                              setSelectedTenant(t);
+                              setEditLimit(String(t.monthlyAiLimit));
+                              setEditPlan(t.plan || "PRO");
+                              setQuotaDialogOpen(true);
+                            }}
+                          >
+                            <SlidersHorizontal className="h-3.5 w-3.5" />
+                            Ubah / Tambah Kuota
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog Modal Ubah Kuota */}
+      <Dialog open={quotaDialogOpen} onOpenChange={setQuotaDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base">
+              <Building2 className="h-5 w-5 text-teal-600" />
+              Ubah Kuota Evaluasi Laboratorium
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Sesuaikan kapasitas kuota bulanan dan paket langganan untuk laboratorium ini.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedTenant && (
+            <div className="space-y-4 py-2">
+              <div className="rounded-lg bg-muted/50 p-3 text-xs space-y-1">
+                <p className="font-semibold text-foreground text-sm">{selectedTenant.name}</p>
+                <p className="text-muted-foreground font-mono">ID: {selectedTenant.id}</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="tenant-plan" className="text-xs font-semibold">
+                  Tipe Paket (Plan)
+                </Label>
+                <select
+                  id="tenant-plan"
+                  value={editPlan}
+                  onChange={(e) => setEditPlan(e.target.value)}
+                  className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  <option value="FREE">FREE (Standar)</option>
+                  <option value="PRO">PRO (Prioritas)</option>
+                  <option value="ENTERPRISE">ENTERPRISE (Tanpa Batas / Kustom)</option>
+                </select>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="tenant-limit" className="text-xs font-semibold">
+                  Kapasitas Evaluasi Bulanan (Limit Jumlah Evaluasi)
+                </Label>
+                <Input
+                  id="tenant-limit"
+                  type="number"
+                  min="1"
+                  step="1"
+                  value={editLimit}
+                  onChange={(e) => setEditLimit(e.target.value)}
+                  placeholder="Misal: 100, 200, 500"
+                  className="text-sm font-semibold"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  Jumlah maksimal dokumen PME yang dapat diproses oleh laboratorium ini setiap bulan.
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" size="sm" onClick={() => setQuotaDialogOpen(false)} disabled={savingQuota}>
+              Batal
+            </Button>
+            <Button
+              size="sm"
+              className="bg-teal-600 hover:bg-teal-700 text-white gap-1.5"
+              onClick={() => void handleSaveQuota()}
+              disabled={savingQuota}
+            >
+              {savingQuota ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+              Simpan Kuota Baru
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

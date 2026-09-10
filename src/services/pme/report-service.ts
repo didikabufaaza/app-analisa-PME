@@ -14,13 +14,90 @@ import { db } from "@/lib/db";
 
 const STATUS_LABEL: Record<string, string> = {
   SATISFACTORY: "Memuaskan",
-  WARNING: "Waspada",
+  WARNING: "Peringatan",
   UNSATISFACTORY: "Tidak Memuaskan",
 };
 
 function fmt(n: number | null | undefined, digits = 3): string {
   if (n === null || n === undefined || !Number.isFinite(n)) return "-";
   return Number(n).toFixed(digits).replace(/\.?0+$/, "") || "0";
+}
+
+function fmtZ(n: number | null | undefined): string {
+  if (n === null || n === undefined || !Number.isFinite(n)) return "-";
+  return `${n > 0 ? "+" : ""}${Number(n).toFixed(2)}`;
+}
+
+/**
+ * Evaluasi tingkat keparahan baris Z-Score:
+ * - "UNSATISFACTORY" (merah) bila ada status UNSATISFACTORY atau |Z| >= 3.0
+ * - "WARNING" (kuning) bila ada status WARNING atau 2.0 < |Z| < 3.0
+ * - "SATISFACTORY" bila semua memenuhi batas toleransi
+ */
+export function getRowEvaluationLevel(r: {
+  zScore?: number | null;
+  zStatus?: string | null;
+  instrumentZScore?: number | null;
+  instrumentStatus?: string | null;
+  methodZScore?: number | null;
+  methodStatus?: string | null;
+  allParticipantsZScore?: number | null;
+  allParticipantsStatus?: string | null;
+}): "UNSATISFACTORY" | "WARNING" | "SATISFACTORY" {
+  if (r.zStatus === "UNSATISFACTORY") return "UNSATISFACTORY";
+
+  const statuses = [r.zStatus, r.instrumentStatus, r.methodStatus, r.allParticipantsStatus];
+  for (const s of statuses) {
+    if (!s) continue;
+    const up = s.toUpperCase();
+    if (up.includes("UNSATISFACTORY") || up.includes("TIDAK MEMUASKAN") || up.includes("TIDAK BAIK")) {
+      return "UNSATISFACTORY";
+    }
+  }
+
+  const scores = [r.zScore, r.instrumentZScore, r.methodZScore, r.allParticipantsZScore];
+  for (const z of scores) {
+    if (typeof z === "number" && !isNaN(z) && Math.abs(z) >= 3.0) {
+      return "UNSATISFACTORY";
+    }
+  }
+
+  if (r.zStatus === "WARNING") return "WARNING";
+
+  for (const s of statuses) {
+    if (!s) continue;
+    const up = s.toUpperCase();
+    if (up.includes("WARNING") || up.includes("PERINGATAN") || up.includes("WASPAD")) {
+      return "WARNING";
+    }
+  }
+
+  for (const z of scores) {
+    if (typeof z === "number" && !isNaN(z) && Math.abs(z) > 2.0 && Math.abs(z) < 3.0) {
+      return "WARNING";
+    }
+  }
+
+  return "SATISFACTORY";
+}
+
+export function getOverallStatusLabel(r: {
+  zStatus?: string | null;
+  validationStatus?: string | null;
+  instrumentStatus?: string | null;
+  methodStatus?: string | null;
+  allParticipantsStatus?: string | null;
+  zScore?: number | null;
+  instrumentZScore?: number | null;
+  methodZScore?: number | null;
+  allParticipantsZScore?: number | null;
+}): string {
+  const level = getRowEvaluationLevel(r);
+  if (level === "UNSATISFACTORY") return "Tidak Memuaskan";
+  if (level === "WARNING") return "Peringatan";
+  if (r.zStatus && STATUS_LABEL[r.zStatus]) return STATUS_LABEL[r.zStatus];
+  if (r.validationStatus === "REVIEW_REQUIRED") return "Perlu Review";
+  return "Memuaskan";
 }
 
 function safeParseArray(json: string | null | undefined): unknown[] {
@@ -126,29 +203,135 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
   );
   y += 10;
 
-  /* ---------- RESULT TABLE (Ringkasan) ---------- */
+  /* ---------- RESULT TABLE (Ringkasan Z-Score Multi-Kelompok) ---------- */
   doc.setFontSize(13);
   doc.text("3. Rekapitulasi Hasil Numerik Z-Score", 14, y);
   y += 4;
+
+  const rowLevels = results.map((r) => getRowEvaluationLevel(r));
+
   autoTable(doc, {
     startY: y,
-    theme: "striped",
-    head: [["Parameter", "Hasil Peserta", "Target / Mean", "SDPA", "Z-Score", "Status Mutu", "Akurasi Data"]],
-    body: results.map((r) => {
-      const conf = Math.min(r.parameterConfidence, r.participantConfidence, r.targetConfidence, r.zScoreConfidence);
+    theme: "grid",
+    tableWidth: 186,
+    margin: { left: 12, right: 12 },
+    head: [
+      [
+        { content: "No", rowSpan: 2, styles: { halign: "center", valign: "middle" } },
+        { content: "Parameter", rowSpan: 2, styles: { halign: "left", valign: "middle" } },
+        { content: "Hasil Lab", rowSpan: 2, styles: { halign: "center", valign: "middle" } },
+        { content: "Kelompok Alat", colSpan: 2, styles: { halign: "center" } },
+        { content: "Kelompok Metode", colSpan: 2, styles: { halign: "center" } },
+        { content: "Seluruh Peserta", colSpan: 2, styles: { halign: "center" } },
+        { content: "Status Mutu", rowSpan: 2, styles: { halign: "center", valign: "middle" } },
+      ],
+      [
+        { content: "Target", styles: { halign: "center" } },
+        { content: "Z-Score", styles: { halign: "center" } },
+        { content: "Target", styles: { halign: "center" } },
+        { content: "Z-Score", styles: { halign: "center" } },
+        { content: "Target", styles: { halign: "center" } },
+        { content: "Z-Score", styles: { halign: "center" } },
+      ],
+    ],
+    body: results.map((r, idx) => {
+      // Kelompok Alat
+      const instTarget =
+        r.instrumentTarget !== null && r.instrumentTarget !== undefined
+          ? fmt(r.instrumentTarget, 2)
+          : (r.peerGroup === "Kelompok Alat" && r.targetValue !== null ? fmt(r.targetValue, 2) : "-");
+      const instZ =
+        r.instrumentZScore !== null && r.instrumentZScore !== undefined
+          ? fmtZ(r.instrumentZScore)
+          : (r.peerGroup === "Kelompok Alat" && r.zScore !== null ? fmtZ(r.zScore) : "-");
+
+      // Kelompok Metode
+      const methTarget =
+        r.methodTarget !== null && r.methodTarget !== undefined
+          ? fmt(r.methodTarget, 2)
+          : (r.peerGroup === "Kelompok Metode" && r.targetValue !== null ? fmt(r.targetValue, 2) : "-");
+      const methZ =
+        r.methodZScore !== null && r.methodZScore !== undefined
+          ? fmtZ(r.methodZScore)
+          : (r.peerGroup === "Kelompok Metode" && r.zScore !== null ? fmtZ(r.zScore) : "-");
+
+      // Seluruh Peserta
+      const allTarget =
+        r.allParticipantsTarget !== null && r.allParticipantsTarget !== undefined
+          ? fmt(r.allParticipantsTarget, 2)
+          : (r.targetValue !== null ? fmt(r.targetValue, 2) : "-");
+      const allZ =
+        r.allParticipantsZScore !== null && r.allParticipantsZScore !== undefined
+          ? fmtZ(r.allParticipantsZScore)
+          : (r.zScore !== null ? fmtZ(r.zScore) : "-");
+
+      const labVal =
+        r.participantValue !== null && r.participantValue !== undefined
+          ? `${fmt(r.participantValue, 2)}${r.unit ? ` ${r.unit}` : ""}`.trim()
+          : "-";
+
+      const statusText = getOverallStatusLabel(r);
+
       return [
+        String(idx + 1),
         r.parameterName,
-        r.participantValue !== null ? `${fmt(r.participantValue, 4)} ${r.unit || ""}`.trim() : "-",
-        r.targetValue !== null ? fmt(r.targetValue, 4) : "-",
-        r.sdpa !== null ? fmt(r.sdpa, 4) : "-",
-        r.zScore !== null ? (r.zScore > 0 ? `+${fmt(r.zScore, 2)}` : fmt(r.zScore, 2)) : "-",
-        r.zStatus ? STATUS_LABEL[r.zStatus] : "Perlu Review",
-        conf > 0 ? `${Math.round(conf * 100)}%` : "-",
+        labVal,
+        instTarget,
+        instZ,
+        methTarget,
+        methZ,
+        allTarget,
+        allZ,
+        statusText,
       ];
     }),
-    headStyles: { fillColor: [13, 122, 105], fontSize: 8.5 },
-    styles: { fontSize: 8 },
-    columnStyles: { 0: { cellWidth: 42 } },
+    headStyles: {
+      fillColor: [13, 122, 105],
+      textColor: [255, 255, 255],
+      fontSize: 7.5,
+      fontStyle: "bold",
+      halign: "center",
+      valign: "middle",
+      lineColor: [255, 255, 255],
+      lineWidth: 0.1,
+    },
+    styles: {
+      fontSize: 7.5,
+      cellPadding: 1.5,
+      lineColor: [220, 220, 220],
+      lineWidth: 0.1,
+      valign: "middle",
+    },
+    columnStyles: {
+      0: { cellWidth: 7, halign: "center" },
+      1: { cellWidth: 36, halign: "left" },
+      2: { cellWidth: 19, halign: "center" },
+      3: { cellWidth: 17, halign: "center" },
+      4: { cellWidth: 16, halign: "center" },
+      5: { cellWidth: 17, halign: "center" },
+      6: { cellWidth: 16, halign: "center" },
+      7: { cellWidth: 17, halign: "center" },
+      8: { cellWidth: 16, halign: "center" },
+      9: { cellWidth: 25, halign: "center" },
+    },
+    didParseCell: (data) => {
+      if (data.section === "body") {
+        const level = rowLevels[data.row.index];
+        if (level === "UNSATISFACTORY") {
+          data.cell.styles.fillColor = [254, 226, 226]; // Merah pastel (#FEE2E2)
+          data.cell.styles.textColor = [153, 27, 27];   // Teks merah gelap (#991B1B)
+          if (data.column.index === 9 || data.column.index === 1) {
+            data.cell.styles.fontStyle = "bold";
+          }
+        } else if (level === "WARNING") {
+          data.cell.styles.fillColor = [254, 243, 199]; // Kuning pastel (#FEF3C7)
+          data.cell.styles.textColor = [146, 64, 14];   // Teks kuning gelap / amber (#92400E)
+          if (data.column.index === 9 || data.column.index === 1) {
+            data.cell.styles.fontStyle = "bold";
+          }
+        }
+      }
+    },
   });
 
   /* ---------- TABEL KOMPREHENSIF Z-SCORE DENGAN KOLOM EVALUASI LENGKAP ---------- */
@@ -170,14 +353,24 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
     27
   );
 
-  const zResults = results.filter((r) => r.zScore !== null || r.aiAnalysis !== null);
+  const zResults = results.filter(
+    (r) =>
+      r.zScore !== null ||
+      r.instrumentZScore !== null ||
+      r.methodZScore !== null ||
+      r.allParticipantsZScore !== null ||
+      r.aiAnalysis !== null
+  );
+  const table4Levels = zResults.map((r) => getRowEvaluationLevel(r));
 
   autoTable(doc, {
     startY: 32,
     theme: "grid",
+    tableWidth: 269,
+    margin: { left: 14, right: 14 },
     head: [[
       "Parameter & Z-Score",
-      "Interpretasi Klinis",
+      "Interpretasi Klinis & Analisis Bias",
       "Kemungkinan Penyebab",
       "Langkah Investigasi",
       "Tindakan Perbaikan (Korektif)",
@@ -185,14 +378,26 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
     ]],
     body: zResults.map((r) => {
       const a = r.aiAnalysis;
-      const zStr = r.zScore !== null ? (r.zScore > 0 ? `+${fmt(r.zScore, 2)}` : fmt(r.zScore, 2)) : "-";
-      const paramCol = `${r.parameterName}\n(Z = ${zStr})\nStatus: ${STATUS_LABEL[r.zStatus || ""] || "Review"}`;
+      const zGlobal = r.allParticipantsZScore ?? r.zScore;
+      const zMethod = r.methodZScore;
+      const zInst = r.instrumentZScore;
 
-      const interp = a?.interpretation
+      let zDetails = `Z-Global: ${fmtZ(zGlobal)}`;
+      if (zMethod !== null && zMethod !== undefined) zDetails += `\nZ-Metode: ${fmtZ(zMethod)}`;
+      if (zInst !== null && zInst !== undefined) zDetails += `\nZ-Alat: ${fmtZ(zInst)}`;
+
+      const statusText = getOverallStatusLabel(r);
+      const paramCol = `${r.parameterName}\n${zDetails}\nStatus: ${statusText}`;
+
+      let interp = a?.interpretation
         ? a.interpretation
         : (r.zStatus === "SATISFACTORY"
             ? "Hasil dalam batas toleransi analitik (memuaskan). Performa pengujian stabil."
             : "Memerlukan investigasi lebih lanjut terkait deviasi analitik.");
+
+      if (a?.biasAnalysis) {
+        interp += `\n\n[Analisis Bias Analitik]:\n${a.biasAnalysis}`;
+      }
 
       const causes = a?.possibleCauses ? formatList(safeParseArray(a.possibleCauses)) : "- Menjaga kestabilan reagen & instrumen";
       const invest = a?.investigationSteps ? formatList(safeParseArray(a.investigationSteps)) : "- Evaluasi tren IQC harian";
@@ -205,11 +410,23 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
     styles: { fontSize: 7.5, cellPadding: 2, overflow: "linebreak" },
     columnStyles: {
       0: { cellWidth: 38, fontStyle: "bold" },
-      1: { cellWidth: 50 },
-      2: { cellWidth: 48 },
-      3: { cellWidth: 46 },
-      4: { cellWidth: 48 },
-      5: { cellWidth: 45 },
+      1: { cellWidth: 49 },
+      2: { cellWidth: 46 },
+      3: { cellWidth: 44 },
+      4: { cellWidth: 46 },
+      5: { cellWidth: 46 },
+    },
+    didParseCell: (data) => {
+      if (data.section === "body") {
+        const level = table4Levels[data.row.index];
+        if (level === "UNSATISFACTORY") {
+          data.cell.styles.fillColor = [254, 226, 226];
+          data.cell.styles.textColor = [153, 27, 27];
+        } else if (level === "WARNING") {
+          data.cell.styles.fillColor = [254, 243, 199];
+          data.cell.styles.textColor = [146, 64, 14];
+        }
+      }
     },
   });
 
@@ -350,46 +567,151 @@ export async function generateExcelReport(sessionId: string, organizationId: str
 
   const ws = wb.addWorksheet("Hasil PME Teknis");
   ws.columns = [
-    { header: "Parameter", key: "parameter", width: 28 },
-    { header: "Participant Value", key: "participant", width: 18 },
-    { header: "Target", key: "target", width: 18 },
-    { header: "SDPA", key: "sdpa", width: 14 },
-    { header: "Z-score", key: "zscore", width: 14 },
-    { header: "Peer Group", key: "peergroup", width: 20 },
-    { header: "Status Mutu", key: "status", width: 16 },
-    { header: "Akurasi Data", key: "confidence", width: 14 },
-    { header: "Interpretasi Klinis", key: "interpretation", width: 50 },
-    { header: "Kemungkinan Penyebab", key: "cause", width: 45 },
-    { header: "Langkah Investigasi", key: "investigation", width: 45 },
-    { header: "Tindakan Korektif", key: "corrective", width: 45 },
-    { header: "Tindakan Preventif", key: "preventive", width: 45 },
+    { header: "No", key: "no", width: 6 },
+    { header: "Parameter", key: "parameter", width: 25 },
+    { header: "Hasil Lab (Peserta)", key: "participant", width: 20 },
+    { header: "Satuan", key: "unit", width: 12 },
+    { header: "Metode", key: "method", width: 16 },
+    { header: "Alat / Instrumen", key: "instrument", width: 20 },
+    // Rekapitulasi Kelompok Alat
+    { header: "Target (Kel. Alat)", key: "instrumentTarget", width: 18 },
+    { header: "SDPA (Kel. Alat)", key: "instrumentSdpa", width: 16 },
+    { header: "Z-Score (Kel. Alat)", key: "instrumentZScore", width: 18 },
+    { header: "Status (Kel. Alat)", key: "instrumentStatus", width: 18 },
+    // Rekapitulasi Kelompok Metode
+    { header: "Target (Kel. Metode)", key: "methodTarget", width: 18 },
+    { header: "SDPA (Kel. Metode)", key: "methodSdpa", width: 16 },
+    { header: "Z-Score (Kel. Metode)", key: "methodZScore", width: 18 },
+    { header: "Status (Kel. Metode)", key: "methodStatus", width: 18 },
+    // Rekapitulasi Seluruh Peserta
+    { header: "Target (Seluruh Peserta)", key: "allParticipantsTarget", width: 22 },
+    { header: "SDPA (Seluruh Peserta)", key: "allParticipantsSdpa", width: 20 },
+    { header: "Z-Score (Seluruh Peserta)", key: "allParticipantsZScore", width: 22 },
+    { header: "Status (Seluruh Peserta)", key: "allParticipantsStatus", width: 20 },
+    // Status Mutu Keseluruhan
+    { header: "Status Mutu Keseluruhan", key: "status", width: 22 },
+    // Analisis Multi-Kelompok & Evaluasi
+    { header: "Evaluasi Kelompok Alat", key: "instrumentEvaluation", width: 35 },
+    { header: "Evaluasi Kelompok Metode", key: "methodEvaluation", width: 35 },
+    { header: "Analisis Bias Analitik", key: "biasAnalysis", width: 40 },
+    { header: "Interpretasi Klinis", key: "interpretation", width: 45 },
+    { header: "Kemungkinan Penyebab", key: "cause", width: 40 },
+    { header: "Langkah Investigasi", key: "investigation", width: 40 },
+    { header: "Tindakan Korektif", key: "corrective", width: 40 },
+    { header: "Tindakan Preventif", key: "preventive", width: 40 },
   ];
 
-  ws.getRow(1).height = 26;
+  ws.getRow(1).height = 28;
   ws.getRow(1).font = { bold: true, color: { argb: "FFFFFFFF" }, size: 10 };
   ws.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF0D7A69" } };
-  ws.getRow(1).alignment = { vertical: "middle", horizontal: "center" };
+  ws.getRow(1).alignment = { vertical: "middle", horizontal: "center", wrapText: true };
 
-  for (const r of session.results) {
+  for (let idx = 0; idx < session.results.length; idx++) {
+    const r = session.results[idx];
     const a = r.aiAnalysis;
-    const conf = Math.min(r.parameterConfidence, r.participantConfidence, r.targetConfidence, r.zScoreConfidence);
+
+    const instTarget = r.instrumentTarget ?? (r.peerGroup === "Kelompok Alat" ? r.targetValue : null);
+    const instSdpa = r.instrumentSdpa ?? (r.peerGroup === "Kelompok Alat" ? r.sdpa : null);
+    const instZ = r.instrumentZScore ?? (r.peerGroup === "Kelompok Alat" ? r.zScore : null);
+    const instStatus = r.instrumentStatus ?? (r.peerGroup === "Kelompok Alat" && r.zStatus ? STATUS_LABEL[r.zStatus] : "");
+
+    const methTarget = r.methodTarget ?? (r.peerGroup === "Kelompok Metode" ? r.targetValue : null);
+    const methSdpa = r.methodSdpa ?? (r.peerGroup === "Kelompok Metode" ? r.sdpa : null);
+    const methZ = r.methodZScore ?? (r.peerGroup === "Kelompok Metode" ? r.zScore : null);
+    const methStatus = r.methodStatus ?? (r.peerGroup === "Kelompok Metode" && r.zStatus ? STATUS_LABEL[r.zStatus] : "");
+
+    const allTarget = r.allParticipantsTarget ?? r.targetValue;
+    const allSdpa = r.allParticipantsSdpa ?? r.sdpa;
+    const allZ = r.allParticipantsZScore ?? r.zScore;
+    const allStatus = r.allParticipantsStatus ?? (r.zStatus ? STATUS_LABEL[r.zStatus] : "");
+
+    const overallStatus = getOverallStatusLabel(r);
+    const rowLevel = getRowEvaluationLevel(r);
+
     const row = ws.addRow({
+      no: idx + 1,
       parameter: r.parameterName,
       participant: r.participantValue ?? "",
-      target: r.targetValue ?? "",
-      sdpa: r.sdpa ?? "",
-      zscore: r.zScore ?? "",
-      peergroup: r.peerGroup ?? "",
-      status: r.zStatus ? STATUS_LABEL[r.zStatus] : (r.validationStatus === "REVIEW_REQUIRED" ? "Review" : ""),
-      confidence: conf > 0 ? `${Math.round(conf * 100)}%` : "",
+      unit: r.unit || "",
+      method: r.method || "",
+      instrument: r.instrument || "",
+      instrumentTarget: instTarget !== null && instTarget !== undefined ? Number(instTarget) : "",
+      instrumentSdpa: instSdpa !== null && instSdpa !== undefined ? Number(instSdpa) : "",
+      instrumentZScore: instZ !== null && instZ !== undefined ? Number(instZ) : "",
+      instrumentStatus: instStatus || "",
+      methodTarget: methTarget !== null && methTarget !== undefined ? Number(methTarget) : "",
+      methodSdpa: methSdpa !== null && methSdpa !== undefined ? Number(methSdpa) : "",
+      methodZScore: methZ !== null && methZ !== undefined ? Number(methZ) : "",
+      methodStatus: methStatus || "",
+      allParticipantsTarget: allTarget !== null && allTarget !== undefined ? Number(allTarget) : "",
+      allParticipantsSdpa: allSdpa !== null && allSdpa !== undefined ? Number(allSdpa) : "",
+      allParticipantsZScore: allZ !== null && allZ !== undefined ? Number(allZ) : "",
+      allParticipantsStatus: allStatus || "",
+      status: overallStatus,
+      instrumentEvaluation: a?.instrumentEvaluation || "",
+      methodEvaluation: a?.methodEvaluation || "",
+      biasAnalysis: a?.biasAnalysis || "",
       interpretation: a?.interpretation || "",
       cause: formatListForCell(a?.possibleCauses),
       investigation: formatListForCell(a?.investigationSteps),
       corrective: formatListForCell(a?.correctiveActions),
       preventive: formatListForCell(a?.preventiveActions),
     });
+
     row.alignment = { vertical: "middle", wrapText: true };
+
+    // Border tipis rapi pada setiap sel
+    row.eachCell({ includeEmpty: true }, (cell) => {
+      cell.border = {
+        top: { style: "thin", color: { argb: "FFE5E7EB" } },
+        left: { style: "thin", color: { argb: "FFE5E7EB" } },
+        bottom: { style: "thin", color: { argb: "FFE5E7EB" } },
+        right: { style: "thin", color: { argb: "FFE5E7EB" } },
+      };
+    });
+
+    // Pewarnaan baris sesuai status Z-Score:
+    // Merah untuk Tidak Memuaskan (UNSATISFACTORY)
+    // Kuning untuk Peringatan (WARNING)
+    if (rowLevel === "UNSATISFACTORY") {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFEE2E2" }, // Merah pastel
+        };
+      });
+      const statusCell = row.getCell("status");
+      statusCell.font = { bold: true, color: { argb: "FF991B1B" } };
+      const paramCell = row.getCell("parameter");
+      paramCell.font = { bold: true, color: { argb: "FF991B1B" } };
+    } else if (rowLevel === "WARNING") {
+      row.eachCell({ includeEmpty: true }, (cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FFFEF3C7" }, // Kuning pastel
+        };
+      });
+      const statusCell = row.getCell("status");
+      statusCell.font = { bold: true, color: { argb: "FF92400E" } };
+      const paramCell = row.getCell("parameter");
+      paramCell.font = { bold: true, color: { argb: "FF92400E" } };
+    }
   }
+
+  // Format angka 2 desimal untuk kolom target & Z-score
+  ["G", "H", "I", "K", "L", "M", "O", "P", "Q"].forEach((colLetter) => {
+    ws.getColumn(colLetter).numFmt = "0.00";
+    ws.getColumn(colLetter).alignment = { vertical: "middle", horizontal: "center" };
+  });
+  ws.getColumn("A").alignment = { vertical: "middle", horizontal: "center" };
+  ws.getColumn("C").alignment = { vertical: "middle", horizontal: "center" };
+  ws.getColumn("D").alignment = { vertical: "middle", horizontal: "center" };
+  ws.getColumn("J").alignment = { vertical: "middle", horizontal: "center" };
+  ws.getColumn("N").alignment = { vertical: "middle", horizontal: "center" };
+  ws.getColumn("R").alignment = { vertical: "middle", horizontal: "center" };
+  ws.getColumn("S").alignment = { vertical: "middle", horizontal: "center" };
 
   // Identitas Sheet
   const info = wb.addWorksheet("Identitas Dokumen");

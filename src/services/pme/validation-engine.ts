@@ -183,6 +183,7 @@ export function validateResult(raw: RawExtractionResult): ValidatedResult {
   }
 
   // Multi-group resolution (All participants, Method group, Instrument group)
+  const sourceText = raw.source?.text ? String(raw.source.text).slice(0, 1000) : null;
   const textParsed = parsePmeMultiGroupText(sourceText);
 
   // All Participants Group

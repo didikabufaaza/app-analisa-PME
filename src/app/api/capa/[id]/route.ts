@@ -46,3 +46,25 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return NextResponse.json({ ok: true, status: updated.status });
   });
 }
+
+/** DELETE /api/capa/:id — delete CAPA action. */
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  return withAuth(req, async ({ user }) => {
+    const { id } = await params;
+    const capa = await db.capaAction.findFirst({ where: { id, organizationId: user.organizationId } });
+    if (!capa) return NextResponse.json({ error: "CAPA tidak ditemukan." }, { status: 404 });
+
+    await db.capaAction.delete({ where: { id } });
+
+    await writeAudit({
+      organizationId: user.organizationId,
+      userId: user.id,
+      action: "DELETE_CAPA",
+      entityType: "CapaAction",
+      entityId: id,
+      details: { problem: capa.problem },
+    });
+
+    return NextResponse.json({ ok: true });
+  });
+}

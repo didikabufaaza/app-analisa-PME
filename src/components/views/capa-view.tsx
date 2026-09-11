@@ -9,6 +9,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Trash2,
   User,
 } from "lucide-react";
 
@@ -191,6 +192,8 @@ export function CapaView() {
   const [editForm, setEditForm] = useState<CapaFormState>(EMPTY_FORM);
   const [savingEdit, setSavingEdit] = useState(false);
   const [confirmStatus, setConfirmStatus] = useState<{ capa: CapaData; next: CapaStatus } | null>(null);
+  const [confirmDelete, setConfirmDelete] = useState<CapaData | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   const fetchCapas = useCallback(async (status: string) => {
     setLoading(true);
@@ -263,6 +266,26 @@ export function CapaView() {
       setFormError(err instanceof ApiError ? err.message : "Gagal menyimpan perubahan.");
     } finally {
       setSavingEdit(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!confirmDelete) return;
+    setDeleting(true);
+    try {
+      await apiSend(`/api/capa/${confirmDelete.id}`, "DELETE");
+      toast({ title: "CAPA berhasil dihapus", description: "Tindakan CAPA telah dihapus dari sistem." });
+      if (detailCapa?.id === confirmDelete.id) setDetailCapa(null);
+      setConfirmDelete(null);
+      await fetchCapas(statusFilter);
+    } catch (err) {
+      toast({
+        title: "Gagal menghapus CAPA",
+        description: err instanceof ApiError ? err.message : "Penghapusan gagal.",
+        variant: "destructive",
+      });
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -475,10 +498,22 @@ export function CapaView() {
                         </p>
                       ) : null}
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setDetailCapa(capa)}>
-                      Detail
-                      <ChevronDown className="h-4 w-4" />
-                    </Button>
+                    <div className="flex items-center gap-1.5 self-start">
+                      <Button size="sm" variant="outline" onClick={() => setDetailCapa(capa)}>
+                        Detail
+                        <ChevronDown className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50"
+                        title="Hapus CAPA"
+                        aria-label="Hapus CAPA"
+                        onClick={() => setConfirmDelete(capa)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
 
                   <div className="grid grid-cols-1 gap-3 text-xs sm:grid-cols-2 lg:grid-cols-4">
@@ -623,6 +658,16 @@ export function CapaView() {
               {detailCapa ? (
                 <Button
                   variant="outline"
+                  className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50"
+                  onClick={() => setConfirmDelete(detailCapa)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Hapus
+                </Button>
+              ) : null}
+              {detailCapa ? (
+                <Button
+                  variant="outline"
                   onClick={() => { setEditCapa(detailCapa); setEditForm(formFromCapa(detailCapa)); setFormError(null); }}
                 >
                   <Pencil className="h-4 w-4" />
@@ -686,6 +731,32 @@ export function CapaView() {
               }}
             >
               Ya, Ubah Status
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={confirmDelete !== null} onOpenChange={(open) => { if (!open) setConfirmDelete(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Hapus CAPA ini?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Apakah Anda yakin ingin menghapus tindakan CAPA “{confirmDelete?.problem}”? Tindakan ini bersifat permanen dan tidak dapat dibatalkan.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Batal</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 text-white hover:bg-red-700"
+              disabled={deleting}
+              onClick={(e) => {
+                e.preventDefault();
+                void handleDelete();
+              }}
+            >
+              {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+              Ya, Hapus CAPA
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

@@ -304,7 +304,7 @@ export async function runAnalysisStage(sessionId: string, organizationId: string
 
   await setStage(sessionId, "ANALYZING", "Sistem menganalisis hasil yang perlu perhatian...");
 
-  const candidates = await db.pmeResult.findMany({
+  const rawCandidates = await db.pmeResult.findMany({
     where: {
       sessionId,
       ...(singleResultId
@@ -313,6 +313,17 @@ export async function runAnalysisStage(sessionId: string, organizationId: string
     },
     orderBy: [{ zScore: "asc" }],
     take: singleResultId ? 1 : limit,
+  });
+
+  const candidates = rawCandidates.filter((r) => {
+    const hasZ = [r.zScore, r.instrumentZScore, r.methodZScore, r.allParticipantsZScore].some(
+      (z) => typeof z === "number" && !isNaN(z)
+    );
+    if (!hasZ) {
+      void db.pmeResult.update({ where: { id: r.id }, data: { analysisStatus: "SKIPPED" } }).catch(() => undefined);
+      return false;
+    }
+    return true;
   });
 
   // History for trend context: prefetch in a single batch query for maximum speed

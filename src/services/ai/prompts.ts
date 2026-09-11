@@ -155,6 +155,10 @@ Your evaluation tasks:
 Rules:
 - Professional clinical laboratory quality terminology (ISO 15189, Westgard rules, Levey-Jennings charts, calibration verification, reagent blank, maintenance log).
 - Write all text in professional Bahasa Indonesia.
+- CRITICAL RULES FOR UNANALYZED GROUPS (Z-Score null / "Tidak dianalisa" / "-"):
+  1. If instrument_group has null/missing Z-score or status "Tidak dianalisa" or "-": DO NOT analyze or invent instrument peer evaluations. Set "instrument_evaluation" to "Kelompok alat tidak dianalisa oleh penyelenggara PME (-)." and in "bias_analysis" note that instrument group bias cannot be evaluated (-).
+  2. If method_group has null/missing Z-score or status "Tidak dianalisa" or "-": DO NOT analyze or invent method peer evaluations. Set "method_evaluation" to "Kelompok metode tidak dianalisa oleh penyelenggara PME (-)."
+  3. If all groups for a parameter have no Z-score, state that no numeric Z-score was analyzed.
 - Return ONLY valid JSON in this exact structure:
 {
   "interpretation": string,

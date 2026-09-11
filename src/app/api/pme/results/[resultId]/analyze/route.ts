@@ -14,6 +14,16 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ res
     });
     if (!result) return NextResponse.json({ error: "Hasil tidak ditemukan." }, { status: 404 });
 
+    const hasZ = [result.zScore, result.instrumentZScore, result.methodZScore, result.allParticipantsZScore].some(
+      (z) => typeof z === "number" && !isNaN(z)
+    );
+    if (!hasZ) {
+      return NextResponse.json(
+        { error: "Parameter ini tidak dianalisa nilai Z-Score oleh penyelenggara PME sehingga tidak dapat dianalisa oleh AI." },
+        { status: 400 }
+      );
+    }
+
     await db.pmeResult.update({ where: { id: result.id }, data: { analysisStatus: "PENDING" } });
     await writeAudit({
       organizationId: user.organizationId,

@@ -34,15 +34,37 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ res
       details: { parameter: result.parameterName },
     });
 
-    void runAnalysisStage(result.sessionId, user.organizationId, user.id, 1, result.id).catch((err) => {
-      console.error("[analyze-result-async]", err);
+    try {
+      await runAnalysisStage(result.sessionId, user.organizationId, user.id, 1, result.id);
+      const updated = await db.pmeResult.findUnique({
+        where: { id: result.id },
+        include: { aiAnalysis: true },
+      });
+
+      return NextResponse.json({
+        ok: true,
+        status: "DONE",
+        aiAnalysis: updated?.aiAnalysis
+          ? {
+              interpretation: updated.aiAnalysis.interpretation,
+              possibleCauses: updated.aiAnalysis.possibleCauses,
+              investigationSteps: updated.aiAnalysis.investigationSteps,
+              correctiveActions: updated.aiAnalysis.correctiveActions,
+              preventiveActions: updated.aiAnalysis.preventiveActions,
+            }
+          : null,
+      });
+    } catch (err) {
+      console.error("[analyze-result-sync]", err);
       if (!(err instanceof QuotaExceededError)) {
-        void db.pmeResult
+        await db.pmeResult
           .update({ where: { id: result.id }, data: { analysisStatus: "SKIPPED" } })
           .catch(() => undefined);
       }
-    });
-
-    return NextResponse.json({ ok: true, status: "ANALYZING" });
+      return NextResponse.json(
+        { error: err instanceof Error ? err.message : "Gagal melakukan analisis AI." },
+        { status: err instanceof QuotaExceededError ? 429 : 500 }
+      );
+    }
   });
 }

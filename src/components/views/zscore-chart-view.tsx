@@ -18,7 +18,20 @@ import {
   Maximize2,
   Info,
   SlidersHorizontal,
+  Sparkles,
+  Edit3,
+  RotateCcw,
+  Loader2,
 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Textarea } from "@/components/ui/textarea";
 import {
   ResponsiveContainer,
   ComposedChart,
@@ -33,7 +46,7 @@ import {
 } from "recharts";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
-import { apiGet } from "@/lib/api-client";
+import { apiGet, apiSend } from "@/lib/api-client";
 
 interface KopSuratData {
   id?: string;
@@ -90,6 +103,134 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
   const [printDate, setPrintDate] = useState("");
   const [kopSurat, setKopSurat] = useState<KopSuratData | null>(null);
 
+  // Local items state to allow immediate updates on AI analyze, manual edit, and reset
+  const [displayItems, setDisplayItems] = useState<ReportItemData[]>(items);
+
+  useEffect(() => {
+    setDisplayItems(items);
+  }, [items]);
+
+  // Action state for recommendation
+  const [analyzingId, setAnalyzingId] = useState<string | null>(null);
+  const [resettingId, setResettingId] = useState<string | null>(null);
+  const [editManualItem, setEditManualItem] = useState<ReportItemData | null>(null);
+  const [manualText, setManualText] = useState<string>("");
+  const [isSavingManual, setIsSavingManual] = useState<boolean>(false);
+
+  const handleAnalyzeSingle = async (item: ReportItemData) => {
+    setAnalyzingId(item.id);
+    try {
+      const res = await apiSend<{
+        ok: boolean;
+        status: string;
+        aiAnalysis?: { interpretation?: string; correctiveActions?: string[]; preventiveActions?: string[] };
+      }>(`/api/pme/results/${item.id}/analyze`, "POST");
+
+      if (res && res.aiAnalysis) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const freshAi = res.aiAnalysis as any;
+        setDisplayItems((prev) =>
+          prev.map((it) => (it.id === item.id ? { ...it, aiAnalysis: freshAi } : it))
+        );
+        toast({
+          title: "Analisis AI Selesai",
+          description: `Rekomendasi mutu untuk parameter ${item.parameterName} berhasil dianalisis oleh AI.`,
+        });
+      } else {
+        toast({
+          title: "Analisis Diproses",
+          description: `Analisis AI sedang diproses di server.`,
+        });
+      }
+    } catch (err) {
+      toast({
+        title: "Gagal Analisis AI",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan saat menganalisis parameter.",
+        variant: "destructive",
+      });
+    } finally {
+      setAnalyzingId(null);
+    }
+  };
+
+  const handleOpenManualEdit = (item: ReportItemData) => {
+    setEditManualItem(item);
+    setManualText(item.aiAnalysis?.interpretation || "");
+  };
+
+  const handleSaveManualEdit = async () => {
+    if (!editManualItem) return;
+    if (!manualText.trim()) {
+      toast({
+        title: "Teks Rekomendasi Kosong",
+        description: "Silakan ketik teks rekomendasi mutu sebelum menyimpan.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsSavingManual(true);
+    try {
+      const res = await apiSend<{ ok: boolean; aiAnalysis: { interpretation: string } }>(
+        `/api/pme/results/${editManualItem.id}/recommendation`,
+        "PUT",
+        { interpretation: manualText.trim() }
+      );
+
+      if (res && res.aiAnalysis) {
+        setDisplayItems((prev) =>
+          prev.map((it) =>
+            it.id === editManualItem.id
+              ? {
+                  ...it,
+                  aiAnalysis: {
+                    ...(it.aiAnalysis || {}),
+                    interpretation: res.aiAnalysis.interpretation,
+                    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                  } as any,
+                }
+              : it
+          )
+        );
+        toast({
+          title: "Rekomendasi Tersimpan",
+          description: `Rekomendasi mutu manual untuk ${editManualItem.parameterName} berhasil disimpan.`,
+        });
+        setEditManualItem(null);
+      }
+    } catch (err) {
+      toast({
+        title: "Gagal Menyimpan Rekomendasi",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan rekomendasi.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSavingManual(false);
+    }
+  };
+
+  const handleResetSingle = async (item: ReportItemData) => {
+    setResettingId(item.id);
+    try {
+      await apiSend<{ ok: boolean }>(`/api/pme/results/${item.id}/recommendation`, "DELETE");
+      setDisplayItems((prev) =>
+        prev.map((it) => (it.id === item.id ? { ...it, aiAnalysis: null } : it))
+      );
+      toast({
+        title: "Rekomendasi Direset",
+        description: `Rekomendasi mutu parameter ${item.parameterName} telah dikosongkan.`,
+      });
+    } catch (err) {
+      toast({
+        title: "Gagal Mereset Rekomendasi",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan saat mereset rekomendasi.",
+        variant: "destructive",
+      });
+    } finally {
+      setResettingId(null);
+    }
+  };
+
   useEffect(() => {
     setMounted(true);
     try {
@@ -113,7 +254,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
 
   // Format data for chart
   const chartData = useMemo<ChartDataItem[]>(() => {
-    return items.map((item) => {
+    return displayItems.map((item) => {
       const z = typeof item.zScore === "number" && !isNaN(item.zScore) ? Number(item.zScore.toFixed(2)) : null;
       const instZ =
         typeof item.instrumentZScore === "number" && !isNaN(item.instrumentZScore)
@@ -324,9 +465,9 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       doc.text(subInfo, pageW / 2, y, { align: "center" });
 
       // Render Captured Chart Image starting right after
-      y += 3;
+      y += 2.5;
       const chartImg = await captureChartSvg();
-      const chartHeight = 98; // mm
+      const chartHeight = 135; // mm (fills landscape A4 page 1 neatly alongside Kop Surat)
       if (chartImg) {
         doc.addImage(chartImg, "PNG", margin, y, contentW, chartHeight);
       } else {
@@ -341,7 +482,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       }
 
       // Legend Description below chart
-      y += chartHeight + 3.5;
+      y += chartHeight + 3;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
@@ -388,7 +529,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       doc.setTextColor(100, 116, 139);
       doc.text(`Lampiran Evaluasi Mutu  |  Halaman 2  |  Waktu Cetak: ${printDateStr}`, pageW - margin, kopY + 25.5, { align: "right" });
 
-      const tableRows = items.map((it, idx) => {
+      const tableRows = displayItems.map((it, idx) => {
         const zG = typeof it.zScore === "number" && !isNaN(it.zScore) ? (it.zScore > 0 ? `+${it.zScore.toFixed(2)}` : it.zScore.toFixed(2)) : "-";
         const zA = typeof it.instrumentZScore === "number" && !isNaN(it.instrumentZScore) ? (it.instrumentZScore > 0 ? `+${it.instrumentZScore.toFixed(2)}` : it.instrumentZScore.toFixed(2)) : "-";
         const zM = typeof it.methodZScore === "number" && !isNaN(it.methodZScore) ? (it.methodZScore > 0 ? `+${it.methodZScore.toFixed(2)}` : it.methodZScore.toFixed(2)) : "-";
@@ -408,7 +549,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
           zA,
           zM,
           statusText,
-          it.aiAnalysis?.interpretation ? it.aiAnalysis.interpretation.slice(0, 80) + "..." : "-",
+          it.aiAnalysis?.interpretation ? it.aiAnalysis.interpretation : "-",
         ];
       });
 
@@ -426,7 +567,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
             "Z-Score (Alat)",
             "Z-Score (Metode)",
             "Status Evaluasi",
-            "Interpretasi Evaluasi",
+            "Rekomendasi Mutu",
           ],
         ],
         body: tableRows,
@@ -549,77 +690,74 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
 
   return (
     <div className="space-y-6 print-container">
-      {/* PRINT-ONLY HEADER (Appears ONLY during browser print) */}
-      <div className="print-only mb-6">
-        <div className="flex items-center justify-between gap-4 pb-2">
+      {/* PRINT-ONLY HEADER (Appears ONLY during browser print on Page 1) */}
+      <div className="print-only mb-2">
+        <div className="flex items-center justify-between gap-3 pb-1">
           {/* Logo Kiri */}
-          <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center">
+          <div className="w-14 h-14 flex-shrink-0 flex items-center justify-center">
             {kopSurat?.logoKiri ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={kopSurat.logoKiri}
                 alt="Logo Kiri"
-                className="max-h-20 max-w-20 object-contain"
+                className="max-h-12 max-w-12 object-contain"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-[10px] text-gray-400">
-                Logo Instansi
+              <div className="w-10 h-10 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-[8px] text-gray-400">
+                Logo
               </div>
             )}
           </div>
 
           {/* Teks Kop Surat Tengah */}
           <div className="flex-1 text-center space-y-0.5">
-            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-800">
+            <h3 className="text-[10px] font-bold uppercase tracking-wider text-gray-800">
               {kopSurat?.pemda || "PEMERINTAH DAERAH / DINAS KESEHATAN"}
             </h3>
-            <h1 className="text-base font-extrabold uppercase tracking-tight text-gray-900">
+            <h1 className="text-[13px] font-extrabold uppercase tracking-tight text-gray-900 leading-tight">
               {kopSurat?.namaRumahSakit || filterMeta.labName || "RUMAH SAKIT / LABORATORIUM KLINIK"}
             </h1>
-            <p className="text-[11px] text-gray-600">
+            <p className="text-[9.5px] text-gray-600">
               {kopSurat?.alamatRumahSakit || "Alamat Lengkap Rumah Sakit / Laboratorium Klinik"}
             </p>
-            <p className="text-[10px] text-gray-500">
+            <p className="text-[9px] text-gray-500">
               {kopSurat?.kontakRumahSakit || "Telepon, Fax & Email Resmi Laboratorium"}
             </p>
           </div>
 
           {/* Logo Kanan */}
-          <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center">
+          <div className="w-14 h-14 flex-shrink-0 flex items-center justify-center">
             {kopSurat?.logoKanan ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
                 src={kopSurat.logoKanan}
                 alt="Logo Kanan"
-                className="max-h-20 max-w-20 object-contain"
+                className="max-h-12 max-w-12 object-contain"
               />
             ) : (
-              <div className="w-16 h-16 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-[10px] text-gray-400">
-                Logo Mutu
+              <div className="w-10 h-10 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-[8px] text-gray-400">
+                Logo
               </div>
             )}
           </div>
         </div>
 
         {/* Double divider line */}
-        <div className="border-t-2 border-b border-black h-1 my-1" />
+        <div className="border-t-2 border-b border-black h-0.5 my-1" />
 
         {/* Document Title & Meta */}
-        <div className="text-center mt-3 mb-2">
-          <h2 className="text-sm font-bold uppercase text-teal-800 tracking-wide">
+        <div className="text-center mt-1.5 mb-1.5">
+          <h2 className="text-xs font-bold uppercase text-teal-800 tracking-wide">
             LAPORAN GRAFIK KENDALI MUTU Z-SCORE (LEVEY-JENNINGS)
           </h2>
-          <p className="text-xs text-gray-600 mt-0.5">
-            Program Evaluasi Mutu Eksternal (PME) Laboratorium Kesehatan
-          </p>
-          <div className="flex justify-between items-center text-[10px] text-gray-500 mt-2 border-t pt-1">
+          <div className="flex justify-between items-center text-[8.5px] text-gray-600 mt-1 border-t pt-0.5">
             <span>
-              Laboratorium: <strong className="text-gray-700">{filterMeta.labName || kopSurat?.namaRumahSakit || "Peserta"}</strong> |{" "}
-              Program: <strong className="text-gray-700">{filterMeta.program || "PME"}</strong> |{" "}
-              Siklus: <strong className="text-gray-700">{filterMeta.cycle || "-"}</strong> ({filterMeta.period || "-"})
+              Laboratorium: <strong className="text-gray-800">{filterMeta.labName || kopSurat?.namaRumahSakit || "Peserta"}</strong> |{" "}
+              Program: <strong className="text-gray-800">{filterMeta.program || "PME"}</strong> |{" "}
+              Siklus: <strong className="text-gray-800">{filterMeta.cycle || "-"}</strong> ({filterMeta.period || "-"})
             </span>
             <span>
-              Total: <strong className="text-gray-700">{summary.total} Parameter</strong> |{" "}
+              Total: <strong className="text-gray-800">{displayItems.length} Parameter</strong> |{" "}
               Dicetak: {printDate || "-"}
             </span>
           </div>
@@ -1072,7 +1210,23 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       </Card>
 
       {/* Coordinate & Evaluation Table (Included in View and Print) */}
-      <Card>
+      <Card className="table-print-area">
+        {/* Page 2 Print-only Header for Table */}
+        <div className="print-only mb-2 text-center border-b pb-1.5">
+          <h3 className="text-xs font-bold text-teal-800 uppercase tracking-wide">
+            TABEL KOORDINAT & REKAPITULASI HASIL NUMERIK Z-SCORE
+          </h3>
+          <div className="flex justify-between items-center text-[8.5px] text-gray-500 mt-1">
+            <span>
+              Laboratorium: <strong className="text-gray-700">{filterMeta.labName || kopSurat?.namaRumahSakit || "Peserta"}</strong> |{" "}
+              Program: <strong className="text-gray-700">{filterMeta.program || "PME"}</strong>
+            </span>
+            <span>
+              Halaman 2 (Lampiran Evaluasi Mutu) | Waktu Cetak: {printDate || "-"}
+            </span>
+          </div>
+        </div>
+
         <CardHeader className="pb-3 border-b">
           <div className="flex items-center justify-between">
             <div>
@@ -1082,7 +1236,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
               </CardDescription>
             </div>
             <span className="text-xs font-medium text-muted-foreground">
-              {items.length} Parameter Tercatat
+              {displayItems.length} Parameter Tercatat
             </span>
           </div>
         </CardHeader>
@@ -1092,7 +1246,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
               <thead className="sticky top-0 z-10 border-b bg-muted/80 backdrop-blur print:static print:bg-slate-100">
                 <tr>
                   <th className="p-2.5 font-semibold text-muted-foreground w-10 text-center">No.</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[160px]">Sasaran / Parameter</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[150px]">Sasaran / Parameter</th>
                   <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Hasil Peserta</th>
                   <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Target (Mean)</th>
                   <th className="p-2.5 font-semibold text-muted-foreground w-20 text-center">SDPA</th>
@@ -1100,11 +1254,12 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                   <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Z-Score (Alat)</th>
                   <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Z-Score (Metode)</th>
                   <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Status Evaluasi</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[220px]">Rekomendasi Mutu</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[200px]">Rekomendasi Mutu</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-44 text-center no-print">Aksi</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
-                {items.map((item, idx) => {
+                {displayItems.map((item, idx) => {
                   const z = item.zScore;
                   const zFormatted =
                     z !== null && z !== undefined
@@ -1178,18 +1333,65 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                       </td>
                       <td className="p-2.5">
                         {item.aiAnalysis?.interpretation ? (
-                          <p className="line-clamp-2 text-[11px] text-muted-foreground">
+                          <p className="line-clamp-2 text-[11px] text-foreground">
                             {item.aiAnalysis.interpretation}
                           </p>
-                        ) : item.zStatus === "SATISFACTORY" || (!isOut && !isWarn) ? (
-                          <p className="text-[11px] text-muted-foreground italic">
-                            Hasil analitik memuaskan. Pertahankan kontrol mutu rutin.
-                          </p>
                         ) : (
-                          <p className="text-[11px] text-amber-700 dark:text-amber-400 italic">
-                            Disarankan verifikasi instrumen, reagen, dan buat usulan CAPA.
-                          </p>
+                          <span className="text-[11px] text-muted-foreground italic">-</span>
                         )}
+                      </td>
+                      <td className="p-2.5 text-center no-print">
+                        <div className="flex items-center justify-center gap-1.5">
+                          {/* Tombol Analisis AI */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title="Analisis Otomatis oleh AI"
+                            onClick={() => handleAnalyzeSingle(item)}
+                            disabled={analyzingId === item.id}
+                            className="h-7 px-2 text-[10px] font-medium border-teal-600/40 text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+                          >
+                            {analyzingId === item.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>
+                                <Sparkles className="mr-1 h-3 w-3 text-teal-600" />
+                                <span>Analisis</span>
+                              </>
+                            )}
+                          </Button>
+
+                          {/* Tombol Isi Manual */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title="Isi Rekomendasi Mutu Manual"
+                            onClick={() => handleOpenManualEdit(item)}
+                            className="h-7 px-2 text-[10px] font-medium border-blue-500/40 text-blue-700 dark:text-blue-300 hover:bg-blue-50 dark:hover:bg-blue-950/40"
+                          >
+                            <Edit3 className="mr-1 h-3 w-3 text-blue-600" />
+                            <span>Manual</span>
+                          </Button>
+
+                          {/* Tombol Reset */}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            title="Kosongkan / Reset Rekomendasi"
+                            onClick={() => handleResetSingle(item)}
+                            disabled={resettingId === item.id || !item.aiAnalysis}
+                            className="h-7 px-2 text-[10px] font-medium border-red-500/30 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40 disabled:opacity-40"
+                          >
+                            {resettingId === item.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <>
+                                <RotateCcw className="mr-1 h-3 w-3 text-red-500" />
+                                <span>Reset</span>
+                              </>
+                            )}
+                          </Button>
+                        </div>
                       </td>
                     </tr>
                   );
@@ -1199,6 +1401,70 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
           </div>
         </CardContent>
       </Card>
+
+      {/* Dialog Isi Manual Rekomendasi Mutu */}
+      <Dialog open={!!editManualItem} onOpenChange={(open) => !open && setEditManualItem(null)}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold">
+              <Edit3 className="h-4 w-4 text-blue-600" />
+              <span>Isi Rekomendasi Mutu Manual</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Ketik saran dan rekomendasi tindak lanjut mutu laboratorium untuk parameter{" "}
+              <strong className="text-foreground">{editManualItem?.parameterName}</strong> (Z-Score:{" "}
+              <strong className="text-foreground">
+                {editManualItem?.zScore !== null && editManualItem?.zScore !== undefined
+                  ? editManualItem.zScore > 0
+                    ? `+${editManualItem.zScore.toFixed(2)}`
+                    : editManualItem.zScore.toFixed(2)
+                  : "-"}
+              </strong>).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-2 py-2">
+            <label className="text-xs font-semibold text-foreground">
+              Teks Rekomendasi Mutu:
+            </label>
+            <Textarea
+              rows={4}
+              placeholder="Ketik rekomendasi mutu (misal: Kalibrasi ulang instrumen, evaluasi reagen, periksa kontrol mutu harian...)"
+              value={manualText}
+              onChange={(e) => setManualText(e.target.value)}
+              className="text-xs"
+            />
+          </div>
+
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setEditManualItem(null)}
+              disabled={isSavingManual}
+              className="text-xs"
+            >
+              Batal
+            </Button>
+            <Button
+              variant="default"
+              size="sm"
+              onClick={handleSaveManualEdit}
+              disabled={isSavingManual || !manualText.trim()}
+              className="bg-teal-700 hover:bg-teal-800 text-white text-xs"
+            >
+              {isSavingManual ? (
+                <>
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  Menyimpan...
+                </>
+              ) : (
+                "Simpan Rekomendasi"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* PRINT-ONLY SIGNATURE BLOCK (Appears ONLY during browser print) */}
       <div className="print-only print-avoid-break mt-10 pt-6 border-t">

@@ -76,9 +76,20 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
   // View Options
   const [selectedSeries, setSelectedSeries] = useState<"all" | "global" | "instrument" | "method">("all");
   const [showLabels, setShowLabels] = useState(true);
+  const [printDate, setPrintDate] = useState("");
 
   useEffect(() => {
     setMounted(true);
+    try {
+      setPrintDate(
+        new Date().toLocaleString("id-ID", {
+          dateStyle: "long",
+          timeStyle: "short",
+        })
+      );
+    } catch {
+      setPrintDate(new Date().toLocaleString("id-ID"));
+    }
   }, []);
 
   // Format data for chart
@@ -228,7 +239,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       doc.setFontSize(10);
       doc.text("LAPORAN GRAFIK KENDALI MUTU Z-SCORE (LEVEY-JENNINGS)", margin, 18);
 
-      const printDateStr = new Date().toLocaleDateString("id-ID", {
+      const printDateStr = new Date().toLocaleString("id-ID", {
         day: "numeric",
         month: "long",
         year: "numeric",
@@ -501,7 +512,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
             </p>
           </div>
           <div className="text-right text-xs text-gray-500">
-            <p>Tanggal Cetak: {new Date().toLocaleDateString("id-ID", { dateStyle: "long", timeStyle: "short" })}</p>
+            <p>Tanggal Cetak: {printDate || "-"}</p>
             <p className="font-semibold text-gray-700">Total: {summary.total} Parameter</p>
           </div>
         </div>

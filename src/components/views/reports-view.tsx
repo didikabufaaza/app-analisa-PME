@@ -537,11 +537,20 @@ export function ReportsView() {
                           <td className="p-3">
                             {item.aiAnalysis ? (
                               <div className="space-y-1.5 text-[11px]">
-                                <p className="line-clamp-2 text-muted-foreground">{item.aiAnalysis.interpretation}</p>
+                                <p className="text-muted-foreground whitespace-normal break-words print:text-foreground print:line-clamp-none leading-relaxed">
+                                  {item.aiAnalysis.interpretation}
+                                </p>
                                 {item.aiAnalysis.correctiveActions && (
                                   <div className="rounded bg-muted/60 p-1.5 text-[10px] text-foreground">
                                     <span className="font-semibold text-teal-700 dark:text-teal-400">Rencana Korektif: </span>
-                                    {item.aiAnalysis.correctiveActions.slice(0, 150)}...
+                                    <span className="print:hidden">
+                                      {item.aiAnalysis.correctiveActions.length > 150
+                                        ? `${item.aiAnalysis.correctiveActions.slice(0, 150)}...`
+                                        : item.aiAnalysis.correctiveActions}
+                                    </span>
+                                    <span className="hidden print:inline">
+                                      {item.aiAnalysis.correctiveActions}
+                                    </span>
                                   </div>
                                 )}
                               </div>

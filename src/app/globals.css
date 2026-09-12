@@ -243,6 +243,28 @@
     page-break-inside: avoid !important;
     break-inside: avoid !important;
   }
+
+  /* Table cells must allow complete text wrapping and prevent truncation in print */
+  table th,
+  table td {
+    overflow: visible !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+    overflow-wrap: break-word !important;
+  }
+
+  table td p,
+  table td span,
+  table td div {
+    display: block !important;
+    -webkit-line-clamp: unset !important;
+    line-clamp: unset !important;
+    max-height: none !important;
+    overflow: visible !important;
+    text-overflow: clip !important;
+    white-space: normal !important;
+    word-break: break-word !important;
+  }
 }
 
 @media screen {

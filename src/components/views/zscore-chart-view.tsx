@@ -556,6 +556,9 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       autoTable(doc, {
         startY: kopY + 29,
         theme: "grid",
+        margin: { top: 20, right: margin, bottom: 20, left: margin },
+        showHead: "everyPage",
+        rowPageBreak: "auto",
         head: [
           [
             "No",
@@ -574,25 +577,30 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         headStyles: {
           fillColor: [13, 122, 105],
           textColor: [255, 255, 255],
-          fontSize: 8,
+          fontSize: 7.5,
           fontStyle: "bold",
           halign: "center",
+          valign: "middle",
         },
         styles: {
-          fontSize: 7.5,
+          fontSize: 7,
           cellPadding: 2,
+          valign: "top",
+          overflow: "linebreak",
+          lineColor: [220, 225, 230],
+          lineWidth: 0.1,
         },
         columnStyles: {
-          0: { halign: "center", cellWidth: 10 },
-          1: { halign: "left", cellWidth: 42, fontStyle: "bold" },
-          2: { halign: "center", cellWidth: 26 },
-          3: { halign: "center", cellWidth: 22 },
-          4: { halign: "center", cellWidth: 18 },
-          5: { halign: "center", cellWidth: 24, fontStyle: "bold" },
-          6: { halign: "center", cellWidth: 24 },
-          7: { halign: "center", cellWidth: 24 },
-          8: { halign: "center", cellWidth: 26 },
-          9: { halign: "left" },
+          0: { halign: "center", cellWidth: 8 },
+          1: { halign: "left", cellWidth: 34, fontStyle: "bold" },
+          2: { halign: "center", cellWidth: 20 },
+          3: { halign: "center", cellWidth: 18 },
+          4: { halign: "center", cellWidth: 14 },
+          5: { halign: "center", cellWidth: 18, fontStyle: "bold" },
+          6: { halign: "center", cellWidth: 18 },
+          7: { halign: "center", cellWidth: 18 },
+          8: { halign: "center", cellWidth: 22 },
+          9: { halign: "left", cellWidth: 99, overflow: "linebreak", fontStyle: "normal" },
         },
         didParseCell: (data) => {
           if (data.section === "body" && (data.column.index === 5 || data.column.index === 8)) {
@@ -1290,19 +1298,19 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                         isOut ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : ""
                       }`}
                     >
-                      <td className="p-2.5 text-center text-muted-foreground">{idx + 1}</td>
-                      <td className="p-2.5">
+                      <td className="p-2.5 align-top text-center text-muted-foreground">{idx + 1}</td>
+                      <td className="p-2.5 align-top">
                         <p className="font-semibold text-foreground">{item.parameterName}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {item.session?.program || "PME"} · {item.session?.cycle || "-"} ({item.session?.period || "-"})
                         </p>
                       </td>
-                      <td className="p-2.5 text-center font-mono">
+                      <td className="p-2.5 align-top text-center font-mono">
                         {item.participantValue !== null ? `${item.participantValue} ${item.unit || ""}` : "-"}
                       </td>
-                      <td className="p-2.5 text-center font-mono">{item.targetValue ?? "-"}</td>
-                      <td className="p-2.5 text-center font-mono">{item.sdpa ?? "-"}</td>
-                      <td className="p-2.5 text-center">
+                      <td className="p-2.5 align-top text-center font-mono">{item.targetValue ?? "-"}</td>
+                      <td className="p-2.5 align-top text-center font-mono">{item.sdpa ?? "-"}</td>
+                      <td className="p-2.5 align-top text-center">
                         <span
                           className={`font-mono font-bold text-xs ${
                             isOut ? "text-red-600" : isWarn ? "text-amber-600" : "text-emerald-600"
@@ -1311,13 +1319,13 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                           {zFormatted}
                         </span>
                       </td>
-                      <td className="p-2.5 text-center font-mono text-xs text-blue-600 font-semibold">
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-blue-600 font-semibold">
                         {zInstFormatted}
                       </td>
-                      <td className="p-2.5 text-center font-mono text-xs text-purple-600 font-semibold">
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-purple-600 font-semibold">
                         {zMetFormatted}
                       </td>
-                      <td className="p-2.5 text-center">
+                      <td className="p-2.5 align-top text-center">
                         <Badge
                           variant="outline"
                           className={`text-[10px] ${
@@ -1331,16 +1339,16 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                           {item.zStatus || (isOut ? "TIDAK MEMUASKAN" : isWarn ? "WARNING" : "MEMUASKAN")}
                         </Badge>
                       </td>
-                      <td className="p-2.5">
+                      <td className="p-2.5 align-top min-w-[220px]">
                         {item.aiAnalysis?.interpretation ? (
-                          <p className="line-clamp-2 text-[11px] text-foreground">
+                          <p className="text-[11px] text-foreground whitespace-normal break-words leading-relaxed print:text-[9.5px]">
                             {item.aiAnalysis.interpretation}
                           </p>
                         ) : (
                           <span className="text-[11px] text-muted-foreground italic">-</span>
                         )}
                       </td>
-                      <td className="p-2.5 text-center no-print">
+                      <td className="p-2.5 align-top text-center no-print">
                         <div className="flex items-center justify-center gap-1.5">
                           {/* Tombol Analisis AI */}
                           <Button

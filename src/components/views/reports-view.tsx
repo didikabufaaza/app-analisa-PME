@@ -25,7 +25,9 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  Activity,
 } from "lucide-react";
+import { ZScoreChartView } from "./zscore-chart-view";
 
 const STATUS_BADGE: Record<string, { label: string; className: string }> = {
   SATISFACTORY: { label: "Memuaskan", className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30" },
@@ -39,6 +41,7 @@ export function ReportsView() {
   const [items, setItems] = useState<ReportItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"table" | "chart">("table");
 
   // Filter state
   const [sessionId, setSessionId] = useState("");
@@ -395,121 +398,180 @@ export function ReportsView() {
         </CardContent>
       </Card>
 
-      {/* Results Table */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-base">Daftar Parameter Hasil Evaluasi</CardTitle>
-          <CardDescription>
-            Menampilkan {items.length} parameter sesuai filter aktif. Kolom menyajikan data numerik dan rencana tindak lanjut perbaikan mutu.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          {loading ? (
-            <div className="space-y-2 py-4">
-              <Skeleton className="h-10 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-              <Skeleton className="h-12 w-full" />
-            </div>
-          ) : items.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <CheckCircle2 className="h-10 w-10 text-muted-foreground/40 mb-3" />
-              <p className="text-sm font-medium text-muted-foreground">Tidak ada parameter yang sesuai dengan filter.</p>
-              <Button variant="ghost" size="sm" onClick={resetFilters} className="mt-2 text-teal-700">
-                Atur Ulang Filter
-              </Button>
-            </div>
-          ) : (
-            <div className="max-h-[38rem] overflow-x-auto overflow-y-auto rounded-lg border">
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 z-10 border-b bg-muted/70 backdrop-blur">
-                  <tr>
-                    <th className="p-3 font-semibold text-muted-foreground w-12 text-center">No.</th>
-                    <th className="p-3 font-semibold text-muted-foreground min-w-[180px]">Sasaran / Parameter</th>
-                    <th className="p-3 font-semibold text-muted-foreground min-w-[140px]">Hasil Peserta & Target</th>
-                    <th className="p-3 font-semibold text-muted-foreground w-24 text-center">Z-Score</th>
-                    <th className="p-3 font-semibold text-muted-foreground w-32 text-center">Status Evaluasi</th>
-                    <th className="p-3 font-semibold text-muted-foreground min-w-[280px]">Interpretasi & Rencana Perbaikan</th>
-                    <th className="p-3 font-semibold text-muted-foreground w-28 text-center">CAPA</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {items.map((item, idx) => {
-                    const zBadge = STATUS_BADGE[item.zStatus || (item.validationStatus === "REVIEW_REQUIRED" ? "REVIEW_REQUIRED" : "")] || {
-                      label: item.zStatus || "Review",
-                      className: "bg-muted text-foreground",
-                    };
-                    const zFormatted =
-                      item.zScore !== null ? (item.zScore > 0 ? `+${item.zScore.toFixed(2)}` : item.zScore.toFixed(2)) : "-";
+      {/* View Mode Switcher: Tabel Evaluasi vs Grafik Z-Score (Levey-Jennings) */}
+      <div className="no-print flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b pb-3 pt-1">
+        <div className="flex items-center gap-1 rounded-lg border bg-muted/60 p-1 text-xs">
+          <button
+            type="button"
+            onClick={() => setActiveTab("table")}
+            className={cn(
+              "flex items-center gap-2 rounded-md px-4 py-2 font-semibold transition-all cursor-pointer",
+              activeTab === "table"
+                ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-200 shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <FileSpreadsheet className="h-4 w-4 text-teal-600" />
+            <span>Tabel Evaluasi ({items.length})</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab("chart")}
+            className={cn(
+              "flex items-center gap-2 rounded-md px-4 py-2 font-semibold transition-all cursor-pointer",
+              activeTab === "chart"
+                ? "bg-white dark:bg-zinc-800 text-teal-800 dark:text-teal-200 shadow-xs"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            <Activity className="h-4 w-4 text-teal-600" />
+            <span>Grafik Z-Score (Levey-Jennings)</span>
+            <Badge variant="outline" className="ml-1 bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/30 text-[10px] py-0 px-1.5">
+              Visual
+            </Badge>
+          </button>
+        </div>
 
-                    return (
-                      <tr key={item.id} className="hover:bg-muted/40 transition-colors">
-                        <td className="p-3 text-center text-muted-foreground">{idx + 1}</td>
-                        <td className="p-3">
-                          <p className="font-semibold text-foreground">{item.parameterName}</p>
-                          <p className="text-[11px] text-muted-foreground">
-                            {item.session.program || "PME"} · {item.session.cycle || "-"} ({item.session.period || "-"})
-                          </p>
-                          {item.method && <p className="text-[10px] text-muted-foreground/80">Metode: {item.method}</p>}
-                        </td>
-                        <td className="p-3">
-                          <div className="space-y-0.5 font-mono text-[11px]">
-                            <p>
-                              Peserta: <span className="font-semibold text-foreground">{item.participantValue ?? "-"}</span> {item.unit || ""}
+        <div className="text-xs text-muted-foreground">
+          {activeTab === "chart" ? (
+            <span className="flex items-center gap-1.5 text-teal-700 dark:text-teal-300 font-medium">
+              <Activity className="h-3.5 w-3.5" />
+              Mode Tampilan: Visualisasi Plot Levey-Jennings & Garis Kontrol (±2, ±3 SD)
+            </span>
+          ) : (
+            <span>Menampilkan data numerik lengkap & rencana tindak lanjut</span>
+          )}
+        </div>
+      </div>
+
+      {activeTab === "chart" ? (
+        <ZScoreChartView
+          items={items}
+          summary={summary}
+          filterMeta={{
+            program,
+            cycle,
+            period,
+            labName: items[0]?.session?.laboratoryName || null,
+          }}
+        />
+      ) : (
+        /* Results Table */
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">Daftar Parameter Hasil Evaluasi</CardTitle>
+            <CardDescription>
+              Menampilkan {items.length} parameter sesuai filter aktif. Kolom menyajikan data numerik dan rencana tindak lanjut perbaikan mutu.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="space-y-2 py-4">
+                <Skeleton className="h-10 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+                <Skeleton className="h-12 w-full" />
+              </div>
+            ) : items.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <CheckCircle2 className="h-10 w-10 text-muted-foreground/40 mb-3" />
+                <p className="text-sm font-medium text-muted-foreground">Tidak ada parameter yang sesuai dengan filter.</p>
+                <Button variant="ghost" size="sm" onClick={resetFilters} className="mt-2 text-teal-700">
+                  Atur Ulang Filter
+                </Button>
+              </div>
+            ) : (
+              <div className="max-h-[38rem] overflow-x-auto overflow-y-auto rounded-lg border">
+                <table className="w-full text-left text-xs">
+                  <thead className="sticky top-0 z-10 border-b bg-muted/70 backdrop-blur">
+                    <tr>
+                      <th className="p-3 font-semibold text-muted-foreground w-12 text-center">No.</th>
+                      <th className="p-3 font-semibold text-muted-foreground min-w-[180px]">Sasaran / Parameter</th>
+                      <th className="p-3 font-semibold text-muted-foreground min-w-[140px]">Hasil Peserta & Target</th>
+                      <th className="p-3 font-semibold text-muted-foreground w-24 text-center">Z-Score</th>
+                      <th className="p-3 font-semibold text-muted-foreground w-32 text-center">Status Evaluasi</th>
+                      <th className="p-3 font-semibold text-muted-foreground min-w-[280px]">Interpretasi & Rencana Perbaikan</th>
+                      <th className="p-3 font-semibold text-muted-foreground w-28 text-center">CAPA</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y">
+                    {items.map((item, idx) => {
+                      const zBadge = STATUS_BADGE[item.zStatus || (item.validationStatus === "REVIEW_REQUIRED" ? "REVIEW_REQUIRED" : "")] || {
+                        label: item.zStatus || "Review",
+                        className: "bg-muted text-foreground",
+                      };
+                      const zFormatted =
+                        item.zScore !== null ? (item.zScore > 0 ? `+${item.zScore.toFixed(2)}` : item.zScore.toFixed(2)) : "-";
+
+                      return (
+                        <tr key={item.id} className="hover:bg-muted/40 transition-colors">
+                          <td className="p-3 text-center text-muted-foreground">{idx + 1}</td>
+                          <td className="p-3">
+                            <p className="font-semibold text-foreground">{item.parameterName}</p>
+                            <p className="text-[11px] text-muted-foreground">
+                              {item.session.program || "PME"} · {item.session.cycle || "-"} ({item.session.period || "-"})
                             </p>
-                            <p className="text-muted-foreground">Target: {item.targetValue ?? "-"}</p>
-                            {item.sdpa !== null && item.sdpa !== undefined && (
-                              <p className="text-muted-foreground text-[10px]">SDPA: {item.sdpa}</p>
-                            )}
-                          </div>
-                        </td>
-                        <td className="p-3 text-center">
-                          <span className={cn("font-mono font-bold text-sm", item.zScore !== null && Math.abs(item.zScore) >= 3 ? "text-red-600" : item.zScore !== null && Math.abs(item.zScore) > 2 ? "text-amber-600" : "text-emerald-600")}>
-                            {zFormatted}
-                          </span>
-                        </td>
-                        <td className="p-3 text-center">
-                          <Badge variant="outline" className={cn("text-[11px] font-medium", zBadge.className)}>
-                            {zBadge.label}
-                          </Badge>
-                        </td>
-                        <td className="p-3">
-                          {item.aiAnalysis ? (
-                            <div className="space-y-1.5 text-[11px]">
-                              <p className="line-clamp-2 text-muted-foreground">{item.aiAnalysis.interpretation}</p>
-                              {item.aiAnalysis.correctiveActions && (
-                                <div className="rounded bg-muted/60 p-1.5 text-[10px] text-foreground">
-                                  <span className="font-semibold text-teal-700 dark:text-teal-400">Rencana Korektif: </span>
-                                  {item.aiAnalysis.correctiveActions.slice(0, 150)}...
-                                </div>
+                            {item.method && <p className="text-[10px] text-muted-foreground/80">Metode: {item.method}</p>}
+                          </td>
+                          <td className="p-3">
+                            <div className="space-y-0.5 font-mono text-[11px]">
+                              <p>
+                                Peserta: <span className="font-semibold text-foreground">{item.participantValue ?? "-"}</span> {item.unit || ""}
+                              </p>
+                              <p className="text-muted-foreground">Target: {item.targetValue ?? "-"}</p>
+                              {item.sdpa !== null && item.sdpa !== undefined && (
+                                <p className="text-muted-foreground text-[10px]">SDPA: {item.sdpa}</p>
                               )}
                             </div>
-                          ) : item.zStatus === "SATISFACTORY" ? (
-                            <p className="text-[11px] text-muted-foreground italic">
-                              Hasil memuaskan. Pertahankan pemeliharaan berkala instrumen dan kontrol IQC.
-                            </p>
-                          ) : (
-                            <p className="text-[11px] text-muted-foreground italic">Belum ada analisis evaluasi tersimpan.</p>
-                          )}
-                        </td>
-                        <td className="p-3 text-center">
-                          {item.capaActions && item.capaActions.length > 0 ? (
-                            <Badge variant="outline" className="bg-teal-500/15 text-teal-800 dark:text-teal-300 border-teal-500/30 text-[10px]">
-                              {item.capaActions[0].status}
+                          </td>
+                          <td className="p-3 text-center">
+                            <span className={cn("font-mono font-bold text-sm", item.zScore !== null && Math.abs(item.zScore) >= 3 ? "text-red-600" : item.zScore !== null && Math.abs(item.zScore) > 2 ? "text-amber-600" : "text-emerald-600")}>
+                              {zFormatted}
+                            </span>
+                          </td>
+                          <td className="p-3 text-center">
+                            <Badge variant="outline" className={cn("text-[11px] font-medium", zBadge.className)}>
+                              {zBadge.label}
                             </Badge>
-                          ) : (
-                            <span className="text-[10px] text-muted-foreground">-</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+                          </td>
+                          <td className="p-3">
+                            {item.aiAnalysis ? (
+                              <div className="space-y-1.5 text-[11px]">
+                                <p className="line-clamp-2 text-muted-foreground">{item.aiAnalysis.interpretation}</p>
+                                {item.aiAnalysis.correctiveActions && (
+                                  <div className="rounded bg-muted/60 p-1.5 text-[10px] text-foreground">
+                                    <span className="font-semibold text-teal-700 dark:text-teal-400">Rencana Korektif: </span>
+                                    {item.aiAnalysis.correctiveActions.slice(0, 150)}...
+                                  </div>
+                                )}
+                              </div>
+                            ) : item.zStatus === "SATISFACTORY" ? (
+                              <p className="text-[11px] text-muted-foreground italic">
+                                Hasil memuaskan. Pertahankan pemeliharaan berkala instrumen dan kontrol IQC.
+                              </p>
+                            ) : (
+                              <p className="text-[11px] text-muted-foreground italic">Belum ada analisis evaluasi tersimpan.</p>
+                            )}
+                          </td>
+                          <td className="p-3 text-center">
+                            {item.capaActions && item.capaActions.length > 0 ? (
+                              <Badge variant="outline" className="bg-teal-500/15 text-teal-800 dark:text-teal-300 border-teal-500/30 text-[10px]">
+                                {item.capaActions[0].status}
+                              </Badge>
+                            ) : (
+                              <span className="text-[10px] text-muted-foreground">-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

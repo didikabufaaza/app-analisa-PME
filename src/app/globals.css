@@ -140,3 +140,60 @@
 ::-webkit-scrollbar-thumb:hover {
   background-color: oklch(0.55 0.11 180 / 0.6);
 }
+
+/* Print optimization styles for clean landscape printing */
+@media print {
+  @page {
+    size: landscape;
+    margin: 8mm;
+  }
+
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* Hide app shell chrome, sidebars, navigation, filters, buttons during print */
+  header,
+  aside,
+  nav,
+  .no-print,
+  button,
+  [role="tablist"] {
+    display: none !important;
+  }
+
+  /* Make main print container take full width with no overflow clipping */
+  main,
+  .print-container {
+    width: 100% !important;
+    max-width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+    border: none !important;
+  }
+
+  /* Ensure chart container renders without clipping */
+  .chart-print-area {
+    width: 100% !important;
+    min-height: 460px !important;
+    page-break-inside: avoid !important;
+    overflow: visible !important;
+  }
+
+  /* Show print-only headers */
+  .print-only {
+    display: block !important;
+  }
+}
+
+@media screen {
+  .print-only {
+    display: none !important;
+  }
+}
+

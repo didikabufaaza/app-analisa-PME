@@ -303,6 +303,15 @@ export interface ReportItemData {
   validationStatus: string;
   method?: string | null;
   instrument?: string | null;
+  instrumentTarget?: number | null;
+  instrumentZScore?: number | null;
+  instrumentStatus?: string | null;
+  methodTarget?: number | null;
+  methodZScore?: number | null;
+  methodStatus?: string | null;
+  allParticipantsTarget?: number | null;
+  allParticipantsZScore?: number | null;
+  allParticipantsStatus?: string | null;
   aiAnalysis?: {
     interpretation: string;
     possibleCauses: string;

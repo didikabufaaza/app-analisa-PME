@@ -13,6 +13,7 @@ import { CapaView } from "@/components/views/capa-view";
 import { SettingsView } from "@/components/views/settings-view";
 import { AuditView } from "@/components/views/audit-view";
 import { UsersView } from "@/components/views/users-view";
+import { KopSuratView } from "@/components/views/kop-surat-view";
 
 export default function Home() {
   const { user, view, viewAsTenantId } = useAppStore();
@@ -64,6 +65,11 @@ export default function Home() {
         {visited.has("capa") && (
           <div className={view === "capa" ? "block" : "hidden"}>
             <CapaView />
+          </div>
+        )}
+        {visited.has("kop-surat") && (
+          <div className={view === "kop-surat" ? "block" : "hidden"}>
+            <KopSuratView />
           </div>
         )}
         {visited.has("settings") && (

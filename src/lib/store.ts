@@ -10,6 +10,7 @@ export type AppView =
   | "reports"
   | "review"
   | "capa"
+  | "kop-surat"
   | "settings"
   | "audit"
   | "users";

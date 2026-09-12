@@ -67,13 +67,6 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
     }
   }
 
-  function fillDemo(kind: "admin" | "analis") {
-    setMode("login");
-    setEmail(kind === "admin" ? "admin@didikpme.id" : "analis@didikpme.id");
-    setPassword("demo1234");
-    setError(null);
-  }
-
   return (
     <div className="min-h-screen flex flex-col lg:flex-row bg-background">
       {/* Brand panel (70% width on desktop, clean background without boxes/grid) */}
@@ -99,7 +92,7 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
         <main className="relative z-10 max-w-4xl space-y-8 py-8">
           <div className="space-y-4">
             <Badge variant="secondary" className="bg-teal-400/15 text-teal-100 ring-1 ring-teal-300/30 gap-1.5 px-3 py-1">
-              <Sparkles className="h-3.5 w-3.5 text-teal-300" /> Clinical Quality Suite · Didik – Digital Smart PME
+              <Sparkles className="h-3.5 w-3.5 text-teal-300" /> Didik – Digital Smart PME
             </Badge>
             <h1 className="text-3xl lg:text-5xl font-bold leading-[1.18] tracking-tight max-w-3xl">
               Analisis Pemantapan Mutu Eksternal menjadi{" "}
@@ -128,7 +121,7 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
         </main>
 
         <footer className="relative z-10 flex items-center justify-between text-xs text-teal-100/50">
-          <span>© {new Date().getFullYear()} di-dismartPME · Clinical Laboratory SaaS</span>
+          <span>© {new Date().getFullYear()} di-dismartPME · created by Muhammad Didik Wahyudi, S.Tr,Kes.</span>
           <span className="hidden sm:inline">ISO 15189 · ISO 13528 · Z-Score Rule Engine</span>
         </footer>
       </div>
@@ -227,19 +220,6 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
               {mode === "login" ? "Daftar organisasi baru" : "Masuk di sini"}
             </button>
           </p>
-
-          <div className="mt-8 rounded-xl border bg-muted/40 p-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Akun demo</p>
-            <div className="mt-2.5 flex flex-wrap gap-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => fillDemo("admin")} className={cn("text-xs")}>
-                admin@didikpme.id — Administrator
-              </Button>
-              <Button type="button" variant="outline" size="sm" onClick={() => fillDemo("analis")} className="text-xs">
-                analis@didikpme.id — Analis
-              </Button>
-            </div>
-            <p className="mt-2 text-[11px] text-muted-foreground">Password demo: <code className="rounded bg-muted px-1 py-0.5">demo1234</code></p>
-          </div>
         </div>
       </div>
     </div>

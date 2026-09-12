@@ -28,6 +28,23 @@ model Organization {
   auditLogs    AuditLog[]
   capaActions  CapaAction[]
   zscoreRules  ZscoreRule[]
+  kopSurat     KopSurat?
+}
+
+model KopSurat {
+  id               String       @id @default(cuid())
+  organizationId   String       @unique
+  organization     Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  logoKiri         String?      @db.Text
+  logoKanan        String?      @db.Text
+  pemda            String?
+  namaRumahSakit   String?
+  alamatRumahSakit String?
+  kontakRumahSakit String?
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 
 model Laboratory {

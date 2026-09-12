@@ -51,16 +51,17 @@ const ALL_MENUS: { key: string; label: string; desc: string; superAdminOnly?: bo
   { key: "reports", label: "Laporan Lengkap", desc: "Tabel rekapitulasi mutu dan ekspor PDF/Excel Model 1 & 2" },
   { key: "review", label: "Review Center", desc: "Verifikasi manual parameter dengan status review" },
   { key: "capa", label: "CAPA", desc: "Pengelolaan tiket tindakan perbaikan & pencegahan" },
+  { key: "kop-surat", label: "Kop Surat", desc: "Konfigurasi kop surat resmi, logo kanan/kiri, dan identitas RS/Lab" },
   { key: "settings", label: "Pengaturan", desc: "Konfigurasi batas aturan Z-score dan kapasitas sistem" },
   { key: "audit", label: "Log Audit", desc: "Rekaman jejak aktivitas seluruh pengguna" },
   { key: "users", label: "Pengaturan User", desc: "Manajemen akun pengguna dan hak akses (Superadmin)", superAdminOnly: true },
 ];
 
 const DEFAULT_MENUS_BY_ROLE: Record<string, string[]> = {
-  SUPERADMIN: ["dashboard", "sessions", "reports", "review", "capa", "settings", "audit", "users"],
-  ADMIN: ["dashboard", "sessions", "reports", "review", "capa", "settings", "audit"],
-  SUPERVISOR: ["dashboard", "sessions", "reports", "review", "capa"],
-  ANALYST: ["dashboard", "sessions", "reports", "review"],
+  SUPERADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "users"],
+  ADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit"],
+  SUPERVISOR: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
+  ANALYST: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
 };
 
 export function UsersView() {

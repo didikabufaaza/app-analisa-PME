@@ -136,6 +136,99 @@ function formatList(arr: unknown[], bullet = "•"): string {
 }
 
 /* ========================================================================== */
+/*                      KOP SURAT & HEADER RESMI MULTI-TENANT                */
+/* ========================================================================== */
+
+interface KopSuratInfo {
+  logoKiri?: string | null;
+  logoKanan?: string | null;
+  pemda?: string | null;
+  namaRumahSakit?: string | null;
+  alamatRumahSakit?: string | null;
+  kontakRumahSakit?: string | null;
+}
+
+function drawOfficialPdfKopSurat(
+  doc: jsPDF,
+  kop: KopSuratInfo | null | undefined,
+  defaultLabName: string,
+  options?: {
+    startY?: number;
+    showDivider?: boolean;
+    compact?: boolean;
+  }
+): number {
+  const pageW = doc.internal.pageSize.getWidth();
+  const margin = 14;
+  const startY = options?.startY ?? 8;
+  const logoSize = options?.compact ? 14 : 17;
+  const kopY = startY;
+
+  // 1. Logo Kiri
+  if (kop?.logoKiri) {
+    try {
+      doc.addImage(kop.logoKiri, "PNG", margin, kopY, logoSize, logoSize);
+    } catch {}
+  }
+
+  // 2. Logo Kanan
+  if (kop?.logoKanan) {
+    try {
+      doc.addImage(kop.logoKanan, "PNG", pageW - margin - logoSize, kopY, logoSize, logoSize);
+    } catch {}
+  }
+
+  // 3. Teks Identitas Kop Surat (Tengah)
+  doc.setTextColor(30, 41, 59);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(options?.compact ? 8 : 9);
+  doc.text(
+    (kop?.pemda || "PEMERINTAH DAERAH / DINAS KESEHATAN").toUpperCase(),
+    pageW / 2,
+    kopY + (options?.compact ? 3.5 : 4),
+    { align: "center" }
+  );
+
+  doc.setFontSize(options?.compact ? 10.5 : 12);
+  doc.text(
+    (kop?.namaRumahSakit || defaultLabName || "RUMAH SAKIT / LABORATORIUM KLINIK").toUpperCase(),
+    pageW / 2,
+    kopY + (options?.compact ? 8 : 9.5),
+    { align: "center" }
+  );
+
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(options?.compact ? 7 : 8);
+  doc.text(
+    kop?.alamatRumahSakit || "Alamat Lengkap Rumah Sakit / Laboratorium Klinik",
+    pageW / 2,
+    kopY + (options?.compact ? 11.5 : 14),
+    { align: "center" }
+  );
+
+  doc.setFontSize(options?.compact ? 6.5 : 7.5);
+  doc.text(
+    kop?.kontakRumahSakit || "Telepon, Fax & Email Resmi Laboratorium",
+    pageW / 2,
+    kopY + (options?.compact ? 14.5 : 18),
+    { align: "center" }
+  );
+
+  const dividerY = kopY + (options?.compact ? 17.5 : 21.5);
+
+  // 4. Double divider line (Format resmi instansi / rumah sakit)
+  if (options?.showDivider !== false) {
+    doc.setDrawColor(30, 41, 59);
+    doc.setLineWidth(0.6);
+    doc.line(margin, dividerY, pageW - margin, dividerY);
+    doc.setLineWidth(0.2);
+    doc.line(margin, dividerY + 0.8, pageW - margin, dividerY + 0.8);
+  }
+
+  return dividerY + 2;
+}
+
+/* ========================================================================== */
 /*                           PDF MODEL 1 (KOMPREHENSIF)                       */
 /* ========================================================================== */
 
@@ -145,7 +238,11 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
     include: {
       file: true,
       results: { include: { aiAnalysis: true }, orderBy: { parameterName: "asc" } },
-      organization: true,
+      organization: {
+        include: {
+          kopSurat: true,
+        },
+      },
     },
   });
   if (!session) throw new Error("Sesi PME tidak ditemukan");
@@ -153,23 +250,31 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "portrait" });
   const pageW = doc.internal.pageSize.getWidth();
 
-  /* ---------- COVER ---------- */
+  /* ---------- KOP SURAT RESMI ---------- */
+  const kopData = session.organization?.kopSurat;
+  const labName = session.laboratoryName || session.organization?.name || "Laboratorium Peserta";
+  const endKopY = drawOfficialPdfKopSurat(doc, kopData, labName, { startY: 8, showDivider: true });
+
+  /* ---------- COVER BANNER ---------- */
+  let y = endKopY + 3;
   doc.setFillColor(13, 122, 105);
-  doc.rect(0, 0, pageW, 60, "F");
+  doc.roundedRect(12, y, pageW - 24, 20, 2, 2, "F");
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(24);
-  doc.text("didikpme", 14, 22);
-  doc.setFontSize(15);
-  doc.text("Laporan Analisis PME & Rencana Mutu Laboratorium", 14, 34);
-  doc.setFontSize(9.5);
-  doc.text("Pemantapan Mutu Eksternal (External Quality Assessment) — Evaluasi Terstandar", 14, 44);
-  doc.text(`Dicetak: ${new Date().toLocaleString("id-ID")}`, 14, 52);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(13);
+  doc.text("LAPORAN ANALISIS PME & RENCANA MUTU", pageW / 2, y + 7.5, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text("Pemantapan Mutu Eksternal (External Quality Assessment) — Evaluasi Terstandar", pageW / 2, y + 13, { align: "center" });
+  doc.setFontSize(7.5);
+  doc.text(`Waktu Cetak: ${new Date().toLocaleString("id-ID")}`, pageW / 2, y + 17.5, { align: "center" });
 
   doc.setTextColor(30, 30, 30);
-  let y = 72;
+  y += 26;
 
   /* ---------- IDENTITAS PME ---------- */
-  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(12);
   doc.text("1. Identitas Dokumen & Laboratorium", 14, y);
   y += 5;
   autoTable(doc, {
@@ -474,7 +579,11 @@ export async function generatePdfReportModel2(sessionId: string, organizationId:
     include: {
       file: true,
       results: { include: { aiAnalysis: true, capaActions: true }, orderBy: { parameterName: "asc" } },
-      organization: true,
+      organization: {
+        include: {
+          kopSurat: true,
+        },
+      },
     },
   });
   if (!session) throw new Error("Sesi PME tidak ditemukan");
@@ -482,25 +591,41 @@ export async function generatePdfReportModel2(sessionId: string, organizationId:
   const doc = new jsPDF({ unit: "mm", format: "a4", orientation: "landscape" });
   const pageW = doc.internal.pageSize.getWidth();
 
-  /* Header Box */
+  /* ---------- KOP SURAT RESMI ---------- */
+  const kopData = session.organization?.kopSurat;
+  const labName = session.laboratoryName || session.organization?.name || "Laboratorium Peserta";
+  const endKopY = drawOfficialPdfKopSurat(doc, kopData, labName, { startY: 7, showDivider: true });
+
+  /* ---------- DOCUMENT BANNER / TITLE ---------- */
+  let y = endKopY + 2.5;
   doc.setFillColor(13, 122, 105);
-  doc.rect(0, 0, pageW, 22, "F");
+  doc.roundedRect(14, y, pageW - 28, 14, 2, 2, "F");
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
-  doc.text("FORMULIR EVALUASI DAN HASIL REKAPITULASI PEMANTAPAN MUTU EKSTERNAL (MODEL 2)", 14, 11);
-  doc.setFontSize(9);
-  doc.text(`Laboratorium: ${session.laboratoryName || session.organization.name} | Program: ${session.program || "Kimia Klinik"} | Siklus: ${session.cycle || "-"} | Periode: ${session.period || "-"}`, 14, 18);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(11.5);
+  doc.text("FORMULIR EVALUASI DAN HASIL REKAPITULASI PEMANTAPAN MUTU EKSTERNAL (MODEL 2)", pageW / 2, y + 5.5, { align: "center" });
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(7.5);
+  doc.text(
+    `Laboratorium: ${labName} | Program: ${session.program || "Kimia Klinik"} | Siklus: ${session.cycle || "-"} | Periode: ${session.period || "-"} | Waktu Cetak: ${new Date().toLocaleString("id-ID")}`,
+    pageW / 2,
+    y + 10.5,
+    { align: "center" }
+  );
 
   doc.setTextColor(30, 30, 30);
+  y += 18;
 
   /* Section 1: Rekapitulasi Hasil Numerik Z-Score */
-  doc.setFontSize(11);
-  doc.text("1. Rekapitulasi Hasil Numerik Z-Score (Kelompok Alat, Metode & Seluruh Peserta)", 14, 29);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10.5);
+  doc.text("1. Rekapitulasi Hasil Numerik Z-Score (Kelompok Alat, Metode & Seluruh Peserta)", 14, y);
+  y += 3;
 
   const rowLevels = session.results.map((r) => getRowEvaluationLevel(r));
 
   autoTable(doc, {
-    startY: 33,
+    startY: y,
     theme: "grid",
     tableWidth: 257,
     margin: { left: 20, right: 20 },
@@ -625,13 +750,17 @@ export async function generatePdfReportModel2(sessionId: string, organizationId:
 
   /* Section 2: Formulir Evaluasi Sasaran Mutu 5 Kolom (Halaman Baru) */
   doc.addPage("a4", "landscape");
+  const endKopY2 = drawOfficialPdfKopSurat(doc, kopData, labName, { startY: 7, showDivider: true, compact: true });
+  let y2 = endKopY2 + 2;
   doc.setFillColor(13, 122, 105);
-  doc.rect(0, 0, pageW, 20, "F");
+  doc.roundedRect(14, y2, pageW - 28, 9, 1.5, 1.5, "F");
   doc.setTextColor(255, 255, 255);
-  doc.setFontSize(13);
-  doc.text("2. Formulir Evaluasi Sasaran Mutu & Rencana Tindak Lanjut", 14, 13);
+  doc.setFont("helvetica", "bold");
+  doc.setFontSize(10);
+  doc.text("2. Formulir Evaluasi Sasaran Mutu & Rencana Tindak Lanjut", 18, y2 + 6);
 
   doc.setTextColor(30, 30, 30);
+  y2 += 12;
 
   /* 5 Columns matching EVALUASI PME.xlsx: No, Sasaran, Hasil Pencapain, Rencana Perbaikan, Penanggung Jawab */
   const bodyRows = session.results.map((r, idx) => {
@@ -666,7 +795,7 @@ export async function generatePdfReportModel2(sessionId: string, organizationId:
   });
 
   autoTable(doc, {
-    startY: 28,
+    startY: y2,
     theme: "grid",
     head: [["No.", "Sasaran", "Hasil Pencapain", "Rencana Perbaikan", "Penanggung Jawab"]],
     body: bodyRows,
@@ -694,6 +823,22 @@ export async function generatePdfReportModel2(sessionId: string, organizationId:
       4: { cellWidth: 36, halign: "center" },
     },
   });
+
+  // Signature Block at Bottom of Model 2
+  // @ts-expect-error lastAutoTable injected
+  const lastY2 = doc.lastAutoTable?.finalY ?? 150;
+  const pageH2 = doc.internal.pageSize.getHeight();
+  let signY2 = lastY2 + 10;
+  if (signY2 + 25 > pageH2 - 14) {
+    doc.addPage("a4", "landscape");
+    signY2 = 25;
+  }
+  doc.setFontSize(8.5);
+  doc.setTextColor(30, 30, 30);
+  doc.text("Dianalisis & Dibuat Oleh:", 20, signY2);
+  doc.text("( Petugas Penjamin Mutu Laboratorium )", 20, signY2 + 18);
+  doc.text("Disetujui & Diverifikasi Oleh:", pageW - 80, signY2);
+  doc.text(`( ${labName || "Penanggung Jawab Teknis Mutu"} )`, pageW - 80, signY2 + 18);
 
   return Buffer.from(doc.output("arraybuffer"));
 }

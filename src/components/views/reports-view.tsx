@@ -168,8 +168,8 @@ export function ReportsView() {
 
   return (
     <div className="space-y-6">
-      {/* Header & Export Actions */}
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+      {/* Header & Export Actions (Hidden on Print) */}
+      <div className="no-print flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-bold tracking-tight">Laporan Lengkap & Rekapitulasi Mutu PME</h2>
           <p className="text-sm text-muted-foreground">
@@ -227,8 +227,8 @@ export function ReportsView() {
         </div>
       </div>
 
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+      {/* Summary KPI Cards (Hidden on Print) */}
+      <div className="no-print grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <Card className="p-4">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-muted-foreground">Total Parameter</span>
@@ -275,8 +275,8 @@ export function ReportsView() {
         </Card>
       </div>
 
-      {/* Complete Filters Card */}
-      <Card>
+      {/* Complete Filters Card (Hidden on Print) */}
+      <Card className="no-print">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">

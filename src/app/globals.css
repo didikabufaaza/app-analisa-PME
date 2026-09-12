@@ -189,6 +189,39 @@
   .print-only {
     display: block !important;
   }
+
+  /* Ensure table container never clips or scrolls in print */
+  .print-table-container,
+  div:has(> table) {
+    max-height: none !important;
+    height: auto !important;
+    overflow: visible !important;
+    display: block !important;
+    border: none !important;
+  }
+
+  table {
+    page-break-inside: auto !important;
+    width: 100% !important;
+  }
+
+  tr {
+    page-break-inside: avoid !important;
+    page-break-after: auto !important;
+  }
+
+  thead {
+    display: table-header-group !important;
+  }
+
+  tfoot {
+    display: table-footer-group !important;
+  }
+
+  .print-avoid-break {
+    page-break-inside: avoid !important;
+    break-inside: avoid !important;
+  }
 }
 
 @media screen {

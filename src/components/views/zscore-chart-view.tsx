@@ -33,6 +33,17 @@ import {
 } from "recharts";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
+import { apiGet } from "@/lib/api-client";
+
+interface KopSuratData {
+  id?: string;
+  logoKiri: string | null;
+  logoKanan: string | null;
+  pemda: string;
+  namaRumahSakit: string;
+  alamatRumahSakit: string;
+  kontakRumahSakit: string;
+}
 
 interface ZScoreChartViewProps {
   items: ReportItemData[];
@@ -77,6 +88,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
   const [selectedSeries, setSelectedSeries] = useState<"all" | "global" | "instrument" | "method">("all");
   const [showLabels, setShowLabels] = useState(true);
   const [printDate, setPrintDate] = useState("");
+  const [kopSurat, setKopSurat] = useState<KopSuratData | null>(null);
 
   useEffect(() => {
     setMounted(true);
@@ -90,6 +102,13 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
     } catch {
       setPrintDate(new Date().toLocaleString("id-ID"));
     }
+
+    // Fetch official Kop Surat for this tenant
+    apiGet<{ kopSurat: KopSuratData }>("/api/kop-surat")
+      .then((res) => {
+        if (res && res.kopSurat) setKopSurat(res.kopSurat);
+      })
+      .catch(() => undefined);
   }, []);
 
   // Format data for chart
@@ -224,21 +243,76 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       const pageW = doc.internal.pageSize.getWidth(); // 297
       const pageH = doc.internal.pageSize.getHeight(); // 210
       const margin = 14;
-      const contentW = pageW - margin * 2; // 269mm
+      // Draw Official Kop Surat on Page 1
+      const kopY = 7;
+      const logoSize = 19; // mm
 
-      // Header Banner
-      doc.setFillColor(13, 122, 105); // Teal branding
-      doc.rect(0, 0, pageW, 26, "F");
+      if (kopSurat?.logoKiri) {
+        try {
+          doc.addImage(kopSurat.logoKiri, "PNG", margin, kopY, logoSize, logoSize);
+        } catch {}
+      }
 
-      doc.setTextColor(255, 255, 255);
+      if (kopSurat?.logoKanan) {
+        try {
+          doc.addImage(kopSurat.logoKanan, "PNG", pageW - margin - logoSize, kopY, logoSize, logoSize);
+        } catch {}
+      }
+
+      doc.setTextColor(30, 41, 59);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(14);
-      doc.text("di-dismartPME — SISTEM EVALUASI MUTU LABORATORIUM", margin, 11);
+      doc.setFontSize(9.5);
+      doc.text(
+        kopSurat?.pemda || "PEMERINTAH DAERAH / DINAS KESEHATAN",
+        pageW / 2,
+        kopY + 4,
+        { align: "center" }
+      );
+
+      doc.setFontSize(13);
+      doc.text(
+        kopSurat?.namaRumahSakit || filterMeta.labName || "RUMAH SAKIT / LABORATORIUM",
+        pageW / 2,
+        kopY + 10,
+        { align: "center" }
+      );
 
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(10);
-      doc.text("LAPORAN GRAFIK KENDALI MUTU Z-SCORE (LEVEY-JENNINGS)", margin, 18);
+      doc.setFontSize(8);
+      doc.text(
+        kopSurat?.alamatRumahSakit || "Alamat Lengkap Rumah Sakit / Laboratorium Klinik",
+        pageW / 2,
+        kopY + 14.5,
+        { align: "center" }
+      );
 
+      doc.setFontSize(7.5);
+      doc.text(
+        kopSurat?.kontakRumahSakit || "Telepon, Fax & Email Resmi Laboratorium",
+        pageW / 2,
+        kopY + 18.5,
+        { align: "center" }
+      );
+
+      // Classic Double-Line Divider
+      const lineY = kopY + 22.5;
+      doc.setDrawColor(30, 41, 59);
+      doc.setLineWidth(0.7);
+      doc.line(margin, lineY, pageW - margin, lineY);
+      doc.setLineWidth(0.2);
+      doc.line(margin, lineY + 0.9, pageW - margin, lineY + 0.9);
+
+      // Document Title
+      let y = lineY + 5.5;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(13, 122, 105);
+      doc.text("LAPORAN GRAFIK KENDALI MUTU Z-SCORE (LEVEY-JENNINGS)", pageW / 2, y, { align: "center" });
+
+      y += 4;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(71, 85, 105);
       const printDateStr = new Date().toLocaleString("id-ID", {
         day: "numeric",
         month: "long",
@@ -246,62 +320,13 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         hour: "2-digit",
         minute: "2-digit",
       });
-      doc.setFontSize(8.5);
-      doc.text(`Waktu Cetak: ${printDateStr}`, pageW - margin, 18, { align: "right" });
+      const subInfo = `Program: ${filterMeta.program || "PME"}  |  Siklus: ${filterMeta.cycle || "-"}  |  Periode: ${filterMeta.period || "-"}  |  Total: ${summary.total} Parameter  |  Waktu Cetak: ${printDateStr}`;
+      doc.text(subInfo, pageW / 2, y, { align: "center" });
 
-      // Metadata Bar
-      let y = 32;
-      doc.setTextColor(40, 40, 40);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8.5);
-      doc.text("INFORMASI EVALUASI:", margin, y);
-      doc.setFont("helvetica", "normal");
-      const labTitle = filterMeta.labName || "Laboratorium Peserta PME";
-      const progTitle = filterMeta.program || "Seluruh Program";
-      const cycleTitle = filterMeta.cycle ? `Siklus ${filterMeta.cycle}` : "-";
-      const periodTitle = filterMeta.period ? `Periode ${filterMeta.period}` : "-";
-
-      doc.text(
-        `Laboratorium: ${labTitle}  |  Program: ${progTitle}  |  Siklus/Periode: ${cycleTitle} (${periodTitle})`,
-        margin + 36,
-        y
-      );
-
-      // KPI Summary Pill Box
-      y += 6;
-      const kpiBoxW = contentW / 4 - 3;
-      const kpiHeight = 10;
-
-      // Box 1: Total
-      doc.setFillColor(241, 245, 249);
-      doc.roundedRect(margin, y, kpiBoxW, kpiHeight, 2, 2, "F");
-      doc.setTextColor(30, 41, 59);
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(8);
-      doc.text(`Total Parameter: ${summary.total}`, margin + 4, y + 6.5);
-
-      // Box 2: Memuaskan
-      doc.setFillColor(209, 250, 229);
-      doc.roundedRect(margin + kpiBoxW + 4, y, kpiBoxW, kpiHeight, 2, 2, "F");
-      doc.setTextColor(6, 95, 70);
-      doc.text(`Memuaskan (|Z|<=2): ${summary.satisfactory}`, margin + kpiBoxW + 8, y + 6.5);
-
-      // Box 3: Waspada
-      doc.setFillColor(254, 243, 199);
-      doc.roundedRect(margin + (kpiBoxW + 4) * 2, y, kpiBoxW, kpiHeight, 2, 2, "F");
-      doc.setTextColor(146, 64, 14);
-      doc.text(`Waspada (2<|Z|<3): ${summary.warning}`, margin + (kpiBoxW + 4) * 2 + 8, y + 6.5);
-
-      // Box 4: Tidak Memuaskan
-      doc.setFillColor(254, 226, 226);
-      doc.roundedRect(margin + (kpiBoxW + 4) * 3, y, kpiBoxW, kpiHeight, 2, 2, "F");
-      doc.setTextColor(153, 27, 27);
-      doc.text(`Tdk Memuaskan (|Z|>=3): ${summary.unsatisfactory}`, margin + (kpiBoxW + 4) * 3 + 8, y + 6.5);
-
-      // Render Captured Chart Image
-      y += 14;
+      // Render Captured Chart Image starting right after
+      y += 3;
       const chartImg = await captureChartSvg();
-      const chartHeight = 96; // mm
+      const chartHeight = 98; // mm
       if (chartImg) {
         doc.addImage(chartImg, "PNG", margin, y, contentW, chartHeight);
       } else {
@@ -316,7 +341,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       }
 
       // Legend Description below chart
-      y += chartHeight + 4;
+      y += chartHeight + 3.5;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
       doc.setTextColor(100, 116, 139);
@@ -326,19 +351,42 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         y
       );
 
-      // Page 2: Table of Coordinate Details
+      // Page 2: Table of Coordinate Details with Official Kop Surat Header
       doc.addPage("a4", "landscape");
 
-      // Page 2 Header
-      doc.setFillColor(13, 122, 105);
-      doc.rect(0, 0, pageW, 14, "F");
-      doc.setTextColor(255, 255, 255);
+      // Draw Kop Surat on Page 2
+      if (kopSurat?.logoKiri) {
+        try { doc.addImage(kopSurat.logoKiri, "PNG", margin, kopY, 17, 17); } catch {}
+      }
+      if (kopSurat?.logoKanan) {
+        try { doc.addImage(kopSurat.logoKanan, "PNG", pageW - margin - 17, kopY, 17, 17); } catch {}
+      }
+      doc.setTextColor(30, 41, 59);
       doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text("di-dismartPME — TABEL REKAPITULASI DATA KOORDINAT Z-SCORE", margin, 9.5);
+      doc.setFontSize(9);
+      doc.text(kopSurat?.pemda || "PEMERINTAH DAERAH / DINAS KESEHATAN", pageW / 2, kopY + 3.5, { align: "center" });
+      doc.setFontSize(12);
+      doc.text(kopSurat?.namaRumahSakit || filterMeta.labName || "RUMAH SAKIT / LABORATORIUM", pageW / 2, kopY + 8.5, { align: "center" });
       doc.setFont("helvetica", "normal");
-      doc.setFontSize(8);
-      doc.text(`Halaman 2  |  Dicetak: ${printDateStr}`, pageW - margin, 9.5, { align: "right" });
+      doc.setFontSize(7.5);
+      doc.text(kopSurat?.alamatRumahSakit || "Alamat Lengkap Rumah Sakit / Laboratorium Klinik", pageW / 2, kopY + 13, { align: "center" });
+      doc.text(kopSurat?.kontakRumahSakit || "Telepon, Fax & Email Resmi Laboratorium", pageW / 2, kopY + 16.5, { align: "center" });
+      
+      // Divider
+      doc.setLineWidth(0.6);
+      doc.line(margin, kopY + 19.5, pageW - margin, kopY + 19.5);
+      doc.setLineWidth(0.2);
+      doc.line(margin, kopY + 20.3, pageW - margin, kopY + 20.3);
+
+      // Page 2 Section Title
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(13, 122, 105);
+      doc.text("TABEL KOORDINAT & REKAPITULASI HASIL NUMERIK Z-SCORE", margin, kopY + 25.5);
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 116, 139);
+      doc.text(`Lampiran Evaluasi Mutu  |  Halaman 2  |  Waktu Cetak: ${printDateStr}`, pageW - margin, kopY + 25.5, { align: "right" });
 
       const tableRows = items.map((it, idx) => {
         const zG = typeof it.zScore === "number" && !isNaN(it.zScore) ? (it.zScore > 0 ? `+${it.zScore.toFixed(2)}` : it.zScore.toFixed(2)) : "-";
@@ -365,7 +413,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       });
 
       autoTable(doc, {
-        startY: 19,
+        startY: kopY + 29,
         theme: "grid",
         head: [
           [
@@ -424,7 +472,11 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       // Signature Block at Bottom
       // @ts-expect-error autoTable adds lastAutoTable to jsPDF instance
       const lastY = doc.lastAutoTable?.finalY ?? 150;
-      const signY = lastY + 12 < pageH - 25 ? lastY + 12 : pageH - 25;
+      let signY = lastY + 14;
+      if (signY + 25 > pageH - margin) {
+        doc.addPage("a4", "landscape");
+        signY = margin + 20;
+      }
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
@@ -498,22 +550,78 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
   return (
     <div className="space-y-6 print-container">
       {/* PRINT-ONLY HEADER (Appears ONLY during browser print) */}
-      <div className="print-only mb-6 border-b pb-4">
-        <div className="flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-black text-teal-800 tracking-tight">
-              di-dismartPME — SISTEM EVALUASI MUTU LABORATORIUM
+      <div className="print-only mb-6">
+        <div className="flex items-center justify-between gap-4 pb-2">
+          {/* Logo Kiri */}
+          <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center">
+            {kopSurat?.logoKiri ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={kopSurat.logoKiri}
+                alt="Logo Kiri"
+                className="max-h-20 max-w-20 object-contain"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-[10px] text-gray-400">
+                Logo Instansi
+              </div>
+            )}
+          </div>
+
+          {/* Teks Kop Surat Tengah */}
+          <div className="flex-1 text-center space-y-0.5">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-gray-800">
+              {kopSurat?.pemda || "PEMERINTAH DAERAH / DINAS KESEHATAN"}
+            </h3>
+            <h1 className="text-base font-extrabold uppercase tracking-tight text-gray-900">
+              {kopSurat?.namaRumahSakit || filterMeta.labName || "RUMAH SAKIT / LABORATORIUM KLINIK"}
             </h1>
-            <h2 className="text-sm font-bold text-gray-700">
-              LAPORAN GRAFIK KENDALI MUTU Z-SCORE (LEVEY-JENNINGS)
-            </h2>
-            <p className="text-xs text-gray-500 mt-1">
-              Laboratorium: {filterMeta.labName || "Laboratorium Peserta"} | Program: {filterMeta.program || "Semua"} | Siklus: {filterMeta.cycle || "-"} | Periode: {filterMeta.period || "-"}
+            <p className="text-[11px] text-gray-600">
+              {kopSurat?.alamatRumahSakit || "Alamat Lengkap Rumah Sakit / Laboratorium Klinik"}
+            </p>
+            <p className="text-[10px] text-gray-500">
+              {kopSurat?.kontakRumahSakit || "Telepon, Fax & Email Resmi Laboratorium"}
             </p>
           </div>
-          <div className="text-right text-xs text-gray-500">
-            <p>Tanggal Cetak: {printDate || "-"}</p>
-            <p className="font-semibold text-gray-700">Total: {summary.total} Parameter</p>
+
+          {/* Logo Kanan */}
+          <div className="w-20 h-20 flex-shrink-0 flex items-center justify-center">
+            {kopSurat?.logoKanan ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={kopSurat.logoKanan}
+                alt="Logo Kanan"
+                className="max-h-20 max-w-20 object-contain"
+              />
+            ) : (
+              <div className="w-16 h-16 rounded-full border border-dashed border-gray-300 flex items-center justify-center text-[10px] text-gray-400">
+                Logo Mutu
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Double divider line */}
+        <div className="border-t-2 border-b border-black h-1 my-1" />
+
+        {/* Document Title & Meta */}
+        <div className="text-center mt-3 mb-2">
+          <h2 className="text-sm font-bold uppercase text-teal-800 tracking-wide">
+            LAPORAN GRAFIK KENDALI MUTU Z-SCORE (LEVEY-JENNINGS)
+          </h2>
+          <p className="text-xs text-gray-600 mt-0.5">
+            Program Evaluasi Mutu Eksternal (PME) Laboratorium Kesehatan
+          </p>
+          <div className="flex justify-between items-center text-[10px] text-gray-500 mt-2 border-t pt-1">
+            <span>
+              Laboratorium: <strong className="text-gray-700">{filterMeta.labName || kopSurat?.namaRumahSakit || "Peserta"}</strong> |{" "}
+              Program: <strong className="text-gray-700">{filterMeta.program || "PME"}</strong> |{" "}
+              Siklus: <strong className="text-gray-700">{filterMeta.cycle || "-"}</strong> ({filterMeta.period || "-"})
+            </span>
+            <span>
+              Total: <strong className="text-gray-700">{summary.total} Parameter</strong> |{" "}
+              Dicetak: {printDate || "-"}
+            </span>
           </div>
         </div>
       </div>
@@ -615,8 +723,8 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         </div>
       </div>
 
-      {/* Summary KPI Cards & Zone Legend Strip */}
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Summary KPI Cards & Zone Legend Strip (Hidden on Print) */}
+      <div className="no-print grid grid-cols-2 gap-3 sm:grid-cols-4">
         <Card className="p-3.5 border-emerald-500/20 bg-emerald-500/5">
           <div className="flex items-center justify-between">
             <span className="text-xs font-semibold text-emerald-800 dark:text-emerald-300">Zona Terkendali</span>
@@ -979,9 +1087,9 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
           </div>
         </CardHeader>
         <CardContent className="pt-3">
-          <div className="max-h-[30rem] overflow-x-auto overflow-y-auto rounded-lg border">
+          <div className="print-table-container max-h-[30rem] print:max-h-none overflow-x-auto print:overflow-visible overflow-y-auto print:overflow-y-visible rounded-lg border print:border-none">
             <table className="w-full text-left text-xs">
-              <thead className="sticky top-0 z-10 border-b bg-muted/80 backdrop-blur">
+              <thead className="sticky top-0 z-10 border-b bg-muted/80 backdrop-blur print:static print:bg-slate-100">
                 <tr>
                   <th className="p-2.5 font-semibold text-muted-foreground w-10 text-center">No.</th>
                   <th className="p-2.5 font-semibold text-muted-foreground min-w-[160px]">Sasaran / Parameter</th>
@@ -1093,7 +1201,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       </Card>
 
       {/* PRINT-ONLY SIGNATURE BLOCK (Appears ONLY during browser print) */}
-      <div className="print-only mt-10 pt-6 border-t">
+      <div className="print-only print-avoid-break mt-10 pt-6 border-t">
         <div className="flex justify-between items-center text-xs text-gray-700 px-8">
           <div className="text-center">
             <p>Dianalisis Oleh,</p>

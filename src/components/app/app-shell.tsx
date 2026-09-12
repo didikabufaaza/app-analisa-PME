@@ -167,6 +167,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   ) : null;
 
+  const logoutButton = (
+    <div className="mt-auto p-3 border-t bg-muted/20">
+      <button
+        type="button"
+        onClick={() => void useAppStore.getState().logout()}
+        className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/80 dark:bg-red-950/40 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60 transition-colors shadow-xs cursor-pointer"
+      >
+        <LogOut className="h-4 w-4" />
+        <span>Keluar Aplikasi</span>
+      </button>
+    </div>
+  );
+
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
@@ -174,6 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {brand}
         {navList}
         {usageCard}
+        {logoutButton}
       </aside>
 
       {/* Main column */}
@@ -191,6 +205,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               {brand}
               {navList}
               {usageCard}
+              {logoutButton}
             </SheetContent>
           </Sheet>
 

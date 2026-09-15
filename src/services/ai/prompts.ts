@@ -152,14 +152,36 @@ Your evaluation tasks:
 7. "corrective_actions": Targeted corrective actions to rectify the problem immediately.
 8. "preventive_actions": Long-term preventive actions to prevent recurrence.
 9. "fishbone_analysis": Structured problem-solving root cause analysis using the Fishbone (Ishikawa 6M) scheme for clinical laboratories (ISO 15189). ONLY evaluate this for parameters with WARNING or UNSATISFACTORY status (or |Z| > 2.0). Provide an array of 6 categories:
-   - MAN: SDM, teknisi, pemipetan, kepatuhan SOP, kompetensi.
-   - MACHINE: Alat/fotometer, kestabilan optik/lampu, kebersihan probe/kuvet, drift kalibrasi, kelistrikan.
-   - METHOD: Prosedur kerja, rasio reagen/sampel, waktu inkubasi, linearitas metode.
-   - MATERIAL: Reagen lot, stabilitas on-board, penyimpanan dingin (cold chain), rekonstitusi kontrol PME.
-   - ENVIRONMENT: Suhu ruangan lab (18-25°C), kelembaban, paparan cahaya matahari langsung, getaran.
-   - MEASUREMENT: Kualitas air (aquabidest/deionisasi), kalibrasi mikropipet, ketertelusuran kalibrator.
+   - MAN: SDM, analis, teknik pemipetan/homogenisasi, kepatuhan SOP, kompetensi.
+   - MACHINE: Alat ukur/detektor analitik, kestabilan optik/lampu fotometer, aperture orifice, kebersihan probe/kuvet, drift kalibrasi, kelistrikan.
+   - METHOD: Prinsip metode pemeriksaan (reaksi enzimatik, kinetik UV, impedansi, ISE, atau formula perhitungan matematis), rasio reagen-sampel, waktu/suhu inkubasi.
+   - MATERIAL: Reagen kit, stabilitas on-board, penyimpanan dingin (cold chain 2-8°C), homogenisasi/rekonstitusi vial kontrol PME.
+   - ENVIRONMENT: Suhu ruangan lab (18-25°C), kelembaban, paparan cahaya matahari langsung pada reagen, getaran meja instrumen.
+   - MEASUREMENT: Kualitas air sistem (aquabidest/deionisasi), kalibrasi mikropipet, ketertelusuran nilai kalibrator.
    For each category provide "rootCause" (akar penyebab masalah) and "action" (tindakan problem solving).
-   If status is SATISFACTORY, return null or [].
+   If status is SATISFACTORY (|Z| <= 2.0), return null or [].
+
+CRITICAL RULES FOR FISHBONE ANALYSIS:
+A. DIFFERENTIATE WARNING VS UNSATISFACTORY SEVERITY:
+   - WARNING (2.0 < |Z| < 3.0, Peringatan): Root cause harus mencerminkan deviasi ringan/moderat, tren awal (drift), variasi acak (random error), atau fluktuasi minor suhu/lot. Action plan fokus pada pemantauan ketat grafik IQC Levey-Jennings (evaluasi aturan Westgard 1:2s / 2:2s), verifikasi kurva kalibrasi, dan re-evaluasi reagen tanpa menghentikan total operasional.
+   - UNSATISFACTORY (|Z| >= 3.0, Tidak Memuaskan): Root cause harus mencerminkan kesalahan sistemik kritis, kegagalan hardware/detektor primer, reagen rusak/kedaluwarsa, rekonstitusi kontrol gagal, atau sumbatan probe. Action plan HARUS tegas: hentikan sementara pelaporan hasil parameter terkait, terbitkan usulan CAPA formal, ganti lot reagen/rekonstitusi ulang kontrol segar, kalibrasi ulang penuh (full recalibration), dan verifikasi kepala laboratorium sebelum operasional dibuka kembali.
+
+B. TAILOR BY EXACT PARAMETER TYPE & METHODOLOGY (WAJIB SPESIFIK & FLEKSIBEL):
+   1. PARAMETER HITUNGAN / INDEKS ERITROSIT (MCH, MCV, MCHC, Globulin, eGFR, Bilirubin Indirek, LDL Indirek/Friedewald):
+      - Sadari sepenuhnya bahwa parameter ini TIDAK memiliki reagen, detektor fotometer, atau sensor mandiri! Parameter ini dihitung secara matematis oleh algoritma software alat (misal: MCH = [Hb x 10] / RBC, MCV = [Ht x 10] / RBC, MCHC = [Hb / Ht] x 100).
+      - AKAR MASALAH (MACHINE & METHOD): Merupakan deviasi berantai (cascading error) dari channel pengukuran primer: channel optik fotometer Hb (540 nm) atau orifice aperture RBC impedance yang mengalami partial clogging/protein deposit, atau konstanta formula kalkulator analyzer.
+      - AKAR MASALAH (MATERIAL & MAN): Pada MCH/MCV/MCHC, material adalah kestabilan suspensi kontrol whole blood hematologi dan homogenisasi tabung kontrol (teknik pembalikan tabung 8-10 kali secara lembut sebelum aspirasi, bukan dikocok keras atau dibiarkan mengendap). JANGAN PERNAH menyebut "reagen MCH rusak" karena reagen MCH tidak ada!
+      - ACTION PLAN: Kalibrasi ulang channel primer (Hb dan RBC), lakukan pembersihan orifice aperture (backflush/zap), verifikasi parameter konstanta perhitungan pada software analyzer, dan perbaiki teknik homogenisasi tabung darah/kontrol.
+   2. HEMATOLOGI LANGSUNG (Hb, Leukosit/WBC, Trombosit/PLT, Eritrosit/RBC, Hematokrit/PCV):
+      - Fokus pada aperture impedance, laser optical flow cell, reagen lyse/diluent, clumping trombosit, dan mixing darah.
+   3. KIMIA KLINIK (Enzim: SGOT, SGPT, GGT, ALP, Amilase; Substrat: Glukosa, Kolesterol, Trigliserida, Asam Urat, Ureum, Kreatinin, Bilirubin, Protein):
+      - Fokus pada fotometer halogen lamp, optical filter/monokromator, stabilitas reagen enzimatik/kinetik UV, blanko air reagen (aquabidest < 1-2 uS/cm), dan interferensi ikterik/lipemik/hemolisis.
+   4. ELEKTROLIT & GAS DARAH (Natrium, Kalium, Klorida, Kalsium, pH):
+      - Fokus pada Ion Selective Electrode (ISE), protein deposit pada membran elektroda, cairan reference filling solution, dan grounding listrik.
+   5. IMUNOSEROLOGI (HBsAg, Anti-HCV, HIV, TSH, CRP):
+      - Fokus pada washer manifold aspiration pin, pencucian magnetic particles (CMIA/ECLIA), degradasi konjugat antibodi.
+
+DILARANG KERAS memberikan teks yang sama atau seragam antar parameter berbeda! Analisis AI harus fleksibel, cerdas, kontekstual, dan mencerminkan keahlian profesional kendali mutu laboratorium klinis (ISO 15189).
 
 Rules:
 - Professional clinical laboratory quality terminology (ISO 15189, Westgard rules, Levey-Jennings charts, calibration verification, reagent blank, maintenance log).

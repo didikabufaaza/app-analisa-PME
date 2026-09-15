@@ -150,6 +150,7 @@ function resolveFishboneAnalysis(r: {
   instrumentZScore?: number | null;
   methodZScore?: number | null;
   allParticipantsZScore?: number | null;
+  zStatus?: string | null;
   aiAnalysis?: {
     fishboneAnalysis?: string | null;
     possibleCauses?: string | null;
@@ -169,48 +170,548 @@ function resolveFishboneAnalysis(r: {
   }
 
   const zVal = r.allParticipantsZScore ?? r.zScore ?? 0;
+  const isUnsat = Math.abs(zVal) >= 3.0 || r.zStatus === "UNSATISFACTORY";
   const isHigh = zVal > 0;
-  const zSign = isHigh ? "positif (overestimasi)" : "negatif (underestimasi)";
+  const zSign = isHigh ? "positif (overestimasi / hasil lebih tinggi)" : "negatif (underestimasi / hasil lebih rendah)";
   const param = r.parameterName;
-  const inst = r.instrument || "Instrumen laboratorium";
-  const meth = r.method || "Metode pengujian";
+  const pLower = param.toLowerCase();
+  const inst = r.instrument || "Instrumen otomatis laboratorium";
+  const meth = r.method || "Metode standar";
 
+  // 1. Parameter Hitungan Indeks Eritrosit (MCH, MCV, MCHC)
+  if (/\b(mch|mcv|mchc|indeks eritrosit|red cell indices)\b/i.test(pLower)) {
+    const isMCH = /\bmch\b/i.test(pLower);
+    const isMCV = /\bmcv\b/i.test(pLower);
+    const isMCHC = /\bmchc\b/i.test(pLower);
+    const formulaDesc = isMCH
+      ? "MCH = (Hb × 10) / RBC (komputasi rasio hemoglobin terhadap jumlah eritrosit)"
+      : isMCV
+      ? "MCV = (Ht × 10) / RBC (komputasi rasio hematokrit terhadap jumlah eritrosit)"
+      : isMCHC
+      ? "MCHC = (Hb / Ht) × 100 (rasio hemoglobin terhadap volume eritrosit padat)"
+      : "Indeks eritrosit terhitung matematis dari parameter primer Hb, RBC, dan Ht";
+
+    return [
+      {
+        category: "MAN",
+        label: "1. Man (SDM / Personel)",
+        rootCause: isUnsat
+          ? `Teknik homogenisasi kontrol whole blood hematologi tidak memadai (inversi tabung kurang dari 8–10 kali) atau penundaan pembacaan setelah pencampuran, memicu sedimentasi seluler sehingga pembacaan Hb dan hitung RBC tidak proporsional.`
+          : `Variasi minor kecepatan dan durasi pembalikan tabung darah antar analis saat pergantian shift, sedikit mempengaruhi keseragaman suspensi eritrosit saat aspirasi.`,
+        action: isUnsat
+          ? `Hentikan sementara verifikasi hasil indeks eritrosit, lakukan pelatihan ulang teknik inversi perlahan tabung kontrol (8–10 kali secara terstandar tanpa mengocok/frothing), dan lakukan uji blind duplicate.`
+          : `Tingkatkan kedisiplinan SOP homogenisasi darah otomatis/manual dan catat waktu tunggu pra-analitik sebelum running sampel.`,
+      },
+      {
+        category: "MACHINE",
+        label: "2. Machine (Alat / Instrumen)",
+        rootCause: isUnsat
+          ? `Gangguan pada channel detektor primer pembentuk ${param}: terjadi micro-clot / penumpukan protein pada orifice aperture RBC impedance, atau drift kalibrasi optik fotometer Hb (540 nm). [Catatan: ${param} tidak memiliki sensor terpisah, error berasal dari sensor Hb atau RBC].`
+          : `Fluktuasi tegangan sensor atau penumpukan deposit tipis pada aperture bath yang menyebabkan pergeseran baseline nilai hitung eritrosit atau hemoglobin.`,
+        action: isUnsat
+          ? `Lakukan deep cleaning aperture (zap / backflush / cell-clean) pada chamber RBC, bersihkan optical flow cell Hb, pastikan background count 0, lalu kalibrasi ulang channel primer (Hb & RBC) dengan calibrator whole blood fresh.`
+          : `Jalankan siklus flush harian, periksa tekanan vakum aspirasi, dan verifikasi kestabilan background count instrumen ${inst}.`,
+      },
+      {
+        category: "METHOD",
+        label: "3. Method (Metode & Algoritma)",
+        rootCause: isUnsat
+          ? `Deviasi formula perhitungan software analyzer (${formulaDesc}) akibat pergeseran koefisien kalibrasi salah satu parameter input atau adanya interferensi lipemia/kekeruhan sampel yang mengacaukan optik Hb.`
+          : `Perbedaan kurva normalisasi algoritma software antar tipe hematology analyzer terhadap konsensus kelompok metode.`,
+        action: isUnsat
+          ? `Audit konstanta dan formula perhitungan pada software ${inst}, cek ada/tidaknya interferensi optik (lipemia/ikterik), dan validasi linearitas channel Hb serta RBC.`
+          : `Verifikasi kecocokan target nilai indeks eritrosit pada lembar kit insert kontrol terhadap model hematology analyzer yang digunakan.`,
+      },
+      {
+        category: "MATERIAL",
+        label: "4. Material (Bahan Kontrol Whole Blood)",
+        rootCause: isUnsat
+          ? `Kerusakan integritas seluler pada vial kontrol hematologi PME (lisis eritrosit dini, clumping) akibat paparan suhu di luar rantai dingin 2–8°C atau vial telah melampaui batas masa simpan pasca-buka (open-vial). [Catatan: tidak ada reagen khusus ${param}].`
+          : `Vial kontrol hematologi mendekati batas akhir stabilitas pasca-buka (open-vial stability) sehingga volume seluler eritrosit mengalami sedikit pengerutan/pembengkakan.`,
+        action: isUnsat
+          ? `Buka vial kontrol hematologi baru yang masih tersegel dan tersimpan pada refrigerator 2–8°C stabil, lakukan aklimatisasi 15 menit pada suhu ruang, lalu homogenisasi secara menyeluruh.`
+          : `Beri label tanggal buka yang jelas pada vial kontrol, simpan dalam posisi tegak pada suhu 2–8°C terpantau, dan hindari pembekuan kontrol.`,
+      },
+      {
+        category: "ENVIRONMENT",
+        label: "5. Environment (Lingkungan Lab)",
+        rootCause: isUnsat
+          ? `Suhu ruang hematologi melebihi 28°C atau berfluktuasi ekstrem, merubah viskositas cairan diluent pada orifice aperture dan mempercepat lisis eritrosit oleh reagen lyse.`
+          : `Variasi suhu harian ruangan analitik yang mendekati batas toleransi atas (rentang ideal 18–25°C).`,
+        action: isUnsat
+          ? `Stabilkan suhu pendingin ruangan (AC) laboratorium pada rentang 20–22°C selama 24 jam dan posisikan alat hematologi jauh dari pancaran sinar matahari atau aliran panas ventilasi.`
+          : `Lakukan pencatatan suhu dan kelembaban pada termohigrometer terkalibrasi dua kali sehari di area instrumen hematologi.`,
+      },
+      {
+        category: "MEASUREMENT",
+        label: "6. Measurement (Pengukuran & Kalibrasi)",
+        rootCause: isUnsat
+          ? `Faktor kalibrasi channel RBC atau optik fotometer Hb bergeser signifikan pasca penggantian suku cadang tanpa re-kalibrasi menggunakan calibrator resmi terakreditasi.`
+          : `Sedikit pergeseran nilai calibrator hematologi atau variasi kalibrasi mikropipet pada preparasi predilusi manual.`,
+        action: isUnsat
+          ? `Lakukan kalibrasi resmi ulang (calibration run) menyeluruh untuk parameter RBC dan Hb menggunakan hematology calibrator terakreditasi pabrikan, lalu verifikasi ulang nilai MCH, MCV, dan MCHC.`
+          : `Pantau grafik Levey-Jennings kontrol harian MCH/MCV untuk mendeteksi tren pergeseran (shift/trend) sesuai aturan Westgard.`,
+      },
+    ];
+  }
+
+  // 2. Parameter Hitungan Biokimia Lainnya (Globulin, eGFR, Bilirubin Indirek, Rasio A/G, LDL Indirek)
+  if (/\b(globulin|egfr|gfr|bilirubin indirek|indirect bilirubin|rasio a\/g|ldl indirek|friedewald)\b/i.test(pLower)) {
+    return [
+      {
+        category: "MAN",
+        label: "1. Man (SDM / Personel)",
+        rootCause: isUnsat
+          ? `Kesalahan penanganan sampel atau input data manual nilai komponen primer pada software LIS/analyzer yang mendasari perhitungan ${param}.`
+          : `Keterlambatan input data atau pembulatan angka desimal komponen primer yang memicu variasi deviasi minor.`,
+        action: isUnsat
+          ? `Periksa ulang seluruh data mentah komponen primer penyusun ${param}, pastikan tidak ada kesalahan ketik/transkripsi, dan lakukan verifikasi ganda.`
+          : `Terapkan verifikasi otomatis pada LIS untuk mencegah kesalahan pembulatan angka hitungan.`,
+      },
+      {
+        category: "MACHINE",
+        label: "2. Machine (Alat / Instrumen)",
+        rootCause: isUnsat
+          ? `Deviasi kumulatif pada dua channel fotometrik pengukuran primer di alat ${inst} yang menghasilkan distorsi signifikan pada hasil perhitungan matematis ${param}.`
+          : `Sedikit drift pada salah satu filter panjang gelombang channel fotometer komponen primer.`,
+        action: isUnsat
+          ? `Lakukan pengecekan fotometer dan kalibrasi ulang independen pada masing-masing channel analit primer pembentuk ${param}.`
+          : `Jalankan pembersihan kuvet dan verifikasi baseline absorban channel fotometrik terkait.`,
+      },
+      {
+        category: "METHOD",
+        label: "3. Method (Metode & Rumus Perhitungan)",
+        rootCause: isUnsat
+          ? `Formula komputasi matematis pada software analyzer tidak sesuai dengan kit insert standar PME (misal: penggunaan rumus estimasi yang berbeda).`
+          : `Perbedaan batas cutoff atau formula turunan terhadap metode konsensus penyelenggara PME.`,
+        action: isUnsat
+          ? `Validasi dan cocokkan rumus matematis pada sistem LIS/analyzer terhadap acuan resmi kit insert penyelenggara PME.`
+          : `Dokumentasikan spesifikasi formula hitungan pada dokumen kontrol mutu laboratorium.`,
+      },
+      {
+        category: "MATERIAL",
+        label: "4. Material (Bahan Kontrol & Reagen Primer)",
+        rootCause: isUnsat
+          ? `Kerusakan atau degradasi pada salah satu reagen analit primer penyusun ${param}, menyebabkan bias ${zSign} yang berlipat ganda pada hasil hitungan.`
+          : `Salah satu reagen primer mendekati tanggal kedaluwarsa atau terjadi variasi lot-to-lot minor.`,
+        action: isUnsat
+          ? `Evaluasi performa QC kedua analit primer, ganti reagen yang menunjukkan deviasi dengan lot baru, dan uji kontrol ulang.`
+          : `Lakukan uji kesesuaian lot baru (cross-check lot) sebelum reagen primer digunakan dalam pelayanan rutin.`,
+      },
+      {
+        category: "ENVIRONMENT",
+        label: "5. Environment (Lingkungan Lab)",
+        rootCause: isUnsat
+          ? `Suhu ruang analitik berfluktuasi tajam mempengaruhi kecepatan reaksi salah satu analit enzimatik primer.`
+          : `Fluktuasi suhu minor ruangan yang mendekati ambang batas atas toleransi alat biokimia.`,
+        action: isUnsat
+          ? `Pertahankan suhu ruangan pada 20–22°C stabil 24 jam dengan pendingin udara terkontrol.`
+          : `Lakukan monitoring termohigrometer berkala per shift kerja di ruang analitik.`,
+      },
+      {
+        category: "MEASUREMENT",
+        label: "6. Measurement (Pengukuran & Kalibrator)",
+        rootCause: isUnsat
+          ? `Kurva kalibrasi salah satu parameter primer tidak valid atau nilai kalibrator pabrikan mengalami pergeseran target.`
+          : `Ketidakpastian pengukuran (measurement uncertainty) gabungan dari kedua parameter primer.`,
+        action: isUnsat
+          ? `Kalibrasi ulang kedua parameter primer dengan kalibrator standar resmi pabrikan dan verifikasi presisi IQC.`
+          : `Hitung evaluasi Total Error (TE) dan bandingkan dengan batas toleransi Total Error Allowable (TEa).`,
+      },
+    ];
+  }
+
+  // 3. Hematologi Pengukuran Langsung (Hb, Leukosit, Trombosit, Eritrosit, Hematokrit)
+  if (/\b(hemoglobin|hb|hematokrit|ht|pcv|leukosit|wbc|trombosit|plt|platelet|eritrosit|rbc|led|esr)\b/i.test(pLower)) {
+    return [
+      {
+        category: "MAN",
+        label: "1. Man (SDM / Personel)",
+        rootCause: isUnsat
+          ? `Teknik pencampuran (mixing) sampel kontrol hematologi yang tidak sempurna sebelum aspirasi atau aspirasi gelembung udara akibat volume sampel pada tabung kurang memadai.`
+          : `Variasi waktu tunggu antara homogenisasi tabung darah dengan waktu penusukan jarum aspirator.`,
+        action: isUnsat
+          ? `Lakukan re-edukasi SOP homogenisasi spesimen hematologi (inversi 8–10 kali perlahan) dan pastikan jarum aspirator menembus kedalaman sampel yang tepat.`
+          : `Pastikan sampel segera diperiksa setelah proses homogenisasi selesai dilakukan.`,
+      },
+      {
+        category: "MACHINE",
+        label: "2. Machine (Alat / Instrumen)",
+        rootCause: isUnsat
+          ? `Terjadi penyumbatan parsial (partial clog / protein buildup) pada aperture transducer ${inst}, fluktuasi tekanan vakum/pompa diluter, atau keausan selang peristaltik.`
+          : `Sedikit penumpukan debris reagen pada chamber pengukuran yang menyebabkan kenaikan noise/background count.`,
+        action: isUnsat
+          ? `Lakukan pembersihan intensif aperture (aperture burn / zap cleaning), ganti selang peristaltik bila elastisitas menurun, dan cek nilai background count (harus nol).`
+          : `Jalankan siklus autowash dan daily maintenance sesuai manual pabrikan ${inst}.`,
+      },
+      {
+        category: "METHOD",
+        label: "3. Method (Metode Pemeriksaan)",
+        rootCause: isUnsat
+          ? `Metode lisis tidak tuntas (incomplete RBC lysis) atau interferensi partikel seluler abnormal yang mendistorsi histogram / scattergram populasi sel.`
+          : `Karakteristik kurva diskriminator elektrik alat terhadap ambang batas ukuran sel kelompok metode ${meth}.`,
+        action: isUnsat
+          ? `Tinjau kurva histogram/scattergram hasil running, evaluasi waktu reaksi lisis reagen, dan pastikan setting discriminator threshold sesuai instruksi kit insert.`
+          : `Lakukan verifikasi batas deteksi dan batas linearitas metode ${meth}.`,
+      },
+      {
+        category: "MATERIAL",
+        label: "4. Material (Reagen & Kontrol Hematologi)",
+        rootCause: isUnsat
+          ? `Reagen lyse atau diluent terkontaminasi mikropartikel, kedaluwarsa, atau kontrol hematologi PME mengalami agregasi/aglutinasi akibat pembekuan.`
+          : `Reagen diluent/lyse mendekati batas akhir pemakaian on-board atau perubahan suhu penyimpanan botol reagen cadangan.`,
+        action: isUnsat
+          ? `Ganti reagen diluent dan lyse dengan lot baru yang terverifikasi, periksa kejernihan cairan diluent, dan gunakan vial kontrol baru bersuhu 2–8°C.`
+          : `Pastikan botol reagen tertutup rapat untuk mencegah evaporasi dan catat tanggal buka reagen.`,
+      },
+      {
+        category: "ENVIRONMENT",
+        label: "5. Environment (Lingkungan Lab)",
+        rootCause: isUnsat
+          ? `Getaran mekanik yang kuat dari meja kerja (misal: sentrifus berada dekat analyzer) atau grounding kelistrikan yang buruk memicu lonjakan arus semu (electrical noise).`
+          : `Fluktuasi suhu ruangan analitik yang merubah kecepatan reaksi enzimatik reagen lisis.`,
+        action: isUnsat
+          ? `Pindahkan instrumen hematologi ke meja anti-getaran tersendiri, cek kabel grounding kelistrikan (< 2 Volt), dan pasang UPS on-line terisolasi.`
+          : `Pertahankan suhu ruang analitik pada 20–22°C stabil dengan termohigrometer terpantau.`,
+      },
+      {
+        category: "MEASUREMENT",
+        label: "6. Measurement (Pengukuran & Kalibrasi)",
+        rootCause: isUnsat
+          ? `Faktor kalibrasi gain channel ${param} mengalami pergeseran signifikan (drift) pasca servis tanpa dikalibrasi ulang dengan whole blood calibrator resmi.`
+          : `Pergeseran nilai kalibrasi minor yang terakumulasi selama siklus pemakaian rutin.`,
+        action: isUnsat
+          ? `Jalankan kalibrasi penuh (multipoint calibration) menggunakan whole blood calibrator resmi dan evaluasi %CV presisi harian.`
+          : `Evaluasi tren grafik Levey-Jennings kontrol mutu internal dan bandingkan dengan batas deviasi yang diizinkan.`,
+      },
+    ];
+  }
+
+  // 4. Kimia Klinik Enzim (SGOT, SGPT, GGT, ALP, Amilase, LDH, CK)
+  if (/\b(sgot|ast|sgpt|alt|gamma gt|ggt|alkali fosfatase|alp|ck|ck-mb|ldh|amilase|lipase)\b/i.test(pLower)) {
+    return [
+      {
+        category: "MAN",
+        label: "1. Man (SDM / Personel)",
+        rootCause: isUnsat
+          ? `Ketidaktelitian dalam rekonstitusi kontrol lyophilized (volume pelarut tidak tepat atau akuades tidak terstandar) atau penundaan pembacaan aktivitas kinetik enzim.`
+          : `Variasi teknik pemipetan manual reagen awal sebelum masuk ke sistem otomatisasi.`,
+        action: isUnsat
+          ? `Latih kembali analis terkait rekonstitusi bahan kontrol PME menggunakan mikropipet terkalibrasi dan akuades steril bertemperatur kamar, serta larutkan secara perlahan selama 30 menit.`
+          : `Supervisi prosedur penanganan reagen enzimatik dan kepatuhan SOP aklimatisasi kontrol.`,
+      },
+      {
+        category: "MACHINE",
+        label: "2. Machine (Alat / Fotometer Kimia)",
+        rootCause: isUnsat
+          ? `Kerusakan atau degradasi intensitas lampu halogen fotometer, ketidakstabilan pengatur suhu inkubator kuvet (harus presisi 37.0°C ± 0.1°C), atau kuvet tergores/kotor.`
+          : `Fluktuasi minor suhu inkubasi kuvet atau sedikit deposit protein pada probe reagen/sampel.`,
+        action: isUnsat
+          ? `Lakukan kalibrasi suhu inkubasi kuvet (verifikasi 37.0°C), ukur tegangan/intensitas lampu fotometer (ganti bila redup), bersihkan cuvette wash station, dan kalibrasi photometer filter 340 nm.`
+          : `Jalankan prosedur pencucian kuvet (cuvette wash) dengan larutan asam/basa pembersih khusus dan periksa nilai blanko kuvet.`,
+      },
+      {
+        category: "METHOD",
+        label: "3. Method (Metode Kinetik Enzimatik)",
+        rootCause: isUnsat
+          ? `Sensitivitas metode kinetik UV (IFCC/DGKC) terganggu oleh substrat depletion (aktivitas enzim sangat tinggi melampaui rentang linearitas absorban Delta-A/min).`
+          : `Perbedaan waktu pembacaan absorban (lag phase) pada kurva kinetik reaksi metode ${meth}.`,
+        action: isUnsat
+          ? `Evaluasi linearitas kurva kinetik Delta-A/min, lakukan pengenceran sampel kontrol bila melampaui linearitas, dan audit parameter lag phase pada software ${inst}.`
+          : `Verifikasi kecocokan faktor perkalian (factor k) atau kurva kalibrasi standar enzimatik.`,
+      },
+      {
+        category: "MATERIAL",
+        label: "4. Material (Reagen Enzim & Koenzim)",
+        rootCause: isUnsat
+          ? `Degradasi koenzim NADH/NADPH pada botol reagen cair on-board akibat terpapar suhu panas atau melampaui masa pakai terbuka (open-vial expiration).`
+          : `Reagen enzimatik mendekati batas kedaluwarsa atau terjadi sedikit penurunan absorbansi blanko reagen awal.`,
+        action: isUnsat
+          ? `Ganti reagen enzimatik dengan botol/lot baru, periksa nilai absorban blanko reagen (reagent blank absorbance harus sesuai kit insert), dan buang reagen yang terdegradasi.`
+          : `Simpan reagen enzim pada suhu 2–8°C terlindung dari cahaya dan pantau nilai blanko harian.`,
+      },
+      {
+        category: "ENVIRONMENT",
+        label: "5. Environment (Lingkungan Lab)",
+        rootCause: isUnsat
+          ? `Suhu ruangan analitik melebihi 26°C menyebabkan sistem pendingin reagen on-board (reagent carousel cooling) bekerja terlalu berat dan gagal mempertahankan suhu 4–8°C.`
+          : `Fluktuasi suhu pendingin udara ruang analitik yang mempengaruhi kestabilan reagen cair terbuka.`,
+        action: isUnsat
+          ? `Pastikan suhu ruang laboratorium stabil pada rentang 20–22°C dan periksa kipas sirkulasi pendingin kompartemen reagen pada ${inst}.`
+          : `Monitor termometer kompartemen reagen secara harian pada logbook pemeliharaan.`,
+      },
+      {
+        category: "MEASUREMENT",
+        label: "6. Measurement (Pengukuran & Kalibrasi)",
+        rootCause: isUnsat
+          ? `Penyimpangan nilai absorban filter panjang gelombang 340 nm atau nilai kalibrator aktivitas enzim bergeser akibat penyimpanan yang tidak tepat.`
+          : `Pergeseran nilai faktor kalibrator enzimatik pasca pergantian botol kalibrator baru.`,
+        action: isUnsat
+          ? `Lakukan kalibrasi ulang penuh menggunakan kalibrator kimia klinis terstandar yang baru dilarutkan, dan jalankan kontrol IQC level normal dan abnormal.`
+          : `Evaluasi tren nilai kontrol pada grafik Levey-Jennings untuk mendeteksi deviasi sistematik.`,
+      },
+    ];
+  }
+
+  // 5. Kimia Klinik Substrat & Metabolit (Glukosa, Kolesterol, Asam Urat, Ureum, Kreatinin, dll)
+  if (/\b(glukosa|glucose|gds|gdp|kolesterol|cholesterol|trigliserida|triglyceride|asam urat|uric acid|ureum|urea|bun|kreatinin|creatinine|bilirubin total|bilirubin direk|protein total|albumin|hba1c)\b/i.test(pLower)) {
+    return [
+      {
+        category: "MAN",
+        label: "1. Man (SDM / Personel)",
+        rootCause: isUnsat
+          ? `Ketidaktepatan penanganan pra-analitik: rekonstitusi kontrol tidak menggunakan pelarut terukur presisi atau pemipetan spesimen tidak menggunakan tips yang sesuai.`
+          : `Variasi waktu kontak reagen dengan sampel antar analis sebelum proses inkubasi analitik.`,
+        action: isUnsat
+          ? `Lakukan re-evaluasi kompetensi pemipetan analis dan pastikan rekonstitusi vial kontrol PME menggunakan mikropipet terverifikasi serta pelarut standar.`
+          : `Sosialisasikan kembali kepatuhan terhadap SOP operasional alat kimia klinik.`,
+      },
+      {
+        category: "MACHINE",
+        label: "2. Machine (Alat / Fotometer Kimia)",
+        rootCause: isUnsat
+          ? `Penurunan intensitas sumber cahaya (lampu fotometer halogen), deposit kotoran pada flow cell / kuvet reaksi, atau carryover pada jarum probe sampel/reagen.`
+          : `Fluktuasi minor pada detektor fotometrik atau sedikit goresan pada kuvet reaksi individual.`,
+        action: isUnsat
+          ? `Lakukan cuvette blank check (ganti kuvet dengan absorban di luar toleransi), bersihkan jarum probe sampel dengan cairan pembersih deproteinasi, dan cek intensitas lampu fotometer.`
+          : `Jalankan maintenance mingguan pembersihan sistem optik dan cuvette wash station ${inst}.`,
+      },
+      {
+        category: "METHOD",
+        label: "3. Method (Metode Pemeriksaan)",
+        rootCause: isUnsat
+          ? `Metode pemeriksaan (${meth}) mengalami gangguan interferensi senyawa kromogenik, waktu reaksi endpoint terganggu, atau linearitas kurva terlampaui.`
+          : `Karakteristik spesifisitas reagen enzimatik metode ${meth} terhadap matriks bahan kontrol PME.`,
+        action: isUnsat
+          ? `Verifikasi kurva kalibrasi standar multi-titik, periksa kesesuaian waktu inkubasi, dan pastikan absorban reagen blanko berada dalam batas spesifikasi kit insert.`
+          : `Cocokkan batas toleransi hasil laboratorium terhadap konsensus kelompok metode sejenis.`,
+      },
+      {
+        category: "MATERIAL",
+        label: "4. Material (Reagen, Kalibrator & Kontrol)",
+        rootCause: isUnsat
+          ? `Reagen ${param} mengalami oksidasi dini / degradasi warna akibat terpapar udara bebas, kontaminasi reagen, atau vial kontrol PME terkontaminasi bakteri.`
+          : `Reagen mendekati tanggal kedaluwarsa atau terjadi sedikit pergeseran nilai antar batch lot reagen.`,
+        action: isUnsat
+          ? `Ganti reagen dengan botol baru yang masih segar, periksa warna fisik cairan reagen (tidak keruh/berubah warna), dan gunakan kalibrator lot baru.`
+          : `Lakukan pencatatan masa pakai reagen on-board dan lakukan cross-check saat pergantian lot baru.`,
+      },
+      {
+        category: "ENVIRONMENT",
+        label: "5. Environment (Lingkungan Lab)",
+        rootCause: isUnsat
+          ? `Suhu ruangan analitik melebihi 25°C atau paparan cahaya lampu/matahari langsung pada reagen kromogenik yang peka cahaya.`
+          : `Variasi suhu ruangan laboratorium antara siang dan malam hari yang melebihi rentang kenyamanan instrumen.`,
+        action: isUnsat
+          ? `Lindungi wadah reagen peka cahaya (gunakan botol gelap/amber), pastikan suhu ruangan 20–22°C stabil 24 jam dengan pendingin AC terkontrol.`
+          : `Catat suhu dan kelembaban ruang kimia klinik secara berkala pada lembar kontrol lingkungan.`,
+      },
+      {
+        category: "MEASUREMENT",
+        label: "6. Measurement (Pengukuran & Air Sistem)",
+        rootCause: isUnsat
+          ? `Kualitas air deionisasi / aquabidest pada instrumen menurun (konduktivitas tinggi / ada kontaminasi ion/organik) atau kurva kalibrasi bergeser signifikan.`
+          : `Mikropipet dispensing instrumen memerlukan kalibrasi ulang atau filter air deionisasi mendekati jenuh.`,
+        action: isUnsat
+          ? `Ganti filter sistem deionisasi air (pastikan resistivitas > 10 Megaohm-cm / konduktivitas < 1 uS/cm), lalu jalankan re-kalibrasi penuh.`
+          : `Jadwalkan pemeliharaan berkala water purification system laboratorium dan verifikasi kalibrasi volumetrik probe.`,
+      },
+    ];
+  }
+
+  // 6. Elektrolit (Natrium, Kalium, Klorida, Kalsium)
+  if (/\b(natrium|na\+|kalium|k\+|klorida|cl\-|kalsium|ca\b|magnesium|mg\b|fosfat|ph\b|pco2|po2)\b/i.test(pLower)) {
+    return [
+      {
+        category: "MAN",
+        label: "1. Man (SDM / Personel)",
+        rootCause: isUnsat
+          ? `Kesalahan teknik penanganan sampel elektrolit: rekonstitusi kontrol dengan akuades yang terkontaminasi ion mineral atau penundaan pemeriksaan sehingga terjadi pertukaran gas/ion.`
+          : `Variasi waktu tunggu antara pembukaan vial kontrol dengan waktu aspirasi pada elektroda.`,
+        action: isUnsat
+          ? `Pastikan pengenceran kontrol menggunakan akuades deionisasi murni terverifikasi bebas ion elektrolit dan periksa sampel segera setelah vial dibuka.`
+          : `Sosialisasikan SOP penanganan sampel elektrolit agar tidak terpapar udara terlalu lama.`,
+      },
+      {
+        category: "MACHINE",
+        label: "2. Machine (Alat ISE / Elektroda)",
+        rootCause: isUnsat
+          ? `Protein buildup (lapisan deposit protein) pada membran selektif elektroda ${param}, kehabisan/pengkristalan reference electrode filling solution, atau keausan selang pompa peristaltik ISE.`
+          : `Sedikit penurunan sensitivitas membran elektroda ISE (slope elektroda mendekati batas bawah toleransi pabrikan).`,
+        action: isUnsat
+          ? `Lakukan deproteinisasi membran elektroda (protein remover cleaning), isi ulang/ganti cairan reference solution, bersihkan pin konektor elektroda, dan jalankan slope test.`
+          : `Jalankan siklus conditioning membran elektroda secara berkala sesuai manual operasional ${inst}.`,
+      },
+      {
+        category: "METHOD",
+        label: "3. Method (Metode Ion Selective Electrode)",
+        rootCause: isUnsat
+          ? `Metode ISE (${meth}) mengalami gangguan ionic strength akibat rasio pengenceran buffer atau kegagalan kurva two-point calibration.`
+          : `Perbedaan prinsip pengukuran antara metode direct ISE dengan indirect ISE terhadap efek matriks protein kontrol PME.`,
+        action: isUnsat
+          ? `Periksa nilai slope kalibrasi (harus berada dalam rentang toleransi pabrikan mV/decade), dan lakukan kalibrasi multi-point.`
+          : `Dokumentasikan jenis teknologi ISE (direct vs indirect) pada laporan evaluasi mutu laboratorium.`,
+      },
+      {
+        category: "MATERIAL",
+        label: "4. Material (Reagen Kalibrasi & Cairan Standar)",
+        rootCause: isUnsat
+          ? `Larutan kalibrator Standard A/B atau reagen buffer ISE terkontaminasi, botol reagen kristalisasi pada lubang aspirasi, atau masa pakai reagen pack habis.`
+          : `Reagen kalibrator pack mendekati batas akhir volume (low level volume).`,
+        action: isUnsat
+          ? `Ganti reagent pack ISE dengan yang baru, bersihkan kristal garam pada jalur fluida, dan lakukan priming menyeluruh.`
+          : `Pantau sisa volume reagent pack secara berkala dan pasang pack baru sebelum habis total.`,
+      },
+      {
+        category: "ENVIRONMENT",
+        label: "5. Environment (Lingkungan Lab)",
+        rootCause: isUnsat
+          ? `Gangguan grounding kelistrikan (tegangan netral-ke-ground > 2V) atau induksi medan elektromagnetik yang menyebabkan lonjakan potensial listrik pada elektroda ISE.`
+          : `Suhu ruang analitik berfluktuasi melebihi rentang operasional elektroda (20–25°C).`,
+        action: isUnsat
+          ? `Periksa sistem pentanahan (grounding) kelistrikan laboratorium (harus < 1.0 Ohm), gunakan stabilizer/UPS on-line murni, dan jauhkan dari perangkat bermotor besar.`
+          : `Stabilkan suhu pendingin udara ruang analitik secara konsisten.`,
+      },
+      {
+        category: "MEASUREMENT",
+        label: "6. Measurement (Pengukuran & Kalibrasi)",
+        rootCause: isUnsat
+          ? `Nilai slope elektroda ${param} keluar dari batas kalibrasi (drift signifikan mV) sehingga pembacaan tegangan Nernst menghasilkan bias konsentrasi ${zSign}.`
+          : `Pergeseran kalibrasi satu titik (one-point calibration drift) antar siklus pemeriksaan.`,
+        action: isUnsat
+          ? `Lakukan kalibrasi dua titik penuh (full 2-point calibration) dan ganti unit elektroda bila nilai slope tidak dapat pulih setelah dibersihkan.`
+          : `Periksa frekuensi auto-calibration pada alat agar berjalan teratur setiap interval yang ditetapkan.`,
+      },
+    ];
+  }
+
+  // 7. Imunoserologi (HBsAg, Anti-HCV, HIV, TSH, CRP, dll)
+  if (/\b(hbsag|anti hcv|anti-hcv|hiv|tsh|ft4|ft3|crp|rf|widal|dengue|syphilis|vdrl|tpha)\b/i.test(pLower)) {
+    return [
+      {
+        category: "MAN",
+        label: "1. Man (SDM / Personel)",
+        rootCause: isUnsat
+          ? `Kesalahan teknik pencucian manual/aspirasi, kesalahan volume pemipetan konjugat/sampel, atau waktu inkubasi yang tidak tepat.`
+          : `Variasi waktu pemipetan reagen substrat antar sumuran/reaksi.`,
+        action: isUnsat
+          ? `Lakukan re-training pemipetan mikro terstandar dan pastikan kepatuhan waktu inkubasi serta prosedur pencucian sesuai kit insert.`
+          : `Gunakan mikropipet multi-channel terkalibrasi untuk mempercepat dan menyeragamkan pemipetan.`,
+      },
+      {
+        category: "MACHINE",
+        label: "2. Machine (Alat / Washer / Reader)",
+        rootCause: isUnsat
+          ? `Penyumbatan pada dispensing/aspiration pin washer manifold, efisiensi pemisahan magnetik berkurang (CMIA/ECLIA), atau fotodetektor PMT mengalami penurunan sensitivitas.`
+          : `Sedikit residu cairan pencuci pada dasar kuvet/sumuran setelah siklus aspirasi terakhir.`,
+        action: isUnsat
+          ? `Bersihkan aspiration pin washer dengan jarum pembersih khusus, pastikan tekanan vakum cuci optimal, dan kalibrasi sistem optik pembaca.`
+          : `Lakukan prime dan purge sistem washer sebelum pengujian dimulai.`,
+      },
+      {
+        category: "METHOD",
+        label: "3. Method (Metode Imunokimia)",
+        rootCause: isUnsat
+          ? `Ketidaksesuaian nilai cutoff (Index/S-CO), interferensi antibodi heterofilik, atau kinetika pengikatan antigen-antibodi terganggu oleh suhu inkubasi.`
+          : `Karakteristik batas sensitivitas analitik metode ${meth} terhadap sampel batas (borderline).`,
+        action: isUnsat
+          ? `Verifikasi nilai cutoff kalibrasi, validasi kurva kalibrasi master, dan audit suhu inkubator reaksi.`
+          : `Dokumentasikan nilai Signal-to-Cutoff (S/CO) dan bandingkan dengan kriteria kontrol pabrikan.`,
+      },
+      {
+        category: "MATERIAL",
+        label: "4. Material (Reagen, Konjugat & Substrat)",
+        rootCause: isUnsat
+          ? `Degradasi konjugat antibodi berlabel enzim/luminofor, kontaminasi reagen substrat, atau reagen terpapar suhu di luar 2–8°C saat penyimpanan.`
+          : `Reagen mendekati tanggal kedaluwarsa atau terjadi sedikit penurunan intensitas sinyal luminesensi.`,
+        action: isUnsat
+          ? `Ganti reagen kit dengan lot baru yang terverifikasi, hindari kontaminasi silang tips pipet, dan pastikan rantai dingin penyimpanan terjaga ketat.`
+          : `Lakukan pencatatan log stabilitas reagen pasca buka (on-board stability).`,
+      },
+      {
+        category: "ENVIRONMENT",
+        label: "5. Environment (Lingkungan Lab)",
+        rootCause: isUnsat
+          ? `Suhu ruangan analitik berfluktuasi tajam mempengaruhi laju reaksi pembentukan kompleks antigen-antibodi pada tahap inkubasi.`
+          : `Kelembaban ruangan analitik yang terlalu rendah atau terlalu tinggi.`,
+        action: isUnsat
+          ? `Jaga kestabilan suhu ruangan pada 20–22°C dan kelembaban 45–65% di ruang pemeriksaan imunologi.`
+          : `Catat termohigrometer ruang analitik secara harian.`,
+      },
+      {
+        category: "MEASUREMENT",
+        label: "6. Measurement (Pengukuran & Kalibrasi)",
+        rootCause: isUnsat
+          ? `Kurva kalibrasi imunoserologi (master curve / 2-point recalibration) tidak valid atau nilai calibrator bergeser melampaui rentang akurasi.`
+          : `Sedikit pergeseran nilai sinyal relatif luminescence (RLU) atau optical density (OD).`,
+        action: isUnsat
+          ? `Jalankan kalibrasi ulang penuh menggunakan kalibrator baru dan evaluasi nilai kontrol negatif serta kontrol positif.`
+          : `Monitor konsistensi nilai RLU/absorban kontrol pada grafik Levey-Jennings.`,
+      },
+    ];
+  }
+
+  // 8. Parameter Umum Lainnya (General Fallback dengan diferensiasi tegas Warning vs Unsat)
   return [
     {
       category: "MAN",
       label: "1. Man (SDM / Personel)",
-      rootCause: `Variasi teknik pemipetan mikro atau penanganan rekonstitusi kontrol oleh analis, berpotensi menimbulkan deviasi bias ${zSign} pada parameter ${param}.`,
-      action: "Lakukan re-training pemipetan mikro presisi, evaluasi kepatuhan SOP rekonstitusi, dan jadwalkan uji kompetensi/blind test berkala.",
+      rootCause: isUnsat
+        ? `Penyimpangan signifikan terhadap SOP penanganan spesimen atau rekonstitusi kontrol PME parameter ${param} oleh analis pelaksana, memicu kesalahan analitik berat dengan deviasi ${zSign}.`
+        : `Variasi minor teknik pemipetan atau penyiapan sampel kontrol antar petugas analis saat pergantian shift kerja.`,
+      action: isUnsat
+        ? `Lakukan re-edukasi dan evaluasi kompetensi menyeluruh terhadap analis pelaksana, terbitkan instruksi kerja terstandar, dan supervisi langsung proses pengujian ulang.`
+        : `Sosialisasikan kembali SOP teknis parameter ${param} dan lakukan pemantauan kepatuhan kerja rutin.`,
     },
     {
       category: "MACHINE",
       label: "2. Machine (Alat / Instrumen)",
-      rootCause: `Pergeseran (drift) kalibrasi optik fotometer/sensor pada ${inst}, kemungkinan penumpukan residu pada probe kuvet, atau fluktuasi voltase kelistrikan.`,
-      action: `Lakukan deep cleaning probe kuvet ${inst}, verifikasi kurva kalibrasi instrumen, dan lakukan uji presisi repeatability harian (IQC).`,
+      rootCause: isUnsat
+        ? `Kegagalan hardware kritis pada detektor/sensor utama instrumen ${inst}, sumbatan probe aspirator, atau drift kalibrasi berat pada channel analit ${param}.`
+        : `Pergeseran (drift) minor pada komponen optik/mekanik instrumen ${inst} yang terakumulasi selama jam operasional tinggi.`,
+      action: isUnsat
+        ? `Lakukan pemeliharaan korektif mendalam (deep cleaning probe & optical cell), servis teknis bila diperlukan, dan kalibrasi ulang penuh sebelum instrumen digunakan kembali.`
+        : `Jalankan siklus autowash harian, periksa kestabilan baseline instrumen, dan lakukan verifikasi presisi.`,
     },
     {
       category: "METHOD",
-      label: "3. Method (Metode & SOP)",
-      rootCause: `Sensitivitas reaksi analitik pada metode ${meth}, potensi pergeseran rasio reagen-sampel, atau waktu/suhu inkubasi yang tidak presisi.`,
-      action: "Tinjau dan audit kesesuaian SOP dengan kit insert reagen resmi pabrikan, validasi batas linearitas, dan kalibrasi ulang kurva standar.",
+      label: "3. Method (Metode Pemeriksaan)",
+      rootCause: isUnsat
+        ? `Prinsip metode ${meth} mengalami gangguan interferensi substansi matriks berat atau batas linearitas deteksi analitik terlampaui.`
+        : `Karakteristik kinerja metode ${meth} menunjukkan sedikit pergeseran sensitivitas terhadap konsensus kelompok sejenis.`,
+      action: isUnsat
+        ? `Validasi ulang kurva kalibrasi multi-titik, verifikasi rentang linearitas metode ${meth}, dan pastikan kepatuhan ketat pada kit insert resmi pabrikan.`
+        : `Dokumentasikan evaluasi metode dan pantau tren hasil kontrol pada grafik kontrol mutu.`,
     },
     {
       category: "MATERIAL",
       label: "4. Material (Reagen & Kontrol)",
-      rootCause: `Penurunan stabilitas on-board reagen, fluktuasi suhu lemari pendingin reagen (cold chain 2-8°C), atau vial kontrol PME belum terhomogenisasi sempurna.`,
-      action: "Ganti botol/lot reagen baru yang terverifikasi, pastikan suhu penyimpanan stabil, dan rekonstitusi kontrol dengan akuades steril terukur tepat.",
+      rootCause: isUnsat
+        ? `Reagen ${param} mengalami degradasi parah, kontaminasi, atau vial kontrol PME rusak akibat penyimpanan di luar rantai dingin (cold chain 2–8°C).`
+        : `Reagen mendekati batas akhir masa simpan (expiry date) atau terjadi variasi minor antar lot reagen baru.`,
+      action: isUnsat
+        ? `Ganti botol reagen dengan lot baru yang terverifikasi, buang reagen yang dicurigai rusak, dan gunakan vial kontrol baru yang tersegel rapi.`
+        : `Terapkan sistem FIFO pada penyimpanan reagen dan verifikasi lot baru sebelum digunakan untuk pasien.`,
     },
     {
       category: "ENVIRONMENT",
       label: "5. Environment (Lingkungan Lab)",
-      rootCause: "Suhu ruangan laboratorium berfluktuasi melebihi rentang operasional standar (18-25°C) atau paparan cahaya langsung pada tray reagen.",
-      action: "Pantau dan catat termohigrometer ruangan analitik setiap pergantian shift, optimalkan pendingin AC 24 jam, dan lindungi reagen dari cahaya langsung.",
+      rootCause: isUnsat
+        ? `Suhu dan kelembaban ruang laboratorium berfluktuasi tajam di luar rentang batas toleransi kerja alat (18–25°C), mengacaukan kinetika analitik.`
+        : `Variasi suhu ruangan laboratorium yang mendekati batas toleransi atas saat beban pemeriksaan tinggi.`,
+      action: isUnsat
+        ? `Stabilkan pendingin udara (AC) ruangan laboratorium 24 jam dan pastikan sirkulasi udara di sekitar instrumen ${inst} tidak terhalang.`
+        : `Catat suhu dan kelembaban secara rutin pada logbook monitoring lingkungan laboratorium.`,
     },
     {
       category: "MEASUREMENT",
       label: "6. Measurement (Pengukuran & Kalibrasi)",
-      rootCause: "Konduktivitas air sistem (aquabidest/deionisasi) yang menurun atau mikropipet otomatis yang mendekati batas jatuh tempo kalibrasi.",
-      action: "Uji konduktivitas/resistivitas air reagen secara rutin dan jadwalkan kalibrasi eksternal berkala terakreditasi untuk seluruh mikropipet.",
+      rootCause: isUnsat
+        ? `Kurva kalibrasi parameter ${param} telah kadaluwarsa/bergeser signifikan atau nilai kalibrator pabrikan mengalami bias sistemik.`
+        : `Sedikit pergeseran nilai kalibrasi yang terdeteksi pada tren kontrol mutu internal harian.`,
+      action: isUnsat
+        ? `Lakukan kalibrasi ulang resmi menggunakan kalibrator baru yang tertelusur (traceable), dan evaluasi aturan Westgard pada grafik Levey-Jennings.`
+        : `Pantau nilai bias dan %CV harian untuk memastikan deviasi tidak berkembang menjadi tidak memuaskan.`,
     },
   ];
 }

@@ -51,6 +51,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ res
               investigationSteps: updated.aiAnalysis.investigationSteps,
               correctiveActions: updated.aiAnalysis.correctiveActions,
               preventiveActions: updated.aiAnalysis.preventiveActions,
+              fishboneAnalysis: updated.aiAnalysis.fishboneAnalysis,
             }
           : null,
       });

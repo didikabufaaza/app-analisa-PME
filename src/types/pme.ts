@@ -33,6 +33,13 @@ export interface PmeFileInfo {
   driveDownloadUrl?: string | null;
 }
 
+export interface FishboneItem {
+  category: "MAN" | "MACHINE" | "METHOD" | "MATERIAL" | "ENVIRONMENT" | "MEASUREMENT" | string;
+  label: string;
+  rootCause: string;
+  action: string;
+}
+
 export interface AiAnalysisData {
   interpretation: string;
   possibleCauses: { category: string; text: string }[];
@@ -42,6 +49,7 @@ export interface AiAnalysisData {
   instrumentEvaluation?: string | null;
   methodEvaluation?: string | null;
   biasAnalysis?: string | null;
+  fishboneAnalysis?: FishboneItem[] | string | null;
   provider: string;
   model: string;
   promptVersion: string;

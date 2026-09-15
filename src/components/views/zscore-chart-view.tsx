@@ -384,6 +384,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       const pageW = doc.internal.pageSize.getWidth(); // 297
       const pageH = doc.internal.pageSize.getHeight(); // 210
       const margin = 14;
+      const contentW = pageW - margin * 2; // 269
       // Draw Official Kop Surat on Page 1
       const kopY = 7;
       const logoSize = 19; // mm

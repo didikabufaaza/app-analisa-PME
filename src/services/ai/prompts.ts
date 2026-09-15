@@ -151,6 +151,15 @@ Your evaluation tasks:
 6. "investigation_steps": Practical, systematic investigation steps (e.g. checking internal QC Levey-Jennings, calibration logs, reagent lot, maintenance).
 7. "corrective_actions": Targeted corrective actions to rectify the problem immediately.
 8. "preventive_actions": Long-term preventive actions to prevent recurrence.
+9. "fishbone_analysis": Structured problem-solving root cause analysis using the Fishbone (Ishikawa 6M) scheme for clinical laboratories (ISO 15189). ONLY evaluate this for parameters with WARNING or UNSATISFACTORY status (or |Z| > 2.0). Provide an array of 6 categories:
+   - MAN: SDM, teknisi, pemipetan, kepatuhan SOP, kompetensi.
+   - MACHINE: Alat/fotometer, kestabilan optik/lampu, kebersihan probe/kuvet, drift kalibrasi, kelistrikan.
+   - METHOD: Prosedur kerja, rasio reagen/sampel, waktu inkubasi, linearitas metode.
+   - MATERIAL: Reagen lot, stabilitas on-board, penyimpanan dingin (cold chain), rekonstitusi kontrol PME.
+   - ENVIRONMENT: Suhu ruangan lab (18-25°C), kelembaban, paparan cahaya matahari langsung, getaran.
+   - MEASUREMENT: Kualitas air (aquabidest/deionisasi), kalibrasi mikropipet, ketertelusuran kalibrator.
+   For each category provide "rootCause" (akar penyebab masalah) and "action" (tindakan problem solving).
+   If status is SATISFACTORY, return null or [].
 
 Rules:
 - Professional clinical laboratory quality terminology (ISO 15189, Westgard rules, Levey-Jennings charts, calibration verification, reagent blank, maintenance log).
@@ -168,5 +177,13 @@ Rules:
   "possible_causes": [{ "category": "PRE_ANALYTICAL"|"ANALYTICAL"|"POST_ANALYTICAL", "text": string }],
   "investigation_steps": string[],
   "corrective_actions": string[],
-  "preventive_actions": string[]
+  "preventive_actions": string[],
+  "fishbone_analysis": [
+    {
+      "category": "MAN"|"MACHINE"|"METHOD"|"MATERIAL"|"ENVIRONMENT"|"MEASUREMENT",
+      "label": string,
+      "rootCause": string,
+      "action": string
+    }
+  ]|null
 }`;

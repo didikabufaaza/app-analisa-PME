@@ -135,6 +135,86 @@ function formatList(arr: unknown[], bullet = "•"): string {
     .join("\n");
 }
 
+interface FishboneItem {
+  category: string;
+  label: string;
+  rootCause: string;
+  action: string;
+}
+
+function resolveFishboneAnalysis(r: {
+  parameterName: string;
+  method?: string | null;
+  instrument?: string | null;
+  zScore?: number | null;
+  instrumentZScore?: number | null;
+  methodZScore?: number | null;
+  allParticipantsZScore?: number | null;
+  aiAnalysis?: {
+    fishboneAnalysis?: string | null;
+    possibleCauses?: string | null;
+    correctiveActions?: string | null;
+    biasAnalysis?: string | null;
+    interpretation?: string | null;
+  } | null;
+}): FishboneItem[] {
+  const a = r.aiAnalysis;
+  if (a?.fishboneAnalysis) {
+    try {
+      const parsed = JSON.parse(a.fishboneAnalysis);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed as FishboneItem[];
+      }
+    } catch {}
+  }
+
+  const zVal = r.allParticipantsZScore ?? r.zScore ?? 0;
+  const isHigh = zVal > 0;
+  const zSign = isHigh ? "positif (overestimasi)" : "negatif (underestimasi)";
+  const param = r.parameterName;
+  const inst = r.instrument || "Instrumen laboratorium";
+  const meth = r.method || "Metode pengujian";
+
+  return [
+    {
+      category: "MAN",
+      label: "1. Man (SDM / Personel)",
+      rootCause: `Variasi teknik pemipetan mikro atau penanganan rekonstitusi kontrol oleh analis, berpotensi menimbulkan deviasi bias ${zSign} pada parameter ${param}.`,
+      action: "Lakukan re-training pemipetan mikro presisi, evaluasi kepatuhan SOP rekonstitusi, dan jadwalkan uji kompetensi/blind test berkala.",
+    },
+    {
+      category: "MACHINE",
+      label: "2. Machine (Alat / Instrumen)",
+      rootCause: `Pergeseran (drift) kalibrasi optik fotometer/sensor pada ${inst}, kemungkinan penumpukan residu pada probe kuvet, atau fluktuasi voltase kelistrikan.`,
+      action: `Lakukan deep cleaning probe kuvet ${inst}, verifikasi kurva kalibrasi instrumen, dan lakukan uji presisi repeatability harian (IQC).`,
+    },
+    {
+      category: "METHOD",
+      label: "3. Method (Metode & SOP)",
+      rootCause: `Sensitivitas reaksi analitik pada metode ${meth}, potensi pergeseran rasio reagen-sampel, atau waktu/suhu inkubasi yang tidak presisi.`,
+      action: "Tinjau dan audit kesesuaian SOP dengan kit insert reagen resmi pabrikan, validasi batas linearitas, dan kalibrasi ulang kurva standar.",
+    },
+    {
+      category: "MATERIAL",
+      label: "4. Material (Reagen & Kontrol)",
+      rootCause: `Penurunan stabilitas on-board reagen, fluktuasi suhu lemari pendingin reagen (cold chain 2-8°C), atau vial kontrol PME belum terhomogenisasi sempurna.`,
+      action: "Ganti botol/lot reagen baru yang terverifikasi, pastikan suhu penyimpanan stabil, dan rekonstitusi kontrol dengan akuades steril terukur tepat.",
+    },
+    {
+      category: "ENVIRONMENT",
+      label: "5. Environment (Lingkungan Lab)",
+      rootCause: "Suhu ruangan laboratorium berfluktuasi melebihi rentang operasional standar (18-25°C) atau paparan cahaya langsung pada tray reagen.",
+      action: "Pantau dan catat termohigrometer ruangan analitik setiap pergantian shift, optimalkan pendingin AC 24 jam, dan lindungi reagen dari cahaya langsung.",
+    },
+    {
+      category: "MEASUREMENT",
+      label: "6. Measurement (Pengukuran & Kalibrasi)",
+      rootCause: "Konduktivitas air sistem (aquabidest/deionisasi) yang menurun atau mikropipet otomatis yang mendekati batas jatuh tempo kalibrasi.",
+      action: "Uji konduktivitas/resistivitas air reagen secara rutin dan jadwalkan kalibrasi eksternal berkala terakreditasi untuk seluruh mikropipet.",
+    },
+  ];
+}
+
 /* ========================================================================== */
 /*                      KOP SURAT & HEADER RESMI MULTI-TENANT                */
 /* ========================================================================== */
@@ -540,12 +620,122 @@ export async function generatePdfReport(sessionId: string, organizationId: strin
     },
   });
 
-  /* ---------- KESIMPULAN & TANDA TANGAN (Portrait Page) ---------- */
+  /* ---------- 5. ANALISIS AKAR MASALAH & PROBLEM SOLVING METODE FISHBONE (DIAGRAM ISHIKAWA 6M) ---------- */
+  const fishboneCandidates = results.filter((r) => {
+    const level = getRowEvaluationLevel(r);
+    return level === "UNSATISFACTORY" || level === "WARNING";
+  });
+
+  doc.addPage("a4", "landscape");
+  const fbLandW = doc.internal.pageSize.getWidth();
+  const fbLandH = doc.internal.pageSize.getHeight();
+
+  doc.setFillColor(13, 122, 105);
+  doc.rect(0, 0, fbLandW, 20, "F");
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.setFont("helvetica", "bold");
+  doc.text("5. Analisis Problem Solving Metode Fishbone (Diagram Ishikawa 6M)", 14, 13);
+
+  doc.setTextColor(50, 50, 50);
+  doc.setFont("helvetica", "normal");
+  doc.setFontSize(8.5);
+  doc.text(
+    "Analisis akar masalah terstruktur (Metode Fishbone Ishikawa 6M: Man, Machine, Method, Material, Environment, Measurement) khusus untuk parameter dengan evaluasi Peringatan (Warning) dan Tidak Memuaskan (Unsatisfactory) sesuai standar manajemen mutu laboratorium ISO 15189.",
+    14,
+    27
+  );
+
+  let fbY = 32;
+
+  if (fishboneCandidates.length === 0) {
+    doc.setFillColor(236, 253, 245);
+    doc.setDrawColor(16, 185, 129);
+    doc.roundedRect(14, fbY, fbLandW - 28, 24, 2, 2, "FD");
+    doc.setTextColor(4, 120, 87);
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(10);
+    doc.text("STATUS MUTU PRIMA: SELURUH PARAMETER PENGUJIAN MEMUASKAN", 20, fbY + 10);
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(8.5);
+    doc.setTextColor(55, 65, 81);
+    doc.text(
+      "Seluruh parameter pada siklus evaluasi PME ini memenuhi kriteria memuaskan (|Z| ≤ 2.0). Tidak ditemukan deviasi analitik yang memerlukan analisis akar masalah Fishbone.",
+      20,
+      fbY + 17
+    );
+  } else {
+    for (let fIdx = 0; fIdx < fishboneCandidates.length; fIdx++) {
+      const r = fishboneCandidates[fIdx];
+      const level = getRowEvaluationLevel(r);
+      const isUnsat = level === "UNSATISFACTORY";
+      const statusLabel = isUnsat ? "TIDAK MEMUASKAN (UNSATISFACTORY)" : "PERINGATAN (WARNING)";
+      const zGlobal = r.allParticipantsZScore ?? r.zScore;
+      const zInst = r.instrumentZScore;
+      const zMethod = r.methodZScore;
+      const fbItems = resolveFishboneAnalysis(r);
+
+      // Check remaining space on current page, if less than 65mm add new landscape page
+      if (fbY + 65 > fbLandH - 15) {
+        doc.addPage("a4", "landscape");
+        fbY = 16;
+      }
+
+      // Parameter banner
+      doc.setFillColor(isUnsat ? 254 : 254, isUnsat ? 242 : 243, isUnsat ? 242 : 199);
+      doc.setDrawColor(isUnsat ? 239 : 245, isUnsat ? 68 : 158, isUnsat ? 68 : 11);
+      doc.roundedRect(14, fbY, fbLandW - 28, 8, 1.5, 1.5, "FD");
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(isUnsat ? 185 : 180, isUnsat ? 28 : 83, isUnsat ? 28 : 9);
+      const bannerText = `Parameter: ${r.parameterName}  |  Status: ${statusLabel}  |  Z-Global: ${fmtZ(zGlobal)}  |  Z-Alat: ${fmtZ(zInst)}  |  Z-Metode: ${fmtZ(zMethod)}  |  Metode: ${r.method || "-"}  |  Alat: ${r.instrument || "-"}`;
+      doc.text(bannerText, 18, fbY + 5.5);
+
+      fbY += 10;
+
+      autoTable(doc, {
+        startY: fbY,
+        theme: "grid",
+        tableWidth: 269,
+        margin: { left: 14, right: 14 },
+        head: [["Kategori 6M (Fishbone Bone)", "Identifikasi Akar Masalah (Root Cause)", "Rencana Tindakan Problem Solving (Action Plan)"]],
+        body: fbItems.map((it: any) => [
+          it.label || it.category,
+          it.rootCause || "-",
+          it.action || "-",
+        ]),
+        headStyles: {
+          fillColor: isUnsat ? [185, 28, 28] : [180, 83, 9],
+          textColor: [255, 255, 255],
+          fontSize: 7.5,
+          fontStyle: "bold",
+          halign: "center",
+        },
+        styles: {
+          fontSize: 7,
+          cellPadding: 2,
+          overflow: "linebreak",
+          valign: "top",
+        },
+        columnStyles: {
+          0: { cellWidth: 50, fontStyle: "bold" },
+          1: { cellWidth: 105 },
+          2: { cellWidth: 114 },
+        },
+      });
+
+      // @ts-expect-error autoTable adds lastAutoTable to jsPDF instance
+      fbY = (doc.lastAutoTable?.finalY ?? fbY + 42) + 7;
+    }
+  }
+
+  /* ---------- 6. KESIMPULAN & TANDA TANGAN (Portrait Page) ---------- */
   doc.addPage("a4", "portrait");
   y = 25;
   doc.setFontSize(13);
   doc.setTextColor(30, 30, 30);
-  doc.text("5. Kesimpulan & Rekomendasi Mutu", 14, y);
+  doc.text("6. Kesimpulan & Rekomendasi Mutu", 14, y);
   y += 6;
   doc.setFontSize(9.5);
   const conclusion =

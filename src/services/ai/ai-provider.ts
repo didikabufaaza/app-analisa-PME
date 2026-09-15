@@ -149,6 +149,12 @@ export interface PMEAnalysis {
   instrument_evaluation?: string;
   method_evaluation?: string;
   bias_analysis?: string;
+  fishbone_analysis?: {
+    category: string;
+    label: string;
+    rootCause: string;
+    action: string;
+  }[] | null;
 }
 
 export interface AIProvider {

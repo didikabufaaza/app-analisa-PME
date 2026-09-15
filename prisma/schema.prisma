@@ -195,6 +195,7 @@ model AiAnalysis {
   instrumentEvaluation String? // Evaluasi performa spesifik terhadap Kelompok Alat
   methodEvaluation     String? // Evaluasi performa spesifik terhadap Kelompok Metode
   biasAnalysis         String? // Analisis bias analitik bawaan alat vs deviasi metode vs variasi internal lab
+  fishboneAnalysis     String? // JSON array [{category, label, rootCause, action}] metode Fishbone (6M)
   provider             String
   model                String
   promptVersion        String

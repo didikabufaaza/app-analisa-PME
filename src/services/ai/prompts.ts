@@ -152,7 +152,7 @@ Your evaluation tasks:
 7. "corrective_actions": Targeted corrective actions to rectify the problem immediately.
 8. "preventive_actions": Long-term preventive actions to prevent recurrence.
 9. "fishbone_analysis": Structured problem-solving root cause analysis using the Fishbone (Ishikawa 6M) scheme for clinical laboratories (ISO 15189). ONLY evaluate this for parameters with WARNING or UNSATISFACTORY status (or |Z| > 2.0). Provide an array of 6 categories:
-   - MAN: SDM, analis, teknik pemipetan/homogenisasi, kepatuhan SOP, kompetensi.
+   - MAN: SDM / analis, kompetensi teknis (pemipetan, homogenisasi, rekonstitusi kontrol), kepatuhan SOP, serta evaluasi potensi kesalahan input data hasil PME secara manual ke aplikasi/portal (seperti typo tanda desimal/koma, tertukar baris parameter atau hari pengujian, salah memilih kode alat/metode, dan salah konversi satuan) serta kelalaian administrasi lainnya.
    - MACHINE: Alat ukur/detektor analitik, kestabilan optik/lampu fotometer, aperture orifice, kebersihan probe/kuvet, drift kalibrasi, kelistrikan.
    - METHOD: Prinsip metode pemeriksaan (reaksi enzimatik, kinetik UV, impedansi, ISE, atau formula perhitungan matematis), rasio reagen-sampel, waktu/suhu inkubasi.
    - MATERIAL: Reagen kit, stabilitas on-board, penyimpanan dingin (cold chain 2-8°C), homogenisasi/rekonstitusi vial kontrol PME.
@@ -180,6 +180,18 @@ B. TAILOR BY EXACT PARAMETER TYPE & METHODOLOGY (WAJIB SPESIFIK & FLEKSIBEL):
       - Fokus pada Ion Selective Electrode (ISE), protein deposit pada membran elektroda, cairan reference filling solution, dan grounding listrik.
    5. IMUNOSEROLOGI (HBsAg, Anti-HCV, HIV, TSH, CRP):
       - Fokus pada washer manifold aspiration pin, pencucian magnetic particles (CMIA/ECLIA), degradasi konjugat antibodi.
+
+C. KATEGORI 'MAN / SDM' (PERSONEL, INPUT DATA MANUAL & ADMINISTRASI):
+   - Wajib memasukkan kemungkinan human error dalam proses transkripsi / input data manual hasil PME ke aplikasi atau portal pelaporan PME:
+     1. Typo angka desimal/koma (misalnya 1.25 terinput 12.5 atau 0.125).
+     2. Tertukarnya kolom atau baris pengisian antar parameter (misalnya hasil SGOT tertukar dengan SGPT) atau antar siklus/hari pengujian.
+     3. Salah memilih opsi dropdown identitas instrumen, kelompok metode, atau merk reagen pada formulir aplikasi PME.
+     4. Kesalahan konversi satuan/unit pengukuran (misalnya mg/dL vs mmol/L, atau g/dL vs g/L).
+     5. Kesalahan administrasi lain seperti kelalaian verifikasi ganda (cross-check) sebelum submit data resmi.
+   - Rencana Tindakan (Action Plan) untuk kategori MAN wajib menyertakan:
+     1. Audit penelusuran balik (cross-check trace-back) antara lembar kerja analitik (worksheet), raw printout asli instrumen, dan data yang diinput ke aplikasi PME.
+     2. Penerapan prosedur verifikasi berjenjang ganda (double-check verification) oleh penyelia/penanggung jawab teknis sebelum pengiriman data PME.
+     3. Refreshment pelatihan SOP pra-analitik dan penanganan spesimen kontrol bagi analis.
 
 DILARANG KERAS memberikan teks yang sama atau seragam antar parameter berbeda! Analisis AI harus fleksibel, cerdas, kontekstual, dan mencerminkan keahlian profesional kendali mutu laboratorium klinis (ISO 15189).
 

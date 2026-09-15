@@ -25,6 +25,7 @@ import {
   Loader2,
   Pencil,
   Plus,
+  Printer,
   RefreshCw,
   Repeat,
   Scale,
@@ -558,6 +559,7 @@ export function SessionDetailView() {
   const [sessionAnalyzing, setSessionAnalyzing] = useState(false);
   const [reprocessing, setReprocessing] = useState(false);
   const [exporting, setExporting] = useState<"pdf" | "excel" | "pdf2" | "excel2" | null>(null);
+  const [printingModel1, setPrintingModel1] = useState(false);
 
   /* ----------------------------------- load ----------------------------------- */
 
@@ -672,6 +674,73 @@ export function SessionDetailView() {
       });
     } finally {
       setExporting(null);
+    }
+  };
+
+  const handlePrintModel1 = async () => {
+    if (!session || printingModel1) return;
+    setPrintingModel1(true);
+    try {
+      const res = await fetch(`/api/pme/${session.id}/export/pdf`);
+      if (!res.ok) {
+        const errJson = await res.json().catch(() => ({}));
+        throw new Error(errJson.error || "Gagal mengunduh dokumen laporan Model 1 untuk dicetak.");
+      }
+      const blob = await res.blob();
+      const blobUrl = URL.createObjectURL(blob);
+
+      // Gunakan iframe tersembunyi untuk memicu dialog print browser
+      const iframe = document.createElement("iframe");
+      iframe.style.position = "fixed";
+      iframe.style.right = "0";
+      iframe.style.bottom = "0";
+      iframe.style.width = "0";
+      iframe.style.height = "0";
+      iframe.style.border = "none";
+      iframe.src = blobUrl;
+      document.body.appendChild(iframe);
+
+      let triggered = false;
+      const doPrint = () => {
+        if (triggered) return;
+        triggered = true;
+        try {
+          iframe.contentWindow?.focus();
+          iframe.contentWindow?.print();
+        } catch {
+          // Fallback jika iframe print terblokir oleh browser
+          window.open(blobUrl, "_blank");
+        }
+      };
+
+      iframe.onload = () => {
+        setTimeout(doPrint, 500);
+      };
+
+      // Fallback timer jika onload event PDF blob tidak memicu otomatis
+      const fallbackTimer = setTimeout(doPrint, 1500);
+
+      setTimeout(() => {
+        clearTimeout(fallbackTimer);
+        try {
+          document.body.removeChild(iframe);
+          URL.revokeObjectURL(blobUrl);
+        } catch {}
+      }, 120000);
+
+      toast({
+        title: "Menyiapkan Cetak",
+        description: "Dokumen Laporan Model 1 siap dicetak.",
+      });
+    } catch (err) {
+      if (handleAuthLoss(err)) return;
+      toast({
+        title: "Gagal Mencetak",
+        description: err instanceof Error ? err.message : "Terjadi kesalahan saat memproses cetak laporan.",
+        variant: "destructive",
+      });
+    } finally {
+      setPrintingModel1(false);
     }
   };
 
@@ -1079,7 +1148,21 @@ export function SessionDetailView() {
 
       {/* Actions row */}
       <div className="flex flex-wrap items-center gap-2">
-        <Button variant="outline" size="sm" onClick={() => void handleExport("pdf")} disabled={exporting !== null} className="border-teal-600/30 text-teal-800 dark:text-teal-300 hover:bg-teal-50">
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={() => void handlePrintModel1()}
+          disabled={printingModel1 || exporting !== null}
+          className="border-teal-600/40 text-teal-800 dark:text-teal-300 hover:bg-teal-50 font-medium"
+        >
+          {printingModel1 ? (
+            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+          ) : (
+            <Printer className="h-4 w-4 text-teal-600" aria-hidden />
+          )}
+          Cetak Laporan Model 1
+        </Button>
+        <Button variant="outline" size="sm" onClick={() => void handleExport("pdf")} disabled={exporting !== null || printingModel1} className="border-teal-600/30 text-teal-800 dark:text-teal-300 hover:bg-teal-50">
           {exporting === "pdf" ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
@@ -1087,7 +1170,7 @@ export function SessionDetailView() {
           )}
           PDF Model 1 (Laporan Evaluasi)
         </Button>
-        <Button variant="outline" size="sm" onClick={() => void handleExport("excel")} disabled={exporting !== null} className="border-teal-600/30 text-teal-800 dark:text-teal-300 hover:bg-teal-50">
+        <Button variant="outline" size="sm" onClick={() => void handleExport("excel")} disabled={exporting !== null || printingModel1} className="border-teal-600/30 text-teal-800 dark:text-teal-300 hover:bg-teal-50">
           {exporting === "excel" ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
@@ -1095,7 +1178,7 @@ export function SessionDetailView() {
           )}
           Excel Model 1
         </Button>
-        <Button variant="outline" size="sm" onClick={() => void handleExport("pdf2")} disabled={exporting !== null} className="border-emerald-600/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50">
+        <Button variant="outline" size="sm" onClick={() => void handleExport("pdf2")} disabled={exporting !== null || printingModel1} className="border-emerald-600/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50">
           {exporting === "pdf2" ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
@@ -1103,7 +1186,7 @@ export function SessionDetailView() {
           )}
           PDF Model 2 (Sasaran Mutu)
         </Button>
-        <Button variant="outline" size="sm" onClick={() => void handleExport("excel2")} disabled={exporting !== null} className="border-emerald-600/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50">
+        <Button variant="outline" size="sm" onClick={() => void handleExport("excel2")} disabled={exporting !== null || printingModel1} className="border-emerald-600/30 text-emerald-800 dark:text-emerald-300 hover:bg-emerald-50">
           {exporting === "excel2" ? (
             <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
           ) : (
@@ -1115,7 +1198,7 @@ export function SessionDetailView() {
           size="sm"
           className="bg-teal-700 text-white hover:bg-teal-800"
           onClick={() => void handleAnalyzeSession()}
-          disabled={processing || sessionAnalyzing}
+          disabled={processing || sessionAnalyzing || printingModel1}
           title={processing ? "Tunggu proses selesai" : "Analisis evaluasi untuk seluruh parameter yang memenuhi syarat"}
         >
           {sessionAnalyzing ? (

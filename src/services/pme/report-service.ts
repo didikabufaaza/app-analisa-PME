@@ -196,11 +196,11 @@ function resolveFishboneAnalysis(r: {
         category: "MAN",
         label: "1. Man (SDM / Personel)",
         rootCause: isUnsat
-          ? `Teknik homogenisasi kontrol whole blood hematologi tidak memadai (inversi tabung kurang dari 8–10 kali) atau penundaan pembacaan setelah pencampuran, memicu sedimentasi seluler sehingga pembacaan Hb dan hitung RBC tidak proporsional.`
-          : `Variasi minor kecepatan dan durasi pembalikan tabung darah antar analis saat pergantian shift, sedikit mempengaruhi keseragaman suspensi eritrosit saat aspirasi.`,
+          ? `Teknik homogenisasi kontrol whole blood hematologi tidak memadai (inversi tabung kurang dari 8–10 kali memicu sedimentasi seluler), atau adanya kesalahan administrasi/human error saat input manual hasil PME ke aplikasi (misal salah pengetikan tanda koma/desimal, tertukar baris parameter, atau salah memilih profil alat hematologi pada portal PME).`
+          : `Variasi minor kecepatan pembalikan tabung darah antar analis saat pergantian shift, atau kelalaian pengecekan administrasi ulang pada formulir input hasil aplikasi PME sebelum submit.`,
         action: isUnsat
-          ? `Hentikan sementara verifikasi hasil indeks eritrosit, lakukan pelatihan ulang teknik inversi perlahan tabung kontrol (8–10 kali secara terstandar tanpa mengocok/frothing), dan lakukan uji blind duplicate.`
-          : `Tingkatkan kedisiplinan SOP homogenisasi darah otomatis/manual dan catat waktu tunggu pra-analitik sebelum running sampel.`,
+          ? `Lakukan audit pencocokan (trace-back cross-check) antara printout raw data alat hematologi, lembar kerja manual, dan data terinput di portal PME. Bila input valid, lakukan re-edukasi teknik inversi perlahan (8–10 kali tanpa frothing) dan terapkan verifikasi ganda (double check) oleh penyelia sebelum pengiriman data.`
+          : `Tingkatkan kedisiplinan SOP homogenisasi darah dan terapkan checklist verifikasi administrasi ganda pada form pelaporan hasil PME.`,
       },
       {
         category: "MACHINE",
@@ -262,11 +262,11 @@ function resolveFishboneAnalysis(r: {
         category: "MAN",
         label: "1. Man (SDM / Personel)",
         rootCause: isUnsat
-          ? `Kesalahan penanganan sampel atau input data manual nilai komponen primer pada software LIS/analyzer yang mendasari perhitungan ${param}.`
-          : `Keterlambatan input data atau pembulatan angka desimal komponen primer yang memicu variasi deviasi minor.`,
+          ? `Kesalahan administrasi/transkripsi input data manual hasil ${param} atau nilai analit primer pada form aplikasi PME (seperti salah koma/desimal, tertukar kolom parameter/hari), atau penanganan sampel pra-analitik yang menyimpang dari SOP.`
+          : `Keterlambatan input data, pembulatan angka desimal, atau kurangnya verifikasi silang (cross-check) lembar kerja manual terhadap formulir aplikasi PME.`,
         action: isUnsat
-          ? `Periksa ulang seluruh data mentah komponen primer penyusun ${param}, pastikan tidak ada kesalahan ketik/transkripsi, dan lakukan verifikasi ganda.`
-          : `Terapkan verifikasi otomatis pada LIS untuk mencegah kesalahan pembulatan angka hitungan.`,
+          ? `Lakukan audit penelusuran silang (cross-check) mencocokkan lembar kerja (worksheet), printout raw data alat, dan nilai terinput pada aplikasi PME. Terapkan SOP verifikasi berjenjang ganda oleh supervisor sebelum submit.`
+          : `Terapkan checklist verifikasi ganda (double-check) untuk memastikan tidak ada kesalahan ketik angka desimal atau salah kolom pada aplikasi PME.`,
       },
       {
         category: "MACHINE",
@@ -328,11 +328,11 @@ function resolveFishboneAnalysis(r: {
         category: "MAN",
         label: "1. Man (SDM / Personel)",
         rootCause: isUnsat
-          ? `Teknik pencampuran (mixing) sampel kontrol hematologi yang tidak sempurna sebelum aspirasi atau aspirasi gelembung udara akibat volume sampel pada tabung kurang memadai.`
-          : `Variasi waktu tunggu antara homogenisasi tabung darah dengan waktu penusukan jarum aspirator.`,
+          ? `Teknik homogenisasi sampel kontrol hematologi tidak sempurna sebelum aspirasi, atau potensi human error pada input data manual hasil PME ke aplikasi pelaporan (misal salah pengetikan desimal seperti 12.5 terinput 1.25, tertukar kolom hari pengujian, atau salah memilih kode instrumen/metode).`
+          : `Variasi waktu tunggu antara homogenisasi tabung darah dengan waktu aspirasi jarum alat, atau kurangnya verifikasi silang data input manual terhadap printout alat.`,
         action: isUnsat
-          ? `Lakukan re-edukasi SOP homogenisasi spesimen hematologi (inversi 8–10 kali perlahan) dan pastikan jarum aspirator menembus kedalaman sampel yang tepat.`
-          : `Pastikan sampel segera diperiksa setelah proses homogenisasi selesai dilakukan.`,
+          ? `Lakukan audit investigasi penelusuran balik (trace-back) antara printout raw data ${inst}, lembar kerja analis, dan data yang diinput ke aplikasi PME. Latih ulang teknik homogenisasi dan wajibkan verifikasi berjenjang oleh penanggung jawab sebelum submit.`
+          : `Terapkan verifikasi administrasi ganda pada form input PME dan pastikan sampel segera diperiksa pasca homogenisasi.`,
       },
       {
         category: "MACHINE",
@@ -394,11 +394,11 @@ function resolveFishboneAnalysis(r: {
         category: "MAN",
         label: "1. Man (SDM / Personel)",
         rootCause: isUnsat
-          ? `Ketidaktelitian dalam rekonstitusi kontrol lyophilized (volume pelarut tidak tepat atau akuades tidak terstandar) atau penundaan pembacaan aktivitas kinetik enzim.`
-          : `Variasi teknik pemipetan manual reagen awal sebelum masuk ke sistem otomatisasi.`,
+          ? `Ketidaktelitian rekonstitusi kontrol lyophilized (volume akuades tidak tepat/pipet belum terkalibrasi), atau potensi human error pada transkripsi/input data hasil pengujian ${param} secara manual ke portal PME (seperti typo angka desimal, tertukarnya parameter SGOT/SGPT, atau salah pilih unit aktivitas enzim U/L).`
+          : `Variasi teknik pemipetan manual reagen awal antar analis, atau kelalaian verifikasi ganda pada formulir input data aplikasi PME sebelum dikirim.`,
         action: isUnsat
-          ? `Latih kembali analis terkait rekonstitusi bahan kontrol PME menggunakan mikropipet terkalibrasi dan akuades steril bertemperatur kamar, serta larutkan secara perlahan selama 30 menit.`
-          : `Supervisi prosedur penanganan reagen enzimatik dan kepatuhan SOP aklimatisasi kontrol.`,
+          ? `Lakukan audit pencocokan silang antara raw data printout fotometer ${inst}, logbook kerja, dan formulir aplikasi PME. Re-training analis mengenai teknik rekonstitusi kontrol dan terapkan prosedur double check oleh supervisor.`
+          : `Perketat supervisi prosedur penanganan reagen/rekonstitusi serta lakukan checklist verifikasi administrasi input hasil PME.`,
       },
       {
         category: "MACHINE",
@@ -460,11 +460,11 @@ function resolveFishboneAnalysis(r: {
         category: "MAN",
         label: "1. Man (SDM / Personel)",
         rootCause: isUnsat
-          ? `Ketidaktepatan penanganan pra-analitik: rekonstitusi kontrol tidak menggunakan pelarut terukur presisi atau pemipetan spesimen tidak menggunakan tips yang sesuai.`
-          : `Variasi waktu kontak reagen dengan sampel antar analis sebelum proses inkubasi analitik.`,
+          ? `Ketidaktepatan penanganan pra-analitik (rekonstitusi kontrol tidak presisi), atau potensi kesalahan input data manual pada aplikasi PME (kesalahan pengetikan tanda koma/desimal, tertukarnya kolom parameter, salah satuan seperti mg/dL vs mmol/L, atau salah memilih profil reagen pada aplikasi).`
+          : `Variasi waktu kontak reagen dengan sampel antar analis, atau kurangnya verifikasi ganda terhadap data yang diinput manual ke aplikasi PME.`,
         action: isUnsat
-          ? `Lakukan re-evaluasi kompetensi pemipetan analis dan pastikan rekonstitusi vial kontrol PME menggunakan mikropipet terverifikasi serta pelarut standar.`
-          : `Sosialisasikan kembali kepatuhan terhadap SOP operasional alat kimia klinik.`,
+          ? `Lakukan verifikasi silang (cross-check trace-back) mencocokkan raw printout alat ${inst}, worksheet laboratorium, dan isian formulir aplikasi PME. Jika data input sesuai, lakukan evaluasi kompetensi pemipetan dan rekonstitusi vial kontrol.`
+          : `Terapkan checklist verifikasi ganda sebelum submit data ke aplikasi PME dan sosialisasikan kembali kepatuhan SOP kimia klinik.`,
       },
       {
         category: "MACHINE",
@@ -526,11 +526,11 @@ function resolveFishboneAnalysis(r: {
         category: "MAN",
         label: "1. Man (SDM / Personel)",
         rootCause: isUnsat
-          ? `Kesalahan teknik penanganan sampel elektrolit: rekonstitusi kontrol dengan akuades yang terkontaminasi ion mineral atau penundaan pemeriksaan sehingga terjadi pertukaran gas/ion.`
-          : `Variasi waktu tunggu antara pembukaan vial kontrol dengan waktu aspirasi pada elektroda.`,
+          ? `Kesalahan penanganan sampel elektrolit (kontaminasi ion pada akuades pelarut kontrol/penundaan running), atau terjadinya human error saat input manual ke aplikasi PME (salah ketik angka desimal, tertukarnya baris analit misal Na/K/Cl, atau salah satuan mEq/L vs mmol/L).`
+          : `Variasi waktu tunggu antara pembukaan vial kontrol dengan running alat, atau kelalaian cross-check formulir input data hasil aplikasi PME.`,
         action: isUnsat
-          ? `Pastikan pengenceran kontrol menggunakan akuades deionisasi murni terverifikasi bebas ion elektrolit dan periksa sampel segera setelah vial dibuka.`
-          : `Sosialisasikan SOP penanganan sampel elektrolit agar tidak terpapar udara terlalu lama.`,
+          ? `Lakukan audit investigasi administrasi dengan mencocokkan printout thermal paper alat ISE, lembar kerja analis, dan data terinput di aplikasi PME. Wajibkan persetujuan berjenjang (double verification) sebelum data dikirim ke penyelenggara.`
+          : `Terapkan SOP penanganan cepat sampel elektrolit serta lakukan pengecekan ulang data input manual ke sistem pelaporan.`,
       },
       {
         category: "MACHINE",
@@ -592,11 +592,11 @@ function resolveFishboneAnalysis(r: {
         category: "MAN",
         label: "1. Man (SDM / Personel)",
         rootCause: isUnsat
-          ? `Kesalahan teknik pencucian manual/aspirasi, kesalahan volume pemipetan konjugat/sampel, atau waktu inkubasi yang tidak tepat.`
-          : `Variasi waktu pemipetan reagen substrat antar sumuran/reaksi.`,
+          ? `Kesalahan teknik pencucian/pemipetan atau waktu inkubasi menyimpang, serta potensi human error saat input manual hasil ke formulir aplikasi PME (salah ketik angka indeks/rasio S-CO, salah memilih opsi instrumen/metode pada dropdown, atau tertukarnya data hasil pengujian).`
+          : `Variasi waktu pemipetan reagen/kontrol antar sumuran, atau belum dilakukannya verifikasi administrasi ganda pada lembar isian aplikasi PME.`,
         action: isUnsat
-          ? `Lakukan re-training pemipetan mikro terstandar dan pastikan kepatuhan waktu inkubasi serta prosedur pencucian sesuai kit insert.`
-          : `Gunakan mikropipet multi-channel terkalibrasi untuk mempercepat dan menyeragamkan pemipetan.`,
+          ? `Lakukan penelusuran silang (cross-check trace-back) antara raw data printout reader/instrumen, lembar kerja manual, dan isian aplikasi PME. Terapkan re-edukasi SOP pemipetan serta wajibkan verifikasi berjenjang oleh penyelia sebelum pengiriman data.`
+          : `Gunakan mikropipet terkalibrasi dan jalankan checklist verifikasi administrasi ganda saat input ke sistem pelaporan.`,
       },
       {
         category: "MACHINE",
@@ -657,11 +657,11 @@ function resolveFishboneAnalysis(r: {
       category: "MAN",
       label: "1. Man (SDM / Personel)",
       rootCause: isUnsat
-        ? `Penyimpangan signifikan terhadap SOP penanganan spesimen atau rekonstitusi kontrol PME parameter ${param} oleh analis pelaksana, memicu kesalahan analitik berat dengan deviasi ${zSign}.`
-        : `Variasi minor teknik pemipetan atau penyiapan sampel kontrol antar petugas analis saat pergantian shift kerja.`,
+        ? `Penyimpangan SOP penanganan spesimen/rekonstitusi kontrol PME parameter ${param}, atau potensi human error pada transkripsi/input data manual ke aplikasi PME (seperti typo tanda koma/desimal, tertukar baris parameter atau siklus pengujian, salah memilih kode alat/metode, atau salah satuan) serta kelalaian administrasi tanpa verifikasi ganda.`
+        : `Variasi minor teknik pemipetan atau penyiapan sampel kontrol antar petugas analis saat pergantian shift kerja, atau kurangnya verifikasi silang pada data input manual di formulir aplikasi PME.`,
       action: isUnsat
-        ? `Lakukan re-edukasi dan evaluasi kompetensi menyeluruh terhadap analis pelaksana, terbitkan instruksi kerja terstandar, dan supervisi langsung proses pengujian ulang.`
-        : `Sosialisasikan kembali SOP teknis parameter ${param} dan lakukan pemantauan kepatuhan kerja rutin.`,
+        ? `Lakukan audit investigasi penelusuran silang (cross-check trace-back) antara printout raw data instrumen, lembar kerja manual, dan data terinput di aplikasi PME. Bila data input valid, lakukan evaluasi kompetensi analis dan terapkan SOP verifikasi ganda (double-check) oleh penyelia sebelum data disubmit.`
+        : `Sosialisasikan kembali SOP teknis parameter ${param} dan terapkan checklist verifikasi administrasi ganda sebelum submit data ke aplikasi pelaporan PME.`,
     },
     {
       category: "MACHINE",

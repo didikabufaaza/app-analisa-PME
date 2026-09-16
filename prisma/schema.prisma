@@ -67,14 +67,16 @@ model User {
   passwordHash   String
   role           String   @default("ADMIN") // SUPERADMIN | ADMIN | SUPERVISOR | ANALYST
   menuAccess     String?  // JSON array of accessible menu keys e.g. ["dashboard","sessions","reports"]
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  isActive       Boolean   @default(true)
+  lastActiveAt   DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   aiUsageLogs AiUsageLog[]
   auditLogs   AuditLog[]
 
   @@index([organizationId])
+  @@index([lastActiveAt])
 }
 
 model PmeSession {

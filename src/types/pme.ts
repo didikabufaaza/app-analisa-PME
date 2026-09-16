@@ -139,6 +139,12 @@ export interface PmeSessionListItem {
   capaCount: number;
 }
 
+export interface SuperadminStats {
+  onlineUsersCount: number;
+  registeredUsersCount: number;
+  activeUploadersCount: number;
+}
+
 export interface DashboardData {
   counts: {
     totalPme: number;
@@ -164,6 +170,7 @@ export interface DashboardData {
     status: SessionStatus;
     createdAt: string;
   }[];
+  superadminStats?: SuperadminStats | null;
 }
 
 export interface ReviewItem {

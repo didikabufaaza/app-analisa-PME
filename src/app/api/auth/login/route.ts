@@ -57,16 +57,22 @@ export async function POST(req: NextRequest) {
       name: user.name,
     });
 
-    // Write audit log in background so user receives login response instantly
+    // Write audit log and update lastActiveAt in background so user receives login response instantly
     after(async () => {
       try {
-        await writeAudit({
-          organizationId: user.organizationId,
-          userId: user.id,
-          action: "LOGIN",
-          entityType: "User",
-          entityId: user.id,
-        });
+        await Promise.all([
+          writeAudit({
+            organizationId: user.organizationId,
+            userId: user.id,
+            action: "LOGIN",
+            entityType: "User",
+            entityId: user.id,
+          }),
+          db.user.update({
+            where: { id: user.id },
+            data: { lastActiveAt: new Date() },
+          }),
+        ]);
       } catch (e) {
         console.error("[login-audit-error]", e);
       }

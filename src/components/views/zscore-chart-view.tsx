@@ -91,6 +91,22 @@ interface ChartDataItem {
   interpretation?: string;
 }
 
+function calcBias(labVal: number | null | undefined, targetVal: number | null | undefined): string {
+  if (
+    labVal === null ||
+    labVal === undefined ||
+    isNaN(Number(labVal)) ||
+    targetVal === null ||
+    targetVal === undefined ||
+    isNaN(Number(targetVal)) ||
+    Number(targetVal) === 0
+  ) {
+    return "-";
+  }
+  const bias = ((Number(labVal) - Number(targetVal)) / Number(targetVal)) * 100;
+  return bias > 0 ? `+${bias.toFixed(2)}%` : `${bias.toFixed(2)}%`;
+}
+
 export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewProps) {
   const { toast } = useToast();
   const chartContainerRef = useRef<HTMLDivElement>(null);
@@ -532,8 +548,11 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
 
       const tableRows = displayItems.map((it, idx) => {
         const zG = typeof it.zScore === "number" && !isNaN(it.zScore) ? (it.zScore > 0 ? `+${it.zScore.toFixed(2)}` : it.zScore.toFixed(2)) : "-";
+        const bG = calcBias(it.participantValue, it.allParticipantsTarget ?? it.targetValue);
         const zA = typeof it.instrumentZScore === "number" && !isNaN(it.instrumentZScore) ? (it.instrumentZScore > 0 ? `+${it.instrumentZScore.toFixed(2)}` : it.instrumentZScore.toFixed(2)) : "-";
+        const bA = calcBias(it.participantValue, it.instrumentTarget);
         const zM = typeof it.methodZScore === "number" && !isNaN(it.methodZScore) ? (it.methodZScore > 0 ? `+${it.methodZScore.toFixed(2)}` : it.methodZScore.toFixed(2)) : "-";
+        const bM = calcBias(it.participantValue, it.methodTarget);
         
         let statusText = it.zStatus || "-";
         if (statusText === "SATISFACTORY") statusText = "Memuaskan";
@@ -547,8 +566,11 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
           it.targetValue !== null && it.targetValue !== undefined ? `${it.targetValue}` : "-",
           it.sdpa !== null && it.sdpa !== undefined ? `${it.sdpa}` : "-",
           zG,
+          bG,
           zA,
+          bA,
           zM,
+          bM,
           statusText,
           it.aiAnalysis?.interpretation ? it.aiAnalysis.interpretation : "-",
         ];
@@ -568,8 +590,11 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
             "Target (Mean)",
             "SDPA",
             "Z-Score (Global)",
+            "Bias % (Global)",
             "Z-Score (Alat)",
+            "Bias % (Alat)",
             "Z-Score (Metode)",
+            "Bias % (Metode)",
             "Status Evaluasi",
             "Rekomendasi Mutu",
           ],
@@ -578,33 +603,36 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         headStyles: {
           fillColor: [13, 122, 105],
           textColor: [255, 255, 255],
-          fontSize: 7.5,
+          fontSize: 7,
           fontStyle: "bold",
           halign: "center",
           valign: "middle",
         },
         styles: {
-          fontSize: 7,
-          cellPadding: 2,
+          fontSize: 6.8,
+          cellPadding: 1.8,
           valign: "top",
           overflow: "linebreak",
           lineColor: [220, 225, 230],
           lineWidth: 0.1,
         },
         columnStyles: {
-          0: { halign: "center", cellWidth: 8 },
-          1: { halign: "left", cellWidth: 34, fontStyle: "bold" },
-          2: { halign: "center", cellWidth: 20 },
-          3: { halign: "center", cellWidth: 18 },
-          4: { halign: "center", cellWidth: 14 },
-          5: { halign: "center", cellWidth: 18, fontStyle: "bold" },
-          6: { halign: "center", cellWidth: 18 },
-          7: { halign: "center", cellWidth: 18 },
-          8: { halign: "center", cellWidth: 22 },
-          9: { halign: "left", cellWidth: 99, overflow: "linebreak", fontStyle: "normal" },
+          0: { halign: "center", cellWidth: 7 },
+          1: { halign: "left", cellWidth: 32, fontStyle: "bold" },
+          2: { halign: "center", cellWidth: 18 },
+          3: { halign: "center", cellWidth: 15 },
+          4: { halign: "center", cellWidth: 13 },
+          5: { halign: "center", cellWidth: 16, fontStyle: "bold" },
+          6: { halign: "center", cellWidth: 15 },
+          7: { halign: "center", cellWidth: 16 },
+          8: { halign: "center", cellWidth: 15 },
+          9: { halign: "center", cellWidth: 16 },
+          10: { halign: "center", cellWidth: 15 },
+          11: { halign: "center", cellWidth: 20 },
+          12: { halign: "left", cellWidth: 79, overflow: "linebreak", fontStyle: "normal" },
         },
         didParseCell: (data) => {
-          if (data.section === "body" && (data.column.index === 5 || data.column.index === 8)) {
+          if (data.section === "body" && (data.column.index === 5 || data.column.index === 11)) {
             const val = data.cell.raw as string;
             if (val.includes("Tdk Memuaskan") || (data.column.index === 5 && (val.startsWith("-3") || val.startsWith("+3") || val.startsWith("-4") || val.startsWith("+4")))) {
               data.cell.styles.textColor = [185, 28, 28];
@@ -1255,15 +1283,18 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
               <thead className="sticky top-0 z-10 border-b bg-muted/80 backdrop-blur print:static print:bg-slate-100">
                 <tr>
                   <th className="p-2.5 font-semibold text-muted-foreground w-10 text-center">No.</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[150px]">Sasaran / Parameter</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Hasil Peserta</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Target (Mean)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-20 text-center">SDPA</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Z-Score (Global)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Z-Score (Alat)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Z-Score (Metode)</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[140px]">Sasaran / Parameter</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Hasil Peserta</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-20 text-center">Target (Mean)</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-16 text-center">SDPA</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Z-Score (Global)</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Bias % (Global)</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Z-Score (Alat)</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Bias % (Alat)</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Z-Score (Metode)</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Bias % (Metode)</th>
                   <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Status Evaluasi</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[200px]">Rekomendasi Mutu</th>
+                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[180px]">Rekomendasi Mutu</th>
                   <th className="p-2.5 font-semibold text-muted-foreground w-44 text-center no-print">Aksi</th>
                 </tr>
               </thead>
@@ -1276,18 +1307,21 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                         ? `+${z.toFixed(2)}`
                         : z.toFixed(2)
                       : "-";
+                  const bGFormatted = calcBias(item.participantValue, item.allParticipantsTarget ?? item.targetValue);
                   const zInstFormatted =
                     item.instrumentZScore !== null && item.instrumentZScore !== undefined
                       ? item.instrumentZScore > 0
                         ? `+${item.instrumentZScore.toFixed(2)}`
                         : item.instrumentZScore.toFixed(2)
                       : "-";
+                  const bInstFormatted = calcBias(item.participantValue, item.instrumentTarget);
                   const zMetFormatted =
                     item.methodZScore !== null && item.methodZScore !== undefined
                       ? item.methodZScore > 0
                         ? `+${item.methodZScore.toFixed(2)}`
                         : item.methodZScore.toFixed(2)
                       : "-";
+                  const bMetFormatted = calcBias(item.participantValue, item.methodTarget);
 
                   const isOut = z !== null && Math.abs(z) >= 3;
                   const isWarn = z !== null && Math.abs(z) > 2 && Math.abs(z) < 3;
@@ -1320,11 +1354,20 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                           {zFormatted}
                         </span>
                       </td>
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-foreground font-medium">
+                        {bGFormatted}
+                      </td>
                       <td className="p-2.5 align-top text-center font-mono text-xs text-blue-600 font-semibold">
                         {zInstFormatted}
                       </td>
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-blue-700 dark:text-blue-400 font-medium">
+                        {bInstFormatted}
+                      </td>
                       <td className="p-2.5 align-top text-center font-mono text-xs text-purple-600 font-semibold">
                         {zMetFormatted}
+                      </td>
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-purple-700 dark:text-purple-400 font-medium">
+                        {bMetFormatted}
                       </td>
                       <td className="p-2.5 align-top text-center">
                         <Badge

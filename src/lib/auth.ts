@@ -66,6 +66,18 @@ export async function getAuthUser(req: NextRequest) {
     include: { organization: true },
   });
   if (!user) return null;
+
+  // Throttled update of user activity (at most once every 60 seconds)
+  const now = Date.now();
+  if (!user.lastActiveAt || now - new Date(user.lastActiveAt).getTime() > 60 * 1000) {
+    db.user
+      .update({
+        where: { id: user.id },
+        data: { lastActiveAt: new Date() },
+      })
+      .catch(() => undefined);
+  }
+
   return user;
 }
 

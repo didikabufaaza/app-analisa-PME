@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
     const orgId = getEffectiveOrgId(user, req);
     const orgFilter = orgId === "ALL" ? {} : { organizationId: orgId };
 
-    const cacheKey = `dashboard:${orgId}`;
+    const cacheKey = `dashboard:${orgId}:${user.role}`;
     const cached = dashboardCache.get(cacheKey);
     if (cached && cached.expiresAt > Date.now()) {
       return NextResponse.json(cached.data, {
@@ -134,6 +134,45 @@ export async function GET(req: NextRequest) {
       { name: "Perlu Review", value: counts.reviewRequired, key: "REVIEW" },
     ].filter((s) => s.value > 0);
 
+    let superadminStats = null;
+    if (user.role === "SUPERADMIN") {
+      const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
+      const [onlineCount, totalUsers, sessionsWithUploaders, extractionLogs, uploadAudits] = await Promise.all([
+        db.user.count({
+          where: {
+            lastActiveAt: { gte: fiveMinutesAgo },
+          },
+        }),
+        db.user.count(),
+        db.pmeSession.findMany({
+          where: { uploadedById: { not: null } },
+          select: { uploadedById: true },
+          distinct: ["uploadedById"],
+        }),
+        db.aiUsageLog.findMany({
+          where: { operation: "PDF_EXTRACTION", userId: { not: null } },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+        db.auditLog.findMany({
+          where: { action: { contains: "UPLOAD" }, userId: { not: null } },
+          select: { userId: true },
+          distinct: ["userId"],
+        }),
+      ]);
+
+      const uploaderSet = new Set<string>();
+      sessionsWithUploaders.forEach((s) => s.uploadedById && uploaderSet.add(s.uploadedById));
+      extractionLogs.forEach((l) => l.userId && uploaderSet.add(l.userId));
+      uploadAudits.forEach((a) => a.userId && uploaderSet.add(a.userId));
+
+      superadminStats = {
+        onlineUsersCount: Math.max(onlineCount, 1),
+        registeredUsersCount: totalUsers,
+        activeUploadersCount: uploaderSet.size,
+      };
+    }
+
     const payload = {
       counts,
       zDistribution: buckets,
@@ -149,6 +188,7 @@ export async function GET(req: NextRequest) {
         status: s.status,
         createdAt: s.createdAt,
       })),
+      ...(user.role === "SUPERADMIN" ? { superadminStats } : {}),
     };
 
     dashboardCache.set(cacheKey, { data: payload, expiresAt: Date.now() + 5000 });

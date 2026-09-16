@@ -25,15 +25,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { format, formatDistanceToNow } from "date-fns";
 import { id as localeId } from "date-fns/locale";
 import {
+  Activity,
   AlertTriangle,
   CheckCircle2,
   ChevronRight,
   ClipboardCheck,
+  CloudUpload,
   FileText,
   ListChecks,
   RefreshCw,
+  ShieldCheck,
   Sparkles,
   Upload,
+  Users,
   XCircle,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
@@ -400,6 +404,7 @@ function DashboardEmpty({ onNavigateSessions }: { onNavigateSessions: () => void
 
 export function DashboardView() {
   const navigate = useAppStore((s) => s.navigate);
+  const user = useAppStore((s) => s.user);
   const [data, setData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -486,6 +491,86 @@ export function DashboardView() {
           <span>Gagal memperbarui data: {error}. Menampilkan data terakhir yang tersedia.</span>
         </div>
       ) : null}
+
+      {/* Superadmin Exclusive Insight Cards */}
+      {user?.role === "SUPERADMIN" && data.superadminStats && (
+        <section aria-label="Statistik khusus Superadmin" className="space-y-2.5 rounded-xl border border-purple-200/80 bg-purple-50/30 p-3.5 sm:p-4 dark:border-purple-900/50 dark:bg-purple-950/10">
+          <div className="flex items-center justify-between pb-1">
+            <div className="flex items-center gap-2">
+              <span className="flex h-6 w-6 items-center justify-center rounded-md bg-purple-600/15 text-purple-700 dark:bg-purple-900/40 dark:text-purple-300">
+                <ShieldCheck className="h-4 w-4" />
+              </span>
+              <h3 className="text-xs font-bold uppercase tracking-wider text-purple-950 dark:text-purple-200">
+                Aktivitas Pengguna & Ekosistem Aplikasi (Khusus Superadmin)
+              </h3>
+            </div>
+            <Badge variant="outline" className="text-[10px] font-semibold border-purple-300 bg-white/80 text-purple-800 dark:border-purple-800 dark:bg-purple-950/60 dark:text-purple-300">
+              Privat Superadmin
+            </Badge>
+          </div>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+            {/* Card 1: User Sedang Online */}
+            <Card className="relative overflow-hidden border-teal-200 bg-white shadow-xs dark:border-teal-900/60 dark:bg-card">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+                    </span>
+                    <p className="text-xs font-semibold text-teal-950 dark:text-teal-200">User Sedang Online</p>
+                  </div>
+                  <p className="mt-1 text-2xl font-bold tracking-tight text-teal-900 dark:text-teal-100 font-mono">
+                    {fmtNum(data.superadminStats.onlineUsersCount)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Aktif dalam 5 menit terakhir
+                  </p>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-teal-500/10 text-teal-700 dark:bg-teal-900/30 dark:text-teal-300">
+                  <Activity className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 2: Total User Terdaftar */}
+            <Card className="relative overflow-hidden border-indigo-200 bg-white shadow-xs dark:border-indigo-900/60 dark:bg-card">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-indigo-950 dark:text-indigo-200">Total User Terdaftar</p>
+                  <p className="mt-1 text-2xl font-bold tracking-tight text-indigo-900 dark:text-indigo-100 font-mono">
+                    {fmtNum(data.superadminStats.registeredUsersCount)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Akun terdaftar di aplikasi
+                  </p>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-700 dark:bg-indigo-900/30 dark:text-indigo-300">
+                  <Users className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Card 3: User Pemakai (Upload Berkas) */}
+            <Card className="relative overflow-hidden border-amber-200 bg-white shadow-xs dark:border-amber-900/60 dark:bg-card">
+              <CardContent className="p-4 flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-amber-950 dark:text-amber-200">User Aktif Memakai</p>
+                  <p className="mt-1 text-2xl font-bold tracking-tight text-amber-900 dark:text-amber-100 font-mono">
+                    {fmtNum(data.superadminStats.activeUploadersCount)}
+                  </p>
+                  <p className="text-[11px] text-muted-foreground">
+                    Telah mengunggah berkas PME
+                  </p>
+                </div>
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-500/10 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  <CloudUpload className="h-5 w-5" />
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </section>
+      )}
 
       {/* KPI row */}
       <section aria-label="Statistik utama">

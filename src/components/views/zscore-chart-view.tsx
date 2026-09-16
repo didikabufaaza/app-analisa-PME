@@ -83,6 +83,9 @@ interface ChartDataItem {
   methodZScore: number | null;
   participantValue: number | null;
   targetValue: number | null;
+  allParticipantsTarget?: number | null;
+  instrumentTarget?: number | null;
+  methodTarget?: number | null;
   sdpa: number | null;
   unit: string | null;
   zStatus: string | null;
@@ -289,6 +292,9 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         methodZScore: metZ,
         participantValue: item.participantValue ?? null,
         targetValue: item.targetValue ?? null,
+        allParticipantsTarget: item.allParticipantsTarget ?? null,
+        instrumentTarget: item.instrumentTarget ?? null,
+        methodTarget: item.methodTarget ?? null,
         sdpa: item.sdpa ?? null,
         unit: item.unit ?? null,
         zStatus: item.zStatus ?? null,
@@ -297,7 +303,7 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         interpretation: item.aiAnalysis?.interpretation,
       };
     });
-  }, [items]);
+  }, [displayItems]);
 
   // Compute dynamic Y-axis domain
   const { yMin, yMax } = useMemo(() => {
@@ -547,12 +553,20 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
       doc.text(`Lampiran Evaluasi Mutu  |  Halaman 2  |  Waktu Cetak: ${printDateStr}`, pageW - margin, kopY + 25.5, { align: "right" });
 
       const tableRows = displayItems.map((it, idx) => {
+        const tGlobal = it.allParticipantsTarget !== null && it.allParticipantsTarget !== undefined 
+          ? it.allParticipantsTarget 
+          : (it.targetValue !== null && it.targetValue !== undefined ? it.targetValue : null);
+        const tAlat = it.instrumentTarget !== null && it.instrumentTarget !== undefined ? it.instrumentTarget : null;
+        const tMetode = it.methodTarget !== null && it.methodTarget !== undefined ? it.methodTarget : null;
+
         const zG = typeof it.zScore === "number" && !isNaN(it.zScore) ? (it.zScore > 0 ? `+${it.zScore.toFixed(2)}` : it.zScore.toFixed(2)) : "-";
-        const bG = calcBias(it.participantValue, it.allParticipantsTarget ?? it.targetValue);
+        const bG = calcBias(it.participantValue, tGlobal);
+
         const zA = typeof it.instrumentZScore === "number" && !isNaN(it.instrumentZScore) ? (it.instrumentZScore > 0 ? `+${it.instrumentZScore.toFixed(2)}` : it.instrumentZScore.toFixed(2)) : "-";
-        const bA = calcBias(it.participantValue, it.instrumentTarget);
+        const bA = calcBias(it.participantValue, tAlat);
+
         const zM = typeof it.methodZScore === "number" && !isNaN(it.methodZScore) ? (it.methodZScore > 0 ? `+${it.methodZScore.toFixed(2)}` : it.methodZScore.toFixed(2)) : "-";
-        const bM = calcBias(it.participantValue, it.methodTarget);
+        const bM = calcBias(it.participantValue, tMetode);
         
         let statusText = it.zStatus || "-";
         if (statusText === "SATISFACTORY") statusText = "Memuaskan";
@@ -563,14 +577,19 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
           (idx + 1).toString(),
           it.parameterName,
           it.participantValue !== null && it.participantValue !== undefined ? `${it.participantValue} ${it.unit || ""}` : "-",
-          it.targetValue !== null && it.targetValue !== undefined ? `${it.targetValue}` : "-",
           it.sdpa !== null && it.sdpa !== undefined ? `${it.sdpa}` : "-",
-          zG,
+          // Kelompok Global
+          tGlobal !== null ? `${tGlobal}` : "-",
           bG,
-          zA,
+          zG,
+          // Kelompok Alat
+          tAlat !== null ? `${tAlat}` : "-",
           bA,
-          zM,
+          zA,
+          // Kelompok Metode
+          tMetode !== null ? `${tMetode}` : "-",
           bM,
+          zM,
           statusText,
           it.aiAnalysis?.interpretation ? it.aiAnalysis.interpretation : "-",
         ];
@@ -584,60 +603,71 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
         rowPageBreak: "auto",
         head: [
           [
-            "No",
-            "Sasaran / Parameter",
-            "Hasil Peserta",
-            "Target (Mean)",
-            "SDPA",
-            "Z-Score (Global)",
-            "Bias % (Global)",
-            "Z-Score (Alat)",
-            "Bias % (Alat)",
-            "Z-Score (Metode)",
-            "Bias % (Metode)",
-            "Status Evaluasi",
-            "Rekomendasi Mutu",
+            { content: "No", rowSpan: 2, styles: { valign: "middle", halign: "center" } },
+            { content: "Sasaran / Parameter", rowSpan: 2, styles: { valign: "middle", halign: "left" } },
+            { content: "Hasil Peserta", rowSpan: 2, styles: { valign: "middle", halign: "center" } },
+            { content: "SDPA", rowSpan: 2, styles: { valign: "middle", halign: "center" } },
+            { content: "Kelompok Global", colSpan: 3, styles: { halign: "center" } },
+            { content: "Kelompok Alat", colSpan: 3, styles: { halign: "center" } },
+            { content: "Kelompok Metode", colSpan: 3, styles: { halign: "center" } },
+            { content: "Status", rowSpan: 2, styles: { valign: "middle", halign: "center" } },
+            { content: "Rekomendasi Mutu", rowSpan: 2, styles: { valign: "middle", halign: "left" } },
+          ],
+          [
+            { content: "Target", styles: { halign: "center" } },
+            { content: "Bias %", styles: { halign: "center" } },
+            { content: "Z-Score", styles: { halign: "center" } },
+
+            { content: "Target", styles: { halign: "center" } },
+            { content: "Bias %", styles: { halign: "center" } },
+            { content: "Z-Score", styles: { halign: "center" } },
+
+            { content: "Target", styles: { halign: "center" } },
+            { content: "Bias %", styles: { halign: "center" } },
+            { content: "Z-Score", styles: { halign: "center" } },
           ],
         ],
         body: tableRows,
         headStyles: {
           fillColor: [13, 122, 105],
           textColor: [255, 255, 255],
-          fontSize: 7,
+          fontSize: 6.8,
           fontStyle: "bold",
           halign: "center",
           valign: "middle",
         },
         styles: {
-          fontSize: 6.8,
-          cellPadding: 1.8,
+          fontSize: 6.5,
+          cellPadding: 1.5,
           valign: "top",
           overflow: "linebreak",
           lineColor: [220, 225, 230],
           lineWidth: 0.1,
         },
         columnStyles: {
-          0: { halign: "center", cellWidth: 7 },
-          1: { halign: "left", cellWidth: 32, fontStyle: "bold" },
-          2: { halign: "center", cellWidth: 18 },
-          3: { halign: "center", cellWidth: 15 },
-          4: { halign: "center", cellWidth: 13 },
-          5: { halign: "center", cellWidth: 16, fontStyle: "bold" },
-          6: { halign: "center", cellWidth: 15 },
-          7: { halign: "center", cellWidth: 16 },
-          8: { halign: "center", cellWidth: 15 },
-          9: { halign: "center", cellWidth: 16 },
-          10: { halign: "center", cellWidth: 15 },
-          11: { halign: "center", cellWidth: 20 },
-          12: { halign: "left", cellWidth: 79, overflow: "linebreak", fontStyle: "normal" },
+          0: { halign: "center", cellWidth: 7 }, // No
+          1: { halign: "left", cellWidth: 30, fontStyle: "bold" }, // Parameter
+          2: { halign: "center", cellWidth: 17 }, // Hasil
+          3: { halign: "center", cellWidth: 12 }, // SDPA
+          4: { halign: "center", cellWidth: 13 }, // Target Global
+          5: { halign: "center", cellWidth: 14 }, // Bias % Global
+          6: { halign: "center", cellWidth: 14, fontStyle: "bold" }, // Z-Score Global
+          7: { halign: "center", cellWidth: 13 }, // Target Alat
+          8: { halign: "center", cellWidth: 14 }, // Bias % Alat
+          9: { halign: "center", cellWidth: 14 }, // Z-Score Alat
+          10: { halign: "center", cellWidth: 13 }, // Target Metode
+          11: { halign: "center", cellWidth: 14 }, // Bias % Metode
+          12: { halign: "center", cellWidth: 14 }, // Z-Score Metode
+          13: { halign: "center", cellWidth: 18 }, // Status
+          14: { halign: "left", cellWidth: 68, overflow: "linebreak", fontStyle: "normal" }, // Rekomendasi
         },
         didParseCell: (data) => {
-          if (data.section === "body" && (data.column.index === 5 || data.column.index === 11)) {
+          if (data.section === "body" && (data.column.index === 6 || data.column.index === 13)) {
             const val = data.cell.raw as string;
-            if (val.includes("Tdk Memuaskan") || (data.column.index === 5 && (val.startsWith("-3") || val.startsWith("+3") || val.startsWith("-4") || val.startsWith("+4")))) {
+            if (val.includes("Tdk Memuaskan") || (data.column.index === 6 && (val.startsWith("-3") || val.startsWith("+3") || val.startsWith("-4") || val.startsWith("+4")))) {
               data.cell.styles.textColor = [185, 28, 28];
               data.cell.styles.fontStyle = "bold";
-            } else if (val.includes("Peringatan") || (data.column.index === 5 && (val.startsWith("-2") || val.startsWith("+2")))) {
+            } else if (val.includes("Peringatan") || (data.column.index === 6 && (val.startsWith("-2") || val.startsWith("+2")))) {
               data.cell.styles.textColor = [180, 83, 9];
               data.cell.styles.fontStyle = "bold";
             } else if (val.includes("Memuaskan")) {
@@ -1125,9 +1155,15 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                       if (!active || !payload || !payload.length) return null;
                       const data = payload[0].payload as ChartDataItem;
                       const z = data.zScore;
+                      const tGlobal = data.allParticipantsTarget !== null && data.allParticipantsTarget !== undefined
+                        ? data.allParticipantsTarget
+                        : data.targetValue;
+                      const bGlobal = calcBias(data.participantValue, tGlobal);
+                      const bInst = calcBias(data.participantValue, data.instrumentTarget);
+                      const bMet = calcBias(data.participantValue, data.methodTarget);
 
                       return (
-                        <div className="rounded-lg border bg-white dark:bg-zinc-900 p-3 shadow-lg text-xs space-y-1.5 min-w-[220px]">
+                        <div className="rounded-lg border bg-white dark:bg-zinc-900 p-3 shadow-lg text-xs space-y-1.5 min-w-[240px]">
                           <p className="font-bold text-sm text-foreground border-b pb-1">
                             {data.fullName}
                           </p>
@@ -1138,10 +1174,6 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                                 {data.participantValue ?? "-"} {data.unit || ""}
                               </span>
                             </p>
-                            <p>
-                              Target (Mean):{" "}
-                              <span className="font-mono text-foreground">{data.targetValue ?? "-"}</span>
-                            </p>
                             {data.sdpa !== null && (
                               <p>
                                 SDPA: <span className="font-mono text-foreground">{data.sdpa}</span>
@@ -1149,40 +1181,32 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                             )}
                           </div>
 
-                          <div className="border-t pt-1 space-y-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium text-foreground">Z-Score Utama:</span>
-                              <span
-                                className={`font-mono font-bold ${
-                                  z !== null && Math.abs(z) >= 3
-                                    ? "text-red-600"
-                                    : z !== null && Math.abs(z) > 2
-                                    ? "text-amber-600"
-                                    : "text-emerald-600"
-                                }`}
-                              >
-                                {z !== null ? (z > 0 ? `+${z.toFixed(2)}` : z.toFixed(2)) : "-"}
+                          <div className="border-t pt-1.5 space-y-1">
+                            <div className="flex items-center justify-between text-teal-700 dark:text-teal-400">
+                              <span>Global (Target {tGlobal ?? "-"}):</span>
+                              <span className="font-mono font-bold">
+                                {z !== null ? (z > 0 ? `+${z.toFixed(2)}` : z.toFixed(2)) : "-"} ({bGlobal})
                               </span>
                             </div>
 
                             {data.instrumentZScore !== null && (
                               <div className="flex items-center justify-between text-blue-600">
-                                <span>Z-Score Kel. Alat:</span>
+                                <span>Alat (Target {data.instrumentTarget ?? "-"}):</span>
                                 <span className="font-mono font-bold">
                                   {data.instrumentZScore > 0
                                     ? `+${data.instrumentZScore.toFixed(2)}`
-                                    : data.instrumentZScore.toFixed(2)}
+                                    : data.instrumentZScore.toFixed(2)} ({bInst})
                                 </span>
                               </div>
                             )}
 
                             {data.methodZScore !== null && (
                               <div className="flex items-center justify-between text-purple-600">
-                                <span>Z-Score Kel. Metode:</span>
+                                <span>Metode (Target {data.methodTarget ?? "-"}):</span>
                                 <span className="font-mono font-bold">
                                   {data.methodZScore > 0
                                     ? `+${data.methodZScore.toFixed(2)}`
-                                    : data.methodZScore.toFixed(2)}
+                                    : data.methodZScore.toFixed(2)} ({bMet})
                                 </span>
                               </div>
                             )}
@@ -1281,25 +1305,56 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
           <div className="print-table-container max-h-[30rem] print:max-h-none overflow-x-auto print:overflow-visible overflow-y-auto print:overflow-y-visible rounded-lg border print:border-none">
             <table className="w-full text-left text-xs">
               <thead className="sticky top-0 z-10 border-b bg-muted/80 backdrop-blur print:static print:bg-slate-100">
-                <tr>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-10 text-center">No.</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[140px]">Sasaran / Parameter</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Hasil Peserta</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-20 text-center">Target (Mean)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-16 text-center">SDPA</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Z-Score (Global)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Bias % (Global)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Z-Score (Alat)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Bias % (Alat)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Z-Score (Metode)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-24 text-center">Bias % (Metode)</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-28 text-center">Status Evaluasi</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground min-w-[180px]">Rekomendasi Mutu</th>
-                  <th className="p-2.5 font-semibold text-muted-foreground w-44 text-center no-print">Aksi</th>
+                <tr className="border-b border-border/60">
+                  <th rowSpan={2} className="p-2 font-semibold text-muted-foreground w-10 text-center align-middle border-r border-border/40">No.</th>
+                  <th rowSpan={2} className="p-2 font-semibold text-muted-foreground min-w-[130px] align-middle border-r border-border/40">Sasaran / Parameter</th>
+                  <th rowSpan={2} className="p-2 font-semibold text-muted-foreground w-20 text-center align-middle border-r border-border/40">Hasil Peserta</th>
+                  <th rowSpan={2} className="p-2 font-semibold text-muted-foreground w-14 text-center align-middle border-r border-border/40">SDPA</th>
+                  <th colSpan={3} className="p-2 font-semibold text-center text-teal-800 dark:text-teal-300 bg-teal-500/10 border-r border-border/40">
+                    Kelompok Global (Semua Peserta)
+                  </th>
+                  <th colSpan={3} className="p-2 font-semibold text-center text-blue-800 dark:text-blue-300 bg-blue-500/10 border-r border-border/40">
+                    Kelompok Alat (Peer Instrument)
+                  </th>
+                  <th colSpan={3} className="p-2 font-semibold text-center text-purple-800 dark:text-purple-300 bg-purple-500/10 border-r border-border/40">
+                    Kelompok Metode (Peer Method)
+                  </th>
+                  <th rowSpan={2} className="p-2 font-semibold text-muted-foreground w-24 text-center align-middle border-r border-border/40">Status Evaluasi</th>
+                  <th rowSpan={2} className="p-2 font-semibold text-muted-foreground min-w-[180px] align-middle border-r border-border/40">Rekomendasi Mutu</th>
+                  <th rowSpan={2} className="p-2 font-semibold text-muted-foreground w-40 text-center align-middle no-print">Aksi</th>
+                </tr>
+                <tr className="border-b text-[11px]">
+                  {/* Global */}
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-teal-500/5 border-r border-border/30 w-16">Target</th>
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-teal-500/5 border-r border-border/30 w-16">Bias %</th>
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-teal-500/5 border-r border-border/40 w-16">Z-Score</th>
+
+                  {/* Alat */}
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-blue-500/5 border-r border-border/30 w-16">Target</th>
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-blue-500/5 border-r border-border/30 w-16">Bias %</th>
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-blue-500/5 border-r border-border/40 w-16">Z-Score</th>
+
+                  {/* Metode */}
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-purple-500/5 border-r border-border/30 w-16">Target</th>
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-purple-500/5 border-r border-border/30 w-16">Bias %</th>
+                  <th className="p-1.5 font-medium text-center text-muted-foreground bg-purple-500/5 border-r border-border/40 w-16">Z-Score</th>
                 </tr>
               </thead>
               <tbody className="divide-y">
                 {displayItems.map((item, idx) => {
+                  const tGlobal =
+                    item.allParticipantsTarget !== null && item.allParticipantsTarget !== undefined
+                      ? item.allParticipantsTarget
+                      : (item.targetValue !== null && item.targetValue !== undefined ? item.targetValue : null);
+                  const tAlat =
+                    item.instrumentTarget !== null && item.instrumentTarget !== undefined
+                      ? item.instrumentTarget
+                      : null;
+                  const tMetode =
+                    item.methodTarget !== null && item.methodTarget !== undefined
+                      ? item.methodTarget
+                      : null;
+
                   const z = item.zScore;
                   const zFormatted =
                     z !== null && z !== undefined
@@ -1307,21 +1362,23 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                         ? `+${z.toFixed(2)}`
                         : z.toFixed(2)
                       : "-";
-                  const bGFormatted = calcBias(item.participantValue, item.allParticipantsTarget ?? item.targetValue);
+                  const bGFormatted = calcBias(item.participantValue, tGlobal);
+
                   const zInstFormatted =
                     item.instrumentZScore !== null && item.instrumentZScore !== undefined
                       ? item.instrumentZScore > 0
                         ? `+${item.instrumentZScore.toFixed(2)}`
                         : item.instrumentZScore.toFixed(2)
                       : "-";
-                  const bInstFormatted = calcBias(item.participantValue, item.instrumentTarget);
+                  const bInstFormatted = calcBias(item.participantValue, tAlat);
+
                   const zMetFormatted =
                     item.methodZScore !== null && item.methodZScore !== undefined
                       ? item.methodZScore > 0
                         ? `+${item.methodZScore.toFixed(2)}`
                         : item.methodZScore.toFixed(2)
                       : "-";
-                  const bMetFormatted = calcBias(item.participantValue, item.methodTarget);
+                  const bMetFormatted = calcBias(item.participantValue, tMetode);
 
                   const isOut = z !== null && Math.abs(z) >= 3;
                   const isWarn = z !== null && Math.abs(z) > 2 && Math.abs(z) < 3;
@@ -1333,19 +1390,26 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                         isOut ? "bg-red-500/5" : isWarn ? "bg-amber-500/5" : ""
                       }`}
                     >
-                      <td className="p-2.5 align-top text-center text-muted-foreground">{idx + 1}</td>
-                      <td className="p-2.5 align-top">
+                      <td className="p-2.5 align-top text-center text-muted-foreground border-r border-border/30">{idx + 1}</td>
+                      <td className="p-2.5 align-top border-r border-border/30">
                         <p className="font-semibold text-foreground">{item.parameterName}</p>
                         <p className="text-[10px] text-muted-foreground">
                           {item.session?.program || "PME"} · {item.session?.cycle || "-"} ({item.session?.period || "-"})
                         </p>
                       </td>
-                      <td className="p-2.5 align-top text-center font-mono">
+                      <td className="p-2.5 align-top text-center font-mono border-r border-border/30">
                         {item.participantValue !== null ? `${item.participantValue} ${item.unit || ""}` : "-"}
                       </td>
-                      <td className="p-2.5 align-top text-center font-mono">{item.targetValue ?? "-"}</td>
-                      <td className="p-2.5 align-top text-center font-mono">{item.sdpa ?? "-"}</td>
-                      <td className="p-2.5 align-top text-center">
+                      <td className="p-2.5 align-top text-center font-mono border-r border-border/30">{item.sdpa ?? "-"}</td>
+                      
+                      {/* Kelompok Global */}
+                      <td className="p-2.5 align-top text-center font-mono text-xs border-r border-border/20">
+                        {tGlobal !== null ? tGlobal : "-"}
+                      </td>
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-foreground font-medium border-r border-border/20">
+                        {bGFormatted}
+                      </td>
+                      <td className="p-2.5 align-top text-center border-r border-border/30">
                         <span
                           className={`font-mono font-bold text-xs ${
                             isOut ? "text-red-600" : isWarn ? "text-amber-600" : "text-emerald-600"
@@ -1354,22 +1418,31 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
                           {zFormatted}
                         </span>
                       </td>
-                      <td className="p-2.5 align-top text-center font-mono text-xs text-foreground font-medium">
-                        {bGFormatted}
+
+                      {/* Kelompok Alat */}
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-blue-700 dark:text-blue-400 border-r border-border/20">
+                        {tAlat !== null ? tAlat : "-"}
                       </td>
-                      <td className="p-2.5 align-top text-center font-mono text-xs text-blue-600 font-semibold">
-                        {zInstFormatted}
-                      </td>
-                      <td className="p-2.5 align-top text-center font-mono text-xs text-blue-700 dark:text-blue-400 font-medium">
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-blue-700 dark:text-blue-400 font-medium border-r border-border/20">
                         {bInstFormatted}
                       </td>
-                      <td className="p-2.5 align-top text-center font-mono text-xs text-purple-600 font-semibold">
-                        {zMetFormatted}
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-blue-600 font-semibold border-r border-border/30">
+                        {zInstFormatted}
                       </td>
-                      <td className="p-2.5 align-top text-center font-mono text-xs text-purple-700 dark:text-purple-400 font-medium">
+
+                      {/* Kelompok Metode */}
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-purple-700 dark:text-purple-400 border-r border-border/20">
+                        {tMetode !== null ? tMetode : "-"}
+                      </td>
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-purple-700 dark:text-purple-400 font-medium border-r border-border/20">
                         {bMetFormatted}
                       </td>
-                      <td className="p-2.5 align-top text-center">
+                      <td className="p-2.5 align-top text-center font-mono text-xs text-purple-600 font-semibold border-r border-border/30">
+                        {zMetFormatted}
+                      </td>
+
+                      {/* Status Evaluasi */}
+                      <td className="p-2.5 align-top text-center border-r border-border/30">
                         <Badge
                           variant="outline"
                           className={`text-[10px] ${

@@ -46,11 +46,12 @@ async function getServiceAccountToken(): Promise<string | null> {
 }
 
 /**
- * Upload a PDF buffer to Google Drive
+ * Upload any file buffer (PDF, Image, etc.) to Google Drive
  */
-export async function uploadPdfToDrive(
+export async function uploadFileToDrive(
   buffer: Buffer,
   fileName: string,
+  mimeType: string = "application/pdf",
   targetFolderId?: string
 ): Promise<DriveUploadResult> {
   const folderId = targetFolderId || getFolderId();
@@ -65,7 +66,7 @@ export async function uploadPdfToDrive(
 
       const metadata = {
         name: fileName,
-        mimeType: "application/pdf",
+        mimeType: mimeType,
         parents: [folderId],
       };
 
@@ -73,7 +74,7 @@ export async function uploadPdfToDrive(
         Buffer.from(
           `${delimiter}Content-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify(metadata)}\r\n`
         ),
-        Buffer.from(`${delimiter}Content-Type: application/pdf\r\nContent-Transfer-Encoding: base64\r\n\r\n`),
+        Buffer.from(`${delimiter}Content-Type: ${mimeType}\r\nContent-Transfer-Encoding: base64\r\n\r\n`),
         Buffer.from(buffer.toString("base64")),
         Buffer.from(closeDelimiter),
       ]);
@@ -96,7 +97,7 @@ export async function uploadPdfToDrive(
         const driveViewUrl = data.webViewLink || `https://drive.google.com/file/d/${fileId}/view`;
         const driveDownloadUrl = data.webContentLink || `https://drive.google.com/uc?export=download&id=${fileId}`;
 
-        console.log(`[GoogleDrive] Successfully uploaded "${fileName}" to Drive ID: ${fileId}`);
+        console.log(`[GoogleDrive] Successfully uploaded "${fileName}" (${mimeType}) to Drive ID: ${fileId}`);
         return {
           fileId,
           driveViewUrl,
@@ -117,7 +118,7 @@ export async function uploadPdfToDrive(
         action: "upload",
         folderId,
         fileName,
-        mimeType: "application/pdf",
+        mimeType,
         base64: buffer.toString("base64"),
       };
 
@@ -147,8 +148,6 @@ export async function uploadPdfToDrive(
   }
 
   // 3. Resilient Fallback (Folder Reference)
-  // When credentials are not yet configured, files are safely kept in local storage,
-  // while retaining the target Google Drive folder link for tracking.
   const fallbackId = `local_pme_${Date.now()}`;
   return {
     fileId: fallbackId,
@@ -156,6 +155,29 @@ export async function uploadPdfToDrive(
     driveDownloadUrl: "",
     source: "LOCAL_FALLBACK",
   };
+}
+
+/**
+ * Upload a PDF buffer to Google Drive
+ */
+export async function uploadPdfToDrive(
+  buffer: Buffer,
+  fileName: string,
+  targetFolderId?: string
+): Promise<DriveUploadResult> {
+  return uploadFileToDrive(buffer, fileName, "application/pdf", targetFolderId);
+}
+
+/**
+ * Upload an Image buffer (Logo KOP Surat, etc.) to Google Drive
+ */
+export async function uploadImageToDrive(
+  buffer: Buffer,
+  fileName: string,
+  mimeType: string = "image/png",
+  targetFolderId?: string
+): Promise<DriveUploadResult> {
+  return uploadFileToDrive(buffer, fileName, mimeType, targetFolderId);
 }
 
 /**

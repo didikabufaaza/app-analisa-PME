@@ -458,17 +458,19 @@ export function UsersView() {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-xl">
-          <DialogHeader>
-            <DialogTitle>{editingUser ? "Edit Akun Pengguna" : "Tambah Pengguna Baru"}</DialogTitle>
-            <DialogDescription>
+        <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col p-0 overflow-hidden shadow-2xl border">
+          <DialogHeader className="p-5 pb-3 border-b shrink-0 bg-background">
+            <DialogTitle className="text-base font-bold text-foreground">
+              {editingUser ? "Edit Akun Pengguna" : "Tambah Pengguna Baru"}
+            </DialogTitle>
+            <DialogDescription className="text-xs">
               {editingUser
                 ? `Perbarui profil, kata sandi, dan hak akses menu untuk ${editingUser.name}.`
                 : "Daftarkan akun pengguna baru dan tentukan hak akses menu yang diizinkan."}
             </DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4 py-2">
+          <div className="space-y-4 p-5 overflow-y-auto flex-1 overscroll-contain">
             {/* Nama & Email */}
             <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1">
@@ -613,15 +615,15 @@ export function UsersView() {
             </div>
           </div>
 
-          <DialogFooter>
-            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving}>
+          <DialogFooter className="p-4 border-t bg-muted/20 shrink-0 flex items-center justify-end gap-2">
+            <Button variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving} className="text-xs">
               Batal
             </Button>
             <Button
               size="sm"
               onClick={handleSave}
               disabled={saving}
-              className="bg-teal-700 hover:bg-teal-800 text-white"
+              className="bg-teal-700 hover:bg-teal-800 text-white text-xs"
             >
               {saving ? "Menyimpan..." : editingUser ? "Simpan Perubahan" : "Tambah Pengguna"}
             </Button>

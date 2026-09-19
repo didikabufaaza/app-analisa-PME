@@ -49,6 +49,10 @@ import {
   FileCheck2,
   TableProperties,
   Info,
+  RotateCcw,
+  Upload,
+  Image as ImageIcon,
+  Trash2,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -199,10 +203,28 @@ export function PmeReportsView() {
   const [signerForm, setSignerForm] = useState<SignerData>({ ...signer });
   const [savingSigner, setSavingSigner] = useState(false);
 
+  // Data & Pengaturan KOP Surat Laporan
+  const [isKopSuratModalOpen, setIsKopSuratModalOpen] = useState(false);
+  const [kopSuratForm, setKopSuratForm] = useState({
+    pemda: "Kementerian Kesehatan Republik Indonesia",
+    namaRumahSakit: "Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)",
+    alamatRumahSakit: "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan",
+    kontakRumahSakit: "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id",
+    logoKiri: null as string | null,
+    logoKanan: null as string | null,
+  });
+  const [savingKopSurat, setSavingKopSurat] = useState(false);
+  const [uploadingLogoKiri, setUploadingLogoKiri] = useState(false);
+  const [uploadingLogoKanan, setUploadingLogoKanan] = useState(false);
+
   // Aksi Validasi & Publikasi
   const [validating, setValidating] = useState(false);
   const [publishing, setPublishing] = useState(false);
   const [isPublishModalOpen, setIsPublishModalOpen] = useState(false);
+
+  // Aksi Penarikan / Pembatalan Laporan (Superadmin)
+  const [isRetractModalOpen, setIsRetractModalOpen] = useState(false);
+  const [retracting, setRetracting] = useState(false);
 
   const loadReports = async (overrideCycle?: string) => {
     setLoading(true);
@@ -232,6 +254,16 @@ export function PmeReportsView() {
         setDashboardStats(data.dashboardStats || []);
         setParticipantReports(data.participantReports || []);
         setKopSurat(data.kopSurat || null);
+        if (data.kopSurat) {
+          setKopSuratForm({
+            pemda: data.kopSurat.pemda || "Kementerian Kesehatan Republik Indonesia",
+            namaRumahSakit: data.kopSurat.namaRumahSakit || "Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)",
+            alamatRumahSakit: data.kopSurat.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan",
+            kontakRumahSakit: data.kopSurat.kontakRumahSakit || "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id",
+            logoKiri: data.kopSurat.logoKiri || null,
+            logoKanan: data.kopSurat.logoKanan || null,
+          });
+        }
       } else {
         const err = await res.json();
         toast({ title: "Gagal memuat laporan", description: err.error, variant: "destructive" });
@@ -359,6 +391,144 @@ export function PmeReportsView() {
     }
   };
 
+  // Upload Logo KOP Surat ke Google Drive
+  const handleLogoUpload = async (file: File, type: "kiri" | "kanan") => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Format Berkas Tidak Valid",
+        description: "Silakan pilih berkas gambar (PNG, JPG, JPEG, WebP, SVG).",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (type === "kiri") setUploadingLogoKiri(true);
+    else setUploadingLogoKanan(true);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("type", type);
+
+      const res = await fetch("/api/kop-surat/upload", {
+        method: "POST",
+        credentials: "same-origin",
+        body: formData,
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setKopSuratForm((prev) => ({
+          ...prev,
+          [type === "kiri" ? "logoKiri" : "logoKanan"]: data.logoUrl,
+        }));
+        toast({
+          title: `Logo ${type === "kiri" ? "Kiri" : "Kanan"} Berhasil Diunggah!`,
+          description: "Gambar telah tersimpan di Google Drive folder PME.",
+        });
+      } else {
+        const err = await res.json();
+        toast({
+          title: "Gagal Mengunggah Logo",
+          description: err.error || "Terjadi kesalahan saat mengunggah ke Google Drive.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Kesalahan Jaringan",
+        description: "Gagal mengunggah logo ke Google Drive.",
+        variant: "destructive",
+      });
+    } finally {
+      if (type === "kiri") setUploadingLogoKiri(false);
+      else setUploadingLogoKanan(false);
+    }
+  };
+
+  // Simpan Pengaturan KOP Surat
+  const handleSaveKopSurat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingKopSurat(true);
+    try {
+      const res = await fetch("/api/kop-surat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(kopSuratForm),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setKopSurat(data.kopSurat || kopSuratForm);
+        setIsKopSuratModalOpen(false);
+        toast({
+          title: "KOP Surat Berhasil Disimpan!",
+          description: "Format identitas & logo resmi instansi telah diperbarui pada seluruh laporan.",
+        });
+        await loadReports(cycle);
+      } else {
+        const err = await res.json();
+        toast({
+          title: "Gagal Menyimpan KOP Surat",
+          description: err.error || "Terjadi kesalahan sistem.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Kesalahan Jaringan",
+        description: "Gagal menyimpan data KOP Surat.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingKopSurat(false);
+    }
+  };
+
+  // Aksi Tarik / Batalkan Laporan (Superadmin)
+  const handleRetractReport = async () => {
+    setRetracting(true);
+    try {
+      const res = await fetch("/api/pme-mgmt/reports", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          action: "retract",
+          cycle,
+          participantId: selectedParticipantId,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        setIsRetractModalOpen(false);
+        toast({
+          title: "Laporan Berhasil Ditarik!",
+          description: data.message || "Tampilan laporan hasil pada akun peserta kini telah kembali kosong.",
+        });
+        await loadReports(cycle);
+      } else {
+        const err = await res.json();
+        toast({
+          title: "Gagal Menarik Laporan",
+          description: err.error || "Terjadi kesalahan sistem.",
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Kesalahan Jaringan",
+        description: "Gagal menarik laporan hasil PME.",
+        variant: "destructive",
+      });
+    } finally {
+      setRetracting(false);
+    }
+  };
+
   // Daftar Semua Parameter Unik untuk Filter Parameter
   const availableParameters = useMemo(() => {
     const set = new Set<string>();
@@ -378,24 +548,68 @@ export function PmeReportsView() {
       const margin = 12;
 
       // 1. Header & Kop Surat
-      let y = 14;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.setTextColor(30, 41, 59);
+      let y = 10;
+      const logoSize = 18;
 
-      doc.text(kopSurat?.pemda || "Kementerian Kesehatan", margin, y);
-      doc.setFontSize(12);
-      doc.setTextColor(13, 122, 105);
-      doc.text(kopSurat?.namaRumahSakit || "Labkesmas Palembang I", margin, y + 5);
+      // Draw Logo Kiri
+      if (kopSurat?.logoKiri) {
+        try {
+          doc.addImage(kopSurat.logoKiri, "PNG", margin, y, logoSize, logoSize);
+        } catch {}
+      }
+
+      // Draw Logo Kanan
+      if (kopSurat?.logoKanan) {
+        try {
+          doc.addImage(kopSurat.logoKanan, "PNG", pageW - margin - logoSize, y, logoSize, logoSize);
+        } catch {}
+      }
+
+      // Center Official Instansi Texts
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(
+        (kopSurat?.pemda || "KEMENTERIAN KESEHATAN REPUBLIK INDONESIA").toUpperCase(),
+        pageW / 2,
+        y + 3.5,
+        { align: "center" }
+      );
+
+      doc.setFontSize(11);
+      doc.setTextColor(15, 23, 42);
+      doc.text(
+        (kopSurat?.namaRumahSakit || "BALAI BESAR LABORATORIUM KESEHATAN MASYARAKAT PALEMBANG").toUpperCase(),
+        pageW / 2,
+        y + 8.5,
+        { align: "center" }
+      );
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(7.5);
-      doc.setTextColor(100, 116, 139);
-      doc.text(kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang", pageW - margin, y, { align: "right" });
-      doc.text(kopSurat?.kontakRumahSakit || "(0711) 352 683 | bblabkesmaspalembang.go.id", pageW - margin, y + 4.5, { align: "right" });
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan",
+        pageW / 2,
+        y + 13,
+        { align: "center" }
+      );
+      doc.text(
+        kopSurat?.kontakRumahSakit || "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id",
+        pageW / 2,
+        y + 17,
+        { align: "center" }
+      );
+
+      // Double Divider Lines beneath Kop Surat
+      doc.setDrawColor(30, 41, 59);
+      doc.setLineWidth(0.6);
+      doc.line(margin, y + 20, pageW - margin, y + 20);
+      doc.setLineWidth(0.2);
+      doc.line(margin, y + 20.8, pageW - margin, y + 20.8);
 
       // Title Section
-      y += 14;
+      y += 26;
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
@@ -635,6 +849,21 @@ export function PmeReportsView() {
 
         {/* Action Buttons Header */}
         <div className="flex flex-wrap items-center gap-2 no-print">
+          {/* Tombol Atur KOP Surat (Khusus Superadmin) */}
+          {isSuperAdmin && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setIsKopSuratModalOpen(true);
+              }}
+              className="text-xs border-teal-600/40 text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40"
+            >
+              <Building2 className="mr-1.5 h-3.5 w-3.5 text-teal-600" />
+              Pengaturan KOP Surat
+            </Button>
+          )}
+
           {/* Tombol Atur Penandatangan (Superadmin) */}
           {isSuperAdmin && (
             <Button
@@ -683,6 +912,24 @@ export function PmeReportsView() {
             >
               <Send className="mr-1.5 h-3.5 w-3.5" />
               {activeReport.isPublished ? "Kirim Ulang ke Peserta" : "Kirim Laporan"}
+            </Button>
+          )}
+
+          {/* Tombol Tarik / Batalkan Laporan (Khusus Superadmin) */}
+          {isSuperAdmin && activeReport && (activeReport.isPublished || activeReport.isValidated) && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsRetractModalOpen(true)}
+              disabled={retracting || loading}
+              className="text-xs border-amber-600/50 text-amber-800 dark:text-amber-300 hover:bg-amber-50 dark:hover:bg-amber-950/40"
+            >
+              {retracting ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-amber-600" />
+              ) : (
+                <RotateCcw className="mr-1.5 h-3.5 w-3.5 text-amber-600" />
+              )}
+              Tarik / Batalkan Laporan
             </Button>
           )}
 
@@ -1044,28 +1291,52 @@ export function PmeReportsView() {
                     </span>
                   </div>
 
-                  {/* Header Instansi Penyelenggara */}
-                  <div className="flex items-start justify-between border-b pb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="h-12 w-12 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-700 font-bold text-lg border">
-                        <ShieldCheck className="h-7 w-7 text-teal-700" />
-                      </div>
-                      <div>
-                        <h2 className="text-sm font-bold tracking-tight text-slate-800">
-                          {kopSurat?.pemda || "Kementerian Kesehatan Republik Indonesia"}
-                        </h2>
-                        <h3 className="text-base font-extrabold text-teal-800">
-                          {kopSurat?.namaRumahSakit || "Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)"}
-                        </h3>
-                        <p className="text-[10px] text-gray-500 mt-0.5">
-                          {kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan"}
-                        </p>
-                      </div>
+                  {/* Header Instansi Penyelenggara (KOP Surat Resmi) */}
+                  <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
+                    {/* Logo Kiri */}
+                    <div className="w-20 h-20 flex items-center justify-center shrink-0">
+                      {kopSurat?.logoKiri ? (
+                        <img
+                          src={kopSurat.logoKiri}
+                          alt="Logo Kiri"
+                          className="max-h-20 max-w-20 object-contain"
+                        />
+                      ) : (
+                        <div className="h-16 w-16 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-700 border border-teal-500/20">
+                          <ShieldCheck className="h-9 w-9 text-teal-700" />
+                        </div>
+                      )}
                     </div>
 
-                    <div className="text-right text-[10px] text-gray-500 leading-tight">
-                      <p>{kopSurat?.kontakRumahSakit || "Telp: (0711) 352 683 / 0811 7165 777"}</p>
-                      <p className="font-semibold text-teal-700">bblabkesmaspalembang.go.id</p>
+                    {/* Teks Tengah KOP Surat */}
+                    <div className="flex-1 text-center px-4 space-y-0.5">
+                      <h2 className="text-xs sm:text-sm font-bold tracking-wider text-slate-800 uppercase">
+                        {kopSurat?.pemda || "Kementerian Kesehatan Republik Indonesia"}
+                      </h2>
+                      <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 uppercase">
+                        {kopSurat?.namaRumahSakit || "Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)"}
+                      </h1>
+                      <p className="text-[11px] text-slate-600 font-normal leading-tight">
+                        {kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan"}
+                      </p>
+                      <p className="text-[10px] text-slate-600 font-medium">
+                        {kopSurat?.kontakRumahSakit || "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id"}
+                      </p>
+                    </div>
+
+                    {/* Logo Kanan */}
+                    <div className="w-20 h-20 flex items-center justify-center shrink-0">
+                      {kopSurat?.logoKanan ? (
+                        <img
+                          src={kopSurat.logoKanan}
+                          alt="Logo Kanan"
+                          className="max-h-20 max-w-20 object-contain"
+                        />
+                      ) : (
+                        <div className="h-16 w-16 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-dashed border-slate-300">
+                          <Award className="h-8 w-8 text-slate-400" />
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1701,6 +1972,287 @@ export function PmeReportsView() {
             >
               {publishing ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Send className="h-4 w-4 mr-1.5" />}
               Kirim Sekarang
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL PENGATURAN KOP SURAT (KHUSUS SUPERADMIN) */}
+      <Dialog open={isKopSuratModalOpen} onOpenChange={setIsKopSuratModalOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col p-0 overflow-hidden shadow-2xl border">
+          <DialogHeader className="p-5 pb-3 border-b shrink-0 bg-background">
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Building2 className="h-5 w-5 text-teal-600" />
+              <span>Pengaturan KOP Surat Laporan Hasil PME</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              Atur identitas instansi penyelenggara dan upload logo surat kanan & kiri. Logo disimpan otomatis di Google Drive tempat penyimpanan dokumen PME.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleSaveKopSurat} className="flex flex-col flex-1 overflow-hidden">
+            <div className="space-y-4 p-5 overflow-y-auto flex-1 overscroll-contain">
+              {/* Kolom Upload Logo Kiri & Logo Kanan */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {/* Logo Kiri */}
+                <div className="border rounded-lg p-3 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <ImageIcon className="h-3.5 w-3.5 text-teal-600" />
+                      <span>Logo Surat Kiri</span>
+                    </Label>
+                    {kopSuratForm.logoKiri && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setKopSuratForm((prev) => ({ ...prev, logoKiri: null }))}
+                        className="h-6 px-1.5 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Hapus
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-16 w-16 border rounded-md flex items-center justify-center bg-background shrink-0 overflow-hidden">
+                      {kopSuratForm.logoKiri ? (
+                        <img src={kopSuratForm.logoKiri} alt="Logo Kiri" className="h-full w-full object-contain p-1" />
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground text-center px-1">Kosong</span>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <label className="cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-medium bg-secondary hover:bg-secondary/80 text-secondary-foreground h-8 px-3 rounded-md w-full border">
+                        {uploadingLogoKiri ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                        ) : (
+                          <Upload className="h-3.5 w-3.5 mr-1 text-teal-600" />
+                        )}
+                        <span>{uploadingLogoKiri ? "Mengunggah..." : "Pilih & Unggah Logo Kiri"}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingLogoKiri}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleLogoUpload(f, "kiri");
+                          }}
+                        />
+                      </label>
+                      <p className="text-[10px] text-muted-foreground">Tersimpan di Google Drive PME</p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Logo Kanan */}
+                <div className="border rounded-lg p-3 bg-muted/20 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-semibold flex items-center gap-1.5">
+                      <ImageIcon className="h-3.5 w-3.5 text-blue-600" />
+                      <span>Logo Surat Kanan</span>
+                    </Label>
+                    {kopSuratForm.logoKanan && (
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setKopSuratForm((prev) => ({ ...prev, logoKanan: null }))}
+                        className="h-6 px-1.5 text-[10px] text-red-600 hover:text-red-700 hover:bg-red-50"
+                      >
+                        <Trash2 className="h-3 w-3 mr-1" />
+                        Hapus
+                      </Button>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="h-16 w-16 border rounded-md flex items-center justify-center bg-background shrink-0 overflow-hidden">
+                      {kopSuratForm.logoKanan ? (
+                        <img src={kopSuratForm.logoKanan} alt="Logo Kanan" className="h-full w-full object-contain p-1" />
+                      ) : (
+                        <span className="text-[10px] text-muted-foreground text-center px-1">Kosong</span>
+                      )}
+                    </div>
+                    <div className="flex-1 space-y-1.5">
+                      <label className="cursor-pointer inline-flex items-center justify-center gap-1.5 text-xs font-medium bg-secondary hover:bg-secondary/80 text-secondary-foreground h-8 px-3 rounded-md w-full border">
+                        {uploadingLogoKanan ? (
+                          <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
+                        ) : (
+                          <Upload className="h-3.5 w-3.5 mr-1 text-blue-600" />
+                        )}
+                        <span>{uploadingLogoKanan ? "Mengunggah..." : "Pilih & Unggah Logo Kanan"}</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploadingLogoKanan}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handleLogoUpload(f, "kanan");
+                          }}
+                        />
+                      </label>
+                      <p className="text-[10px] text-muted-foreground">Tersimpan di Google Drive PME</p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4 Kolom Identitas KOP Surat */}
+              <div className="space-y-3 pt-1">
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Dinas / Kementerian / Lembaga</Label>
+                  <Input
+                    value={kopSuratForm.pemda}
+                    onChange={(e) => setKopSuratForm((prev) => ({ ...prev, pemda: e.target.value }))}
+                    placeholder="Contoh: Kementerian Kesehatan Republik Indonesia"
+                    className="h-8 text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Penyelenggara PME</Label>
+                  <Input
+                    value={kopSuratForm.namaRumahSakit}
+                    onChange={(e) => setKopSuratForm((prev) => ({ ...prev, namaRumahSakit: e.target.value }))}
+                    placeholder="Contoh: Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)"
+                    className="h-8 text-xs font-semibold"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Alamat Lengkap</Label>
+                  <Input
+                    value={kopSuratForm.alamatRumahSakit}
+                    onChange={(e) => setKopSuratForm((prev) => ({ ...prev, alamatRumahSakit: e.target.value }))}
+                    placeholder="Contoh: Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan"
+                    className="h-8 text-xs"
+                    required
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <Label className="text-xs font-semibold">Telepon & Email Resmi</Label>
+                  <Input
+                    value={kopSuratForm.kontakRumahSakit}
+                    onChange={(e) => setKopSuratForm((prev) => ({ ...prev, kontakRumahSakit: e.target.value }))}
+                    placeholder="Contoh: Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id"
+                    className="h-8 text-xs"
+                    required
+                  />
+                </div>
+              </div>
+
+              {/* Live Preview KOP Surat */}
+              <div className="pt-2 border-t">
+                <Label className="text-xs font-bold text-muted-foreground block mb-2">Pratinjau KOP Surat:</Label>
+                <div className="p-4 bg-white text-black border rounded-lg shadow-xs">
+                  <div className="flex items-center justify-between border-b-2 border-slate-900 pb-2.5">
+                    <div className="w-14 h-14 flex items-center justify-center shrink-0">
+                      {kopSuratForm.logoKiri ? (
+                        <img src={kopSuratForm.logoKiri} alt="Logo Kiri" className="max-h-14 max-w-14 object-contain" />
+                      ) : (
+                        <div className="h-12 w-12 rounded-lg bg-teal-50 flex items-center justify-center text-teal-700 border border-teal-200">
+                          <ShieldCheck className="h-7 w-7 text-teal-700" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 text-center px-3 space-y-0.5">
+                      <p className="text-[10px] font-bold text-slate-800 uppercase tracking-wide">
+                        {kopSuratForm.pemda || "DINAS / KEMENTERIAN / LEMBAGA"}
+                      </p>
+                      <p className="text-xs font-extrabold text-slate-900 uppercase">
+                        {kopSuratForm.namaRumahSakit || "PENYELENGGARA PME"}
+                      </p>
+                      <p className="text-[9px] text-slate-600 font-normal leading-tight">
+                        {kopSuratForm.alamatRumahSakit || "Alamat Lengkap Penyelenggara"}
+                      </p>
+                      <p className="text-[9px] text-slate-600 font-medium">
+                        {kopSuratForm.kontakRumahSakit || "Telepon & Email Resmi"}
+                      </p>
+                    </div>
+                    <div className="w-14 h-14 flex items-center justify-center shrink-0">
+                      {kopSuratForm.logoKanan ? (
+                        <img src={kopSuratForm.logoKanan} alt="Logo Kanan" className="max-h-14 max-w-14 object-contain" />
+                      ) : (
+                        <div className="h-12 w-12 rounded-lg bg-slate-50 flex items-center justify-center text-slate-400 border border-dashed">
+                          <Award className="h-6 w-6 text-slate-400" />
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <DialogFooter className="p-4 border-t bg-muted/20 shrink-0 flex items-center justify-end gap-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => setIsKopSuratModalOpen(false)}>
+                Batal
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={savingKopSurat || uploadingLogoKiri || uploadingLogoKanan}
+                className="bg-teal-700 hover:bg-teal-800 text-white"
+              >
+                {savingKopSurat ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <Save className="h-4 w-4 mr-1.5" />}
+                Simpan Pengaturan KOP Surat
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* MODAL KONFIRMASI PENARIKAN / PEMBATALAN LAPORAN (SUPERADMIN) */}
+      <Dialog open={isRetractModalOpen} onOpenChange={setIsRetractModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-amber-600">
+              <RotateCcw className="h-5 w-5 text-amber-600" />
+              <span>Tarik Kembali / Batalkan Laporan</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed pt-1">
+              Apakah Anda yakin ingin menarik kembali laporan hasil PME? Setelah ditarik, tampilan menu laporan hasil pada akun peserta terkait akan <strong>kembali kosong</strong> hingga Anda memvalidasi dan mengirimkannya kembali.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 text-xs space-y-2 bg-amber-50/50 dark:bg-amber-950/20 p-3.5 rounded-lg border border-amber-200 dark:border-amber-800">
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Siklus PME:</span>
+              <span className="font-semibold font-mono text-foreground">{cycle}</span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Target Penarikan:</span>
+              <span className="font-bold text-amber-700 dark:text-amber-400">
+                {selectedParticipantId === "ALL"
+                  ? `Semua Peserta (${participantReports.length} Lab)`
+                  : activeReport?.participant.labName}
+              </span>
+            </div>
+            <div className="flex justify-between">
+              <span className="text-muted-foreground">Dampak ke Peserta:</span>
+              <span className="text-slate-700 dark:text-slate-300 font-medium">
+                Menu laporan peserta kembali kosong
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setIsRetractModalOpen(false)}>
+              Batal
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={retracting}
+              onClick={handleRetractReport}
+              className="bg-amber-600 hover:bg-amber-700 text-white"
+            >
+              {retracting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RotateCcw className="h-4 w-4 mr-1.5" />}
+              Tarik Laporan Sekarang
             </Button>
           </DialogFooter>
         </DialogContent>

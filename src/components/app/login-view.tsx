@@ -103,18 +103,18 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
 
         {/* Running Text Banner Teks Berjalan di Bawah Header */}
         {runningText ? (
-          <div className="relative z-10 mt-4 overflow-hidden rounded-xl border border-teal-400/30 bg-teal-950/80 shadow-[0_4px_20px_rgba(20,184,166,0.15)] backdrop-blur-md">
-            <div className="flex items-center py-2 px-3 gap-2.5">
-              <div className="flex shrink-0 items-center gap-1.5 pr-2.5 text-[11px] font-bold text-teal-300 border-r border-teal-500/30">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+          <div className="relative z-10 mt-5 overflow-hidden rounded-xl border-2 border-amber-400/40 bg-gradient-to-r from-teal-950/95 via-[#09332e]/95 to-teal-950/95 shadow-[0_4px_25px_rgba(245,158,11,0.25)] backdrop-blur-md">
+            <div className="flex items-center py-2.5 px-3.5 gap-3">
+              <div className="flex shrink-0 items-center gap-2 pr-3 py-1 text-[11px] font-black text-amber-300 border-r border-amber-400/40 bg-amber-500/15 px-2.5 rounded-lg">
+                <span className="relative flex h-2.5 w-2.5">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-80"></span>
+                  <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-amber-400"></span>
                 </span>
-                <Megaphone className="h-3.5 w-3.5 text-teal-300 animate-pulse" />
-                <span className="uppercase tracking-wider text-[10px]">PENGUMUMAN</span>
+                <Megaphone className="h-4 w-4 text-amber-300 animate-pulse" />
+                <span className="uppercase tracking-widest text-[11px] font-black">PENGUMUMAN</span>
               </div>
-              <div className="relative flex-1 overflow-hidden">
-                <div className="animate-marquee whitespace-nowrap text-xs text-teal-100 font-medium">
+              <div className="relative flex-1 overflow-hidden py-0.5">
+                <div className="animate-marquee whitespace-nowrap text-sm sm:text-base font-extrabold tracking-wide text-yellow-300 drop-shadow-[0_2px_10px_rgba(253,224,71,0.55)]">
                   {runningText}
                 </div>
               </div>

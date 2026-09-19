@@ -226,14 +226,14 @@ export async function GET(req: NextRequest) {
     // 6. Tentukan daftar submissions yang akan ditampilkan pada laporan
     let reportSubmissions = allCycleSubmissions;
     if (!isSuperAdmin) {
-      // Peserta hanya melihat submission miliknya yang sudah PUBLISHED
+      // Peserta HANYA melihat submission miliknya yang SUDAH DIPUBLIKASI (isPublished: true)
       reportSubmissions = allCycleSubmissions.filter(
-        (sub) => sub.participantId === participantLab.id && (sub.isPublished || sub.status === "PUBLISHED")
+        (sub) => sub.participantId === participantLab.id && sub.isPublished === true
       );
 
-      // Jika peserta sudah submit tetapi belum dipublish oleh Superadmin
-      const unpubSub = allCycleSubmissions.find((sub) => sub.participantId === participantLab.id);
-      if (reportSubmissions.length === 0 && unpubSub) {
+      // Jika peserta belum dipublish atau laporannya ditarik kembali oleh Superadmin
+      if (reportSubmissions.length === 0) {
+        const anySub = allCycleSubmissions.find((sub) => sub.participantId === participantLab.id);
         return jsonOk({
           cycle,
           category: packageCategory,
@@ -242,8 +242,10 @@ export async function GET(req: NextRequest) {
           isParticipant: true,
           participant: participantLab,
           isPublished: false,
-          isValidated: unpubSub.isValidated,
-          message: `Laporan Hasil PME ${participantLab.labName} untuk ${cycle} sedang dalam proses koreksi dan validasi oleh Penyelenggara (Superadmin). Lembar evaluasi resmi akan langsung tersedia setelah dikirimkan oleh Superadmin.`,
+          isValidated: anySub?.isValidated ?? false,
+          message: anySub
+            ? `Laporan Hasil PME ${participantLab.labName} untuk ${cycle} belum dipublikasikan atau telah ditarik kembali oleh Penyelenggara (Superadmin) untuk evaluasi. Lembar evaluasi resmi akan tampil kembali setelah dikirimkan oleh Superadmin.`
+            : `Belum ada data pengiriman hasil pemeriksaan PME untuk ${cycle}.`,
           kopSurat,
           signer,
           participantReports: [],
@@ -553,25 +555,26 @@ export async function POST(req: NextRequest) {
       });
     }
 
-    if (action === "unpublish") {
+    if (action === "unpublish" || action === "retract") {
       const updated = await db.pmeSubmission.updateMany({
         where: whereClause,
         data: {
           isPublished: false,
           publishedAt: null,
           publishedBy: null,
-          status: "VALIDATED",
+          isValidated: false,
+          status: "SUBMITTED",
         },
       });
 
       return jsonOk({
         success: true,
-        action: "unpublish",
+        action: "retract",
         count: updated.count,
-        message: `Publikasi laporan ${cycle} berhasil dibatalkan.`,
+        message: `Laporan hasil PME ${cycle} (${updated.count} laboratorium) berhasil ditarik kembali. Tampilan laporan hasil pada akun peserta kini telah kembali kosong.`,
       });
     }
 
-    return jsonError("Aksi tidak valid (gunakan 'validate', 'publish', atau 'unpublish').", 400);
+    return jsonError("Aksi tidak valid (gunakan 'validate', 'publish', atau 'retract').", 400);
   });
 }

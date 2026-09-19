@@ -144,7 +144,7 @@ export function PmeRegistrationView() {
   const handleOpenCreate = () => {
     setEditingItem(null);
     setFormCode("");
-    setFormLabName("");
+    setFormLabName(user?.organization?.name || "");
     setFormPhone("");
     setFormEmail("");
     setFormAddress("");
@@ -156,7 +156,7 @@ export function PmeRegistrationView() {
   const handleOpenEdit = (p: ParticipantItem) => {
     setEditingItem(p);
     setFormCode(p.participantCode || "");
-    setFormLabName(p.labName);
+    setFormLabName(p.labName || user?.organization?.name || "");
     setFormPhone(p.phone || "");
     setFormEmail(p.email || "");
     setFormAddress(p.address || "");
@@ -786,16 +786,26 @@ export function PmeRegistrationView() {
             </div>
 
             <div className="space-y-1">
-              <Label className="text-xs font-semibold">
-                Nama Laboratorium Peserta <span className="text-red-500">*</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">
+                  Nama Laboratorium Peserta <span className="text-red-500">*</span>
+                </Label>
+                <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium bg-teal-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <Lock className="h-3 w-3" /> Terisi Otomatis (Akun Organisasi)
+                </span>
+              </div>
               <Input
-                placeholder="Contoh: RSUD OKU Timur / Labkesda Kota"
+                placeholder="Nama Laboratorium Peserta"
                 value={formLabName}
-                onChange={(e) => setFormLabName(e.target.value)}
+                readOnly
+                disabled
+                tabIndex={-1}
                 required
-                className="h-8 text-xs"
+                className="h-8 text-xs font-semibold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
               />
+              <p className="text-[10.5px] text-muted-foreground">
+                🔒 Nama laboratorium disesuaikan otomatis dengan nama instansi/organisasi akun login Anda ({user?.organization?.name || "Laboratorium"}).
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-2">

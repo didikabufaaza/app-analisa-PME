@@ -473,6 +473,7 @@ model PmeCycleConfig {
   activePeriod   String?      @default("Tahap 1")
   infoTitle      String?      @default("Informasi Pelaksanaan Program PME")
   infoContent    String?      @db.Text
+  runningText    String?      @db.Text
   infoUpdatedAt  DateTime     @default(now())
   infoUpdatedBy  String?
   createdAt      DateTime     @default(now())

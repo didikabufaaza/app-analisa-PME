@@ -50,6 +50,9 @@ export function PmeInfoView() {
   const [infoContent, setInfoContent] = useState(
     "Selamat datang di Program Pemantapan Mutu Eksternal (PME). Mohon seluruh laboratorium peserta memastikan pendaftaran, pemilihan paket pemeriksaan, serta pengisian hasil pengujian dilakukan secara teliti sebelum batas akhir yang ditentukan. Pastikan sampel kontrol diperlakukan sama seperti sampel pasien rutin sesuai SOP laboratorium."
   );
+  const [runningText, setRunningText] = useState(
+    "Selamat datang di Sistem Aplikasi di-dismartPME. Program Pemantapan Mutu Eksternal (PME) Siklus 1 2026 telah dibuka. Silakan masuk dengan akun laboratorium Anda untuk melakukan pendaftaran peserta, pemilihan paket, dan pengisian hasil pemeriksaan."
+  );
   const [lastUpdated, setLastUpdated] = useState<string | null>(null);
   const [updatedBy, setUpdatedBy] = useState<string | null>(null);
 
@@ -64,6 +67,9 @@ export function PmeInfoView() {
           setActivePeriod(data.config.activePeriod || "Tahap 1");
           setInfoTitle(data.config.infoTitle || "Informasi Resmi Pelaksanaan Program PME");
           setInfoContent(data.config.infoContent || "");
+          if (data.config.runningText) {
+            setRunningText(data.config.runningText);
+          }
           setLastUpdated(data.config.infoUpdatedAt || null);
           setUpdatedBy(data.config.infoUpdatedBy || null);
         }
@@ -100,6 +106,7 @@ export function PmeInfoView() {
           activePeriod: activePeriod.trim(),
           infoTitle: infoTitle.trim(),
           infoContent: infoContent.trim(),
+          runningText: runningText.trim(),
         }),
       });
 
@@ -327,6 +334,74 @@ export function PmeInfoView() {
                 <p className="text-[11px] text-muted-foreground">
                   💡 Seluruh laboratorium peserta akan melihat kartu informasi ini setiap kali membuka Dashboard Utama.
                 </p>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Kolom 3: Input Teks Berjalan (Running Text) untuk Form Login */}
+          <Card className="shadow-sm border lg:col-span-2">
+            <CardHeader className="pb-3 border-b bg-muted/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 rounded-lg bg-teal-500/10 text-teal-600">
+                    <Megaphone className="h-4.5 w-4.5" />
+                  </div>
+                  <div>
+                    <CardTitle className="text-sm font-semibold">3. Teks Berjalan (Running Text) Form Login</CardTitle>
+                    <CardDescription className="text-xs">
+                      Teks berjalan yang ditampilkan di halaman login sebelah kiri di bawah tulisan &ldquo;di-dismartPME Evaluasi Z-Score & PME Laboratorium&rdquo;
+                    </CardDescription>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-teal-300 text-teal-700 dark:text-teal-300 text-[10px]">
+                  Halaman Login
+                </Badge>
+              </div>
+            </CardHeader>
+            <CardContent className="pt-4 space-y-4">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-semibold flex items-center justify-between">
+                  <span>
+                    Kalimat Teks Berjalan (Running Text) <span className="text-red-500">*</span>
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-normal">Tampil bergerak dari kanan ke kiri</span>
+                </Label>
+                <Textarea
+                  value={runningText}
+                  onChange={(e) => setRunningText(e.target.value)}
+                  placeholder="Contoh: Selamat datang di Sistem Aplikasi di-dismartPME. Program Pemantapan Mutu Eksternal (PME) Siklus 1 2026 telah dibuka..."
+                  rows={3}
+                  required
+                  className="text-xs leading-relaxed"
+                />
+                <p className="text-[11px] text-muted-foreground">
+                  💡 Pengunjung dan peserta yang membuka halaman login akan melihat teks berjalan ini secara langsung di bawah logo & nama aplikasi.
+                </p>
+              </div>
+
+              {/* Live Preview Teks Berjalan Login */}
+              <div className="rounded-xl border border-teal-500/30 bg-teal-950/80 p-3.5 shadow-md">
+                <div className="text-[11px] font-semibold text-teal-200/80 mb-2 flex items-center gap-2">
+                  <Sparkles className="h-3.5 w-3.5 text-teal-400" />
+                  <span>Pratinjau Teks Berjalan di Halaman Login:</span>
+                </div>
+                <div className="overflow-hidden rounded-lg border border-teal-400/30 bg-teal-950/90 py-2 px-3">
+                  <div className="flex items-center gap-2.5">
+                    <div className="flex shrink-0 items-center gap-1.5 pr-2.5 text-[11px] font-bold text-teal-300 border-r border-teal-500/30">
+                      <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                      </span>
+                      <Megaphone className="h-3.5 w-3.5 text-teal-300 animate-pulse" />
+                      <span className="uppercase tracking-wider text-[10px]">PENGUMUMAN</span>
+                    </div>
+                    <div className="relative flex-1 overflow-hidden">
+                      <div className="animate-marquee whitespace-nowrap text-xs text-teal-100 font-medium">
+                        {runningText || "Teks berjalan belum diisi."}
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </CardContent>
           </Card>

@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Eye, EyeOff, Loader2, FlaskConical, ScanLine, BrainCircuit, FileBarChart, ShieldCheck, ArrowRight, Sparkles, Clock } from "lucide-react";
+import { Eye, EyeOff, Loader2, FlaskConical, ScanLine, BrainCircuit, FileBarChart, ShieldCheck, ArrowRight, Sparkles, Clock, Megaphone } from "lucide-react";
 import { apiSend, ApiError } from "@/lib/api-client";
 import { useAppStore } from "@/lib/store";
 import type { UserInfo } from "@/types/pme";
@@ -32,6 +32,18 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
   const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
+  const [runningText, setRunningText] = useState<string>("");
+
+  useEffect(() => {
+    fetch("/api/pme-mgmt/config")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.config?.runningText) {
+          setRunningText(data.config.runningText);
+        }
+      })
+      .catch(() => undefined);
+  }, []);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -88,6 +100,27 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
             <p className="text-xs font-medium text-teal-200/80">Evaluasi Z-Score & PME Laboratorium</p>
           </div>
         </header>
+
+        {/* Running Text Banner Teks Berjalan di Bawah Header */}
+        {runningText ? (
+          <div className="relative z-10 mt-4 overflow-hidden rounded-xl border border-teal-400/30 bg-teal-950/80 shadow-[0_4px_20px_rgba(20,184,166,0.15)] backdrop-blur-md">
+            <div className="flex items-center py-2 px-3 gap-2.5">
+              <div className="flex shrink-0 items-center gap-1.5 pr-2.5 text-[11px] font-bold text-teal-300 border-r border-teal-500/30">
+                <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+                <Megaphone className="h-3.5 w-3.5 text-teal-300 animate-pulse" />
+                <span className="uppercase tracking-wider text-[10px]">PENGUMUMAN</span>
+              </div>
+              <div className="relative flex-1 overflow-hidden">
+                <div className="animate-marquee whitespace-nowrap text-xs text-teal-100 font-medium">
+                  {runningText}
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
 
         <main className="relative z-10 max-w-4xl space-y-8 py-8">
           <div className="space-y-4">

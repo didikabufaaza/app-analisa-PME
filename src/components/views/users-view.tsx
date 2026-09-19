@@ -55,6 +55,7 @@ const ALL_MENUS: { key: string; label: string; desc: string; superAdminOnly?: bo
   { key: "settings", label: "Pengaturan", desc: "Konfigurasi batas aturan Z-score dan kapasitas sistem" },
   { key: "audit", label: "Log Audit", desc: "Rekaman jejak aktivitas seluruh pengguna" },
   { key: "pme-management", label: "Manajemen Data PME", desc: "Pendaftaran peserta, pemilihan paket, dan input hasil PME" },
+  { key: "pme-resubmit", label: "Izin Edit Ulang Hasil PME", desc: "Memberikan akses membuka kunci tombol kirim & mengedit kembali hasil PME yang telah dikirim" },
   { key: "users", label: "Pengaturan User", desc: "Manajemen akun pengguna dan hak akses (Superadmin)", superAdminOnly: true },
 ];
 

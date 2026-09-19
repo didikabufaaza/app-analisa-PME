@@ -16,6 +16,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   FilePenLine,
   Send,
   Building2,
@@ -30,6 +40,8 @@ import {
   Check,
   AlertTriangle,
   Lock,
+  Unlock,
+  ShieldCheck,
 } from "lucide-react";
 
 interface ParameterRow {
@@ -72,6 +84,12 @@ export function PmeInputView() {
   const [approvingParticipant, setApprovingParticipant] = useState(false);
   const [isSubmittedBefore, setIsSubmittedBefore] = useState(false);
   const [lastSubmittedAt, setLastSubmittedAt] = useState<string | null>(null);
+  const [submissionId, setSubmissionId] = useState<string | null>(null);
+  const [isLocked, setIsLocked] = useState(false);
+  const [allowResubmit, setAllowResubmit] = useState(false);
+  const [canEdit, setCanEdit] = useState(true);
+  const [confirmDialogOpen, setConfirmDialogOpen] = useState(false);
+  const [togglingLock, setTogglingLock] = useState(false);
 
   const [submitting, setSubmitting] = useState(false);
 
@@ -168,6 +186,8 @@ export function PmeInputView() {
           setRegisteredPackages([]);
           setParameters([]);
           setIsSubmittedBefore(false);
+          setSubmissionId(null);
+          setCanEdit(false);
           return;
         }
 
@@ -177,6 +197,8 @@ export function PmeInputView() {
           setHasNoPackages(true);
           setParameters([]);
           setIsSubmittedBefore(false);
+          setSubmissionId(null);
+          setCanEdit(true);
           return;
         }
 
@@ -184,6 +206,10 @@ export function PmeInputView() {
         const existingResults = data.submission?.results || [];
         setIsSubmittedBefore(Boolean(data.submission));
         setLastSubmittedAt(data.submission?.submittedAt || null);
+        setSubmissionId(data.submission?.id || null);
+        setIsLocked(Boolean(data.isLocked));
+        setAllowResubmit(Boolean(data.allowResubmit));
+        setCanEdit(data.canEdit !== undefined ? Boolean(data.canEdit) : !data.submission);
 
         const rows: ParameterRow[] = (data.parameters || []).map((p: any) => {
           const matchedResult = existingResults.find(
@@ -247,8 +273,60 @@ export function PmeInputView() {
     toast({ title: "Template seragam diterapkan ke seluruh baris parameter." });
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleToggleLock = async (unlock: boolean) => {
+    if (!selectedParticipantId) return;
+    setTogglingLock(true);
+    try {
+      const res = await fetch("/api/pme-mgmt/submissions", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          action: unlock ? "UNLOCK_SUBMISSION" : "LOCK_SUBMISSION",
+          submissionId: submissionId || undefined,
+          participantId: selectedParticipantId,
+          cycle: selectedCycle,
+        }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        toast({
+          title: unlock ? "Kunci Input Dibuka" : "Formulir Dikunci Kembali",
+          description: data.message,
+        });
+        await loadParticipantParams();
+      } else {
+        const err = await res.json();
+        toast({
+          title: "Gagal mengubah status kunci",
+          description: err.error,
+          variant: "destructive",
+        });
+      }
+    } catch {
+      toast({
+        title: "Kesalahan jaringan",
+        description: "Gagal mengubah status penguncian.",
+        variant: "destructive",
+      });
+    } finally {
+      setTogglingLock(false);
+    }
+  };
+
+  // Validasi sebelum membuka dialog konfirmasi
+  const handlePreSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (isFormLocked) {
+      toast({
+        title: "Formulir Terkunci",
+        description: "Hasil telah dikirim dan tidak dapat diubah kembali.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const filledRows = parameters.filter((p) => p.value.trim() !== "");
     if (filledRows.length === 0) {
@@ -260,6 +338,13 @@ export function PmeInputView() {
       return;
     }
 
+    // Buka kotak dialog konfirmasi pengiriman
+    setConfirmDialogOpen(true);
+  };
+
+  // Eksekusi pengiriman hasil saat klik "Kirim Sekarang"
+  const executeSubmit = async () => {
+    setConfirmDialogOpen(false);
     setSubmitting(true);
     try {
       const payload = {
@@ -290,10 +375,16 @@ export function PmeInputView() {
         const data = await res.json();
         toast({
           title: "Hasil PME Berhasil Dikirim!",
-          description: data.message || "Data telah tersimpan di sistem.",
+          description: data.message || "Data telah tersimpan di sistem dan formulir terkunci.",
         });
         setIsSubmittedBefore(true);
         setLastSubmittedAt(new Date().toISOString());
+        if (data.submissionId) {
+          setSubmissionId(data.submissionId);
+        }
+        setIsLocked(true);
+        // Refresh parameter & status dari server
+        await loadParticipantParams();
       } else {
         const err = await res.json();
         toast({ title: "Gagal mengirim hasil", description: err.error, variant: "destructive" });
@@ -304,6 +395,12 @@ export function PmeInputView() {
       setSubmitting(false);
     }
   };
+
+  const isSuperadmin = user?.role === "SUPERADMIN";
+  // Peserta non-admin terkunci jika sudah pernah submit dan canEdit === false
+  const isFormLocked = !isSuperadmin && isSubmittedBefore && !canEdit;
+  // Status apakah submission ini terkunci secara umum di database
+  const isSubmissionLocked = isSubmittedBefore && isLocked && !allowResubmit;
 
   const filledCount = parameters.filter((p) => p.value.trim() !== "").length;
 
@@ -492,7 +589,97 @@ export function PmeInputView() {
 
       {/* Case 2: Form Input Hasil Parameters */}
       {!isNotApproved && !hasNoPackages && parameters.length > 0 && (
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handlePreSubmit} className="space-y-4">
+          {/* Status Kunci Formulir / Edit Ulang Banner */}
+          {isSubmittedBefore && (
+            isSubmissionLocked ? (
+              <Card className="border-amber-500/40 bg-amber-500/5 dark:bg-amber-950/20 shadow-xs">
+                <CardContent className="p-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-md bg-amber-500/10 text-amber-600 shrink-0 mt-0.5">
+                        <Lock className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-foreground flex items-center gap-1.5">
+                          <span>Formulir Terkunci (Hasil Sudah Dikirim)</span>
+                          <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30">
+                            Terkunci
+                          </Badge>
+                        </h4>
+                        <p className="text-muted-foreground text-[11px] mt-0.5">
+                          Hasil pemeriksaan telah dikirim {lastSubmittedAt ? `pada ${new Date(lastSubmittedAt).toLocaleString("id-ID")}` : ""}.
+                          {!isSuperadmin
+                            ? " Hasil yang sudah dikirim tidak dapat diedit kembali. Untuk perbaikan hasil, hubungi Superadmin agar diberikan izin edit ulang."
+                            : " Saat ini formulir terkunci untuk akun peserta tersebut."}
+                        </p>
+                      </div>
+                    </div>
+                    {isSuperadmin && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={togglingLock}
+                        onClick={() => handleToggleLock(true)}
+                        className="shrink-0 text-xs border-amber-600/40 text-amber-800 dark:text-amber-300 hover:bg-amber-500/10 h-8"
+                      >
+                        {togglingLock ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Unlock className="mr-1.5 h-3.5 w-3.5 text-amber-600" />
+                        )}
+                        Buka Kunci Input (Izinkan Edit Ulang)
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card className="border-emerald-500/40 bg-emerald-500/5 dark:bg-emerald-950/20 shadow-xs">
+                <CardContent className="p-3.5">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-1.5 rounded-md bg-emerald-500/10 text-emerald-600 shrink-0 mt-0.5">
+                        <ShieldCheck className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-foreground flex items-center gap-1.5">
+                          <span>Akses Edit Ulang Aktif</span>
+                          <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border-emerald-500/30">
+                            Terbuka
+                          </Badge>
+                        </h4>
+                        <p className="text-muted-foreground text-[11px] mt-0.5">
+                          {isSuperadmin
+                            ? "Kunci formulir terbuka. Peserta atau Superadmin dapat mengubah data dan mengirim kembali."
+                            : "Kunci formulir telah dibuka oleh Superadmin. Anda dapat memperbarui hasil pemeriksaan dan mengirimkannya kembali."}
+                        </p>
+                      </div>
+                    </div>
+                    {isSuperadmin && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={togglingLock}
+                        onClick={() => handleToggleLock(false)}
+                        className="shrink-0 text-xs border-muted text-muted-foreground hover:bg-muted h-8"
+                      >
+                        {togglingLock ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <Lock className="mr-1.5 h-3.5 w-3.5" />
+                        )}
+                        Kunci Kembali Formulir
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            )
+          )}
+
           {/* Quick Helper Banner */}
           <Card className="shadow-xs border bg-muted/20">
             <CardContent className="p-3">
@@ -506,22 +693,32 @@ export function PmeInputView() {
                   <Input
                     placeholder="Kode Metode (cth: 041)"
                     value={batchMethod}
+                    disabled={isFormLocked}
                     onChange={(e) => setBatchMethod(e.target.value)}
-                    className="h-7 w-32 text-[11px] font-mono"
+                    className={`h-7 w-32 text-[11px] font-mono ${isFormLocked ? "cursor-not-allowed opacity-60" : ""}`}
                   />
                   <Input
                     placeholder="Kode Alat (cth: 2202)"
                     value={batchInstrument}
+                    disabled={isFormLocked}
                     onChange={(e) => setBatchInstrument(e.target.value)}
-                    className="h-7 w-32 text-[11px] font-mono"
+                    className={`h-7 w-32 text-[11px] font-mono ${isFormLocked ? "cursor-not-allowed opacity-60" : ""}`}
                   />
                   <Input
                     placeholder="Nama Reagen"
                     value={batchReagent}
+                    disabled={isFormLocked}
                     onChange={(e) => setBatchReagent(e.target.value)}
-                    className="h-7 w-36 text-[11px]"
+                    className={`h-7 w-36 text-[11px] ${isFormLocked ? "cursor-not-allowed opacity-60" : ""}`}
                   />
-                  <Button type="button" variant="secondary" size="sm" onClick={handleApplyBatch} className="h-7 text-[11px]">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={isFormLocked}
+                    onClick={handleApplyBatch}
+                    className="h-7 text-[11px]"
+                  >
                     Terapkan
                   </Button>
                 </div>
@@ -582,8 +779,13 @@ export function PmeInputView() {
                             type="text"
                             placeholder="0.00"
                             value={param.value}
+                            disabled={isFormLocked}
                             onChange={(e) => handleRowChange(idx, "value", e.target.value)}
-                            className="h-8 text-center font-mono font-bold text-xs bg-background focus:ring-1 focus:ring-teal-600"
+                            className={`h-8 text-center font-mono font-bold text-xs ${
+                              isFormLocked
+                                ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
+                                : "bg-background focus:ring-1 focus:ring-teal-600"
+                            }`}
                           />
                         </td>
                         {/* Kolom Metode */}
@@ -591,8 +793,13 @@ export function PmeInputView() {
                           <Input
                             placeholder={param.defaultMethodCode || "Metode"}
                             value={param.methodCode}
+                            disabled={isFormLocked}
                             onChange={(e) => handleRowChange(idx, "methodCode", e.target.value)}
-                            className="h-8 text-center font-mono text-xs bg-background"
+                            className={`h-8 text-center font-mono text-xs ${
+                              isFormLocked
+                                ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
+                                : "bg-background"
+                            }`}
                           />
                         </td>
                         {/* Kolom Alat */}
@@ -600,8 +807,13 @@ export function PmeInputView() {
                           <Input
                             placeholder={param.defaultInstrumentCode || "Alat"}
                             value={param.instrumentCode}
+                            disabled={isFormLocked}
                             onChange={(e) => handleRowChange(idx, "instrumentCode", e.target.value)}
-                            className="h-8 text-center font-mono text-xs bg-background"
+                            className={`h-8 text-center font-mono text-xs ${
+                              isFormLocked
+                                ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
+                                : "bg-background"
+                            }`}
                           />
                         </td>
                         {/* Kolom Nama Reagen */}
@@ -609,8 +821,13 @@ export function PmeInputView() {
                           <Input
                             placeholder="Merk / Nama Reagen yang digunakan"
                             value={param.reagentName}
+                            disabled={isFormLocked}
                             onChange={(e) => handleRowChange(idx, "reagentName", e.target.value)}
-                            className="h-8 text-xs bg-background"
+                            className={`h-8 text-xs ${
+                              isFormLocked
+                                ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
+                                : "bg-background"
+                            }`}
                           />
                         </td>
                       </tr>
@@ -622,25 +839,78 @@ export function PmeInputView() {
           </Card>
 
           {/* Action Footer */}
-          <div className="flex items-center justify-between pt-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 pt-2">
             <div className="text-xs text-muted-foreground">
-              Pastikan seluruh nilai hasil pemeriksaan telah diperiksa dengan teliti sebelum menekan tombol Kirim.
+              {isFormLocked
+                ? "Formulir ini dalam status terkunci. Untuk perbaikan hasil, hubungi Superadmin agar diberikan izin edit ulang."
+                : "Pastikan seluruh nilai hasil pemeriksaan telah diperiksa dengan teliti sebelum menekan tombol Kirim."}
             </div>
-            <Button
-              type="submit"
-              disabled={submitting || filledCount === 0}
-              className="bg-teal-700 hover:bg-teal-800 text-white px-6 text-xs h-9 shadow-sm"
-            >
-              {submitting ? (
-                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-              ) : (
-                <Send className="mr-1.5 h-4 w-4" />
-              )}
-              Kirim Hasil PME
-            </Button>
+            {isFormLocked ? (
+              <Button
+                type="button"
+                disabled
+                className="bg-muted text-muted-foreground cursor-not-allowed px-6 text-xs h-9 shadow-xs border"
+              >
+                <Lock className="mr-1.5 h-4 w-4 text-amber-500" />
+                Hasil Sudah Dikirim (Terkunci)
+              </Button>
+            ) : (
+              <Button
+                type="submit"
+                disabled={submitting || filledCount === 0}
+                className="bg-teal-700 hover:bg-teal-800 text-white px-6 text-xs h-9 shadow-sm"
+              >
+                {submitting ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Send className="mr-1.5 h-4 w-4" />
+                )}
+                Kirim Hasil PME
+              </Button>
+            )}
           </div>
         </form>
       )}
+
+      {/* Confirmation Dialog Before Submitting */}
+      <AlertDialog open={confirmDialogOpen} onOpenChange={setConfirmDialogOpen}>
+        <AlertDialogContent className="max-w-md">
+          <AlertDialogHeader>
+            <div className="flex items-center gap-2 text-amber-600 dark:text-amber-500">
+              <AlertTriangle className="h-5 w-5 shrink-0" />
+              <AlertDialogTitle className="text-sm font-bold">
+                Konfirmasi Pengiriman Hasil PME
+              </AlertDialogTitle>
+            </div>
+            <AlertDialogDescription className="text-xs text-foreground/80 leading-relaxed pt-2">
+              hasil yang sudah dikirim tidak dapat dilakukan edit hasil kembali, teliti kembali hasil input anda
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter className="gap-2 sm:gap-0 mt-3">
+            <AlertDialogCancel
+              disabled={submitting}
+              className="text-xs h-8 border-muted-foreground/30 hover:bg-muted"
+            >
+              Batal Kirim
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={submitting}
+              onClick={(e) => {
+                e.preventDefault();
+                executeSubmit();
+              }}
+              className="text-xs h-8 bg-teal-700 hover:bg-teal-800 text-white"
+            >
+              {submitting ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Send className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Kirim Sekarang
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

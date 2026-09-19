@@ -17,22 +17,65 @@ export async function GET(req: NextRequest) {
       return jsonError("Akses ditolak. Menu Laporan Hasil PME hanya dapat diakses oleh Superadmin.", 403, "FORBIDDEN");
     }
 
-    const orgId = getEffectiveOrgId(user, req) === "ALL" ? user.organizationId : getEffectiveOrgId(user, req);
-    const cycle = req.nextUrl.searchParams.get("cycle") || "Siklus 2 2025";
-    const packageCategory = req.nextUrl.searchParams.get("category") || "Kimia Klinik";
+    const effectiveOrgId = getEffectiveOrgId(user, req);
+    const orgFilter = effectiveOrgId === "ALL" ? {} : { organizationId: effectiveOrgId };
+
+    // 1. Dapatkan daftar seluruh siklus yang ada di pmeSubmission dan pmeParticipant
+    const [subCycles, partCycles] = await Promise.all([
+      db.pmeSubmission.findMany({
+        where: orgFilter,
+        select: { cycle: true },
+        distinct: ["cycle"],
+        orderBy: { submittedAt: "desc" },
+      }),
+      db.pmeParticipant.findMany({
+        where: orgFilter,
+        select: { cycle: true },
+        distinct: ["cycle"],
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
+    const availableCyclesSet = new Set<string>();
+    subCycles.forEach((s) => s.cycle && availableCyclesSet.add(s.cycle.trim()));
+    partCycles.forEach((p) => p.cycle && availableCyclesSet.add(p.cycle.trim()));
+    if (availableCyclesSet.size === 0) {
+      availableCyclesSet.add("Siklus 1 2026");
+    }
+    const availableCycles = Array.from(availableCyclesSet);
+
+    // Tentukan siklus yang dianalisa
+    const rawCycleParam = req.nextUrl.searchParams.get("cycle")?.trim();
+    let cycle = rawCycleParam;
+    
+    // Jika tidak ada cycle param, atau jika cycle param bernilai default lama yang tidak memiliki data
+    if (!cycle || (cycle === "Siklus 2 2025" && !availableCycles.includes("Siklus 2 2025"))) {
+      cycle = availableCycles[0] || "Siklus 1 2026";
+    }
+
+    const categoryParam = req.nextUrl.searchParams.get("category")?.trim();
+    const packageCategory = categoryParam && categoryParam !== "ALL" ? categoryParam : "ALL";
     const targetParticipantId = req.nextUrl.searchParams.get("participantId");
 
-    // 1. Ambil data Kop Surat untuk instansi penyelenggara
-    const kopSurat = await db.kopSurat.findFirst({
-      where: { organizationId: orgId },
+    // 2. Ambil data Kop Surat untuk instansi penyelenggara
+    let kopSurat = await db.kopSurat.findFirst({
+      where: effectiveOrgId !== "ALL" ? { organizationId: effectiveOrgId } : { organizationId: user.organizationId },
     });
+    if (!kopSurat) {
+      kopSurat = await db.kopSurat.findFirst();
+    }
 
-    // 2. Ambil paket-paket dalam kategori ini
+    // 3. Ambil paket-paket dalam kategori ini (jika ALL, ambil semua paket)
+    const packageWhere: any = {};
+    if (effectiveOrgId !== "ALL") {
+      packageWhere.organizationId = effectiveOrgId;
+    }
+    if (packageCategory !== "ALL") {
+      packageWhere.category = packageCategory;
+    }
+
     const packages = await db.pmePackage.findMany({
-      where: {
-        organizationId: orgId,
-        category: packageCategory,
-      },
+      where: packageWhere,
       include: {
         parameters: { orderBy: { sortOrder: "asc" } },
       },
@@ -50,7 +93,7 @@ export async function GET(req: NextRequest) {
 
     for (const pkg of packages) {
       for (const p of pkg.parameters) {
-        if (!masterParams.some((mp) => mp.name.toLowerCase() === p.name.toLowerCase())) {
+        if (!masterParams.some((mp) => mp.name.toLowerCase().trim() === p.name.toLowerCase().trim())) {
           masterParams.push({
             id: p.id,
             name: p.name,
@@ -62,12 +105,11 @@ export async function GET(req: NextRequest) {
         }
       }
     }
-    masterParams.sort((a, b) => a.sortOrder - b.sortOrder);
 
-    // 3. Ambil semua submissions peserta untuk siklus ini
+    // 4. Ambil semua submissions peserta untuk siklus ini
     const submissions = await db.pmeSubmission.findMany({
       where: {
-        organizationId: orgId,
+        ...orgFilter,
         cycle,
         status: "SUBMITTED",
       },
@@ -77,6 +119,24 @@ export async function GET(req: NextRequest) {
       },
       orderBy: { submittedAt: "asc" },
     });
+
+    // Pastikan setiap parameter yang ada di submission results peserta juga masuk ke masterParams
+    let dynSort = masterParams.length + 1;
+    for (const sub of submissions) {
+      for (const res of sub.results) {
+        if (!masterParams.some((mp) => mp.name.toLowerCase().trim() === res.parameterName.toLowerCase().trim())) {
+          masterParams.push({
+            id: `dyn-${res.id}`,
+            name: res.parameterName,
+            unit: res.unit || null,
+            sortOrder: dynSort++,
+            defaultMethodCode: res.methodCode || null,
+            defaultInstrumentCode: res.instrumentCode || null,
+          });
+        }
+      }
+    }
+    masterParams.sort((a, b) => a.sortOrder - b.sortOrder);
 
     // 4. Biostatistical Calculation per Parameter (Global, Method Groups, Instrument Groups)
     const paramStatsMap = new Map<
@@ -307,6 +367,7 @@ export async function GET(req: NextRequest) {
 
     return jsonOk({
       cycle,
+      availableCycles,
       category: packageCategory,
       totalSubmissions: submissions.length,
       kopSurat,

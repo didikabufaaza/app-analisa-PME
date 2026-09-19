@@ -19,16 +19,17 @@ export async function GET(req: NextRequest) {
       return jsonError("Akses ditolak.", 403, "FORBIDDEN");
     }
 
-    const orgId = getEffectiveOrgId(user, req) === "ALL" ? user.organizationId : getEffectiveOrgId(user, req);
+    const effectiveOrgId = getEffectiveOrgId(user, req);
+    const orgFilter = effectiveOrgId === "ALL" ? {} : { organizationId: effectiveOrgId };
     const participantId = req.nextUrl.searchParams.get("participantId");
-    const cycle = req.nextUrl.searchParams.get("cycle") || "Siklus 2 2025";
+    const cycle = req.nextUrl.searchParams.get("cycle");
 
     if (!participantId) {
       // Jika tanpa participantId, kembalikan daftar semua submission untuk list view
       const submissions = await db.pmeSubmission.findMany({
         where: {
-          organizationId: orgId,
-          ...(cycle ? { cycle } : {}),
+          ...orgFilter,
+          ...(cycle ? { cycle: cycle.trim() } : {}),
         },
         include: {
           participant: true,
@@ -64,9 +65,8 @@ export async function GET(req: NextRequest) {
     // Ambil paket yang dipilih oleh peserta pada siklus ini
     const registrations = await db.pmePackageRegistration.findMany({
       where: {
-        organizationId: orgId,
         participantId,
-        cycle: cycle.trim(),
+        ...(cycle ? { cycle: cycle.trim() } : {}),
       },
       include: {
         package: {
@@ -122,9 +122,8 @@ export async function GET(req: NextRequest) {
     // Ambil data submission yang sudah pernah disimpan sebelumnya (jika ada)
     const existingSubmission = await db.pmeSubmission.findFirst({
       where: {
-        organizationId: orgId,
         participantId,
-        cycle: cycle.trim(),
+        ...(cycle ? { cycle: cycle.trim() } : {}),
       },
       include: {
         results: true,
@@ -184,7 +183,6 @@ export async function POST(req: NextRequest) {
     // Cari atau buat submission
     let submission = await db.pmeSubmission.findFirst({
       where: {
-        organizationId: orgId,
         participantId,
         cycle: cycle.trim(),
       },
@@ -208,7 +206,7 @@ export async function POST(req: NextRequest) {
     } else {
       submission = await db.pmeSubmission.create({
         data: {
-          organizationId: orgId,
+          organizationId: participant.organizationId,
           participantId,
           cycle: cycle.trim(),
           period: period?.trim() || null,

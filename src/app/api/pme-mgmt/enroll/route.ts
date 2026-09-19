@@ -19,18 +19,21 @@ export async function GET(req: NextRequest) {
       return jsonError("Akses ditolak.", 403, "FORBIDDEN");
     }
 
-    const orgId = getEffectiveOrgId(user, req) === "ALL" ? user.organizationId : getEffectiveOrgId(user, req);
+    const effectiveOrgId = getEffectiveOrgId(user, req);
     const participantId = req.nextUrl.searchParams.get("participantId");
     const cycle = req.nextUrl.searchParams.get("cycle");
 
     const whereClause: {
-      organizationId: string;
+      organizationId?: string;
       participantId?: string;
       cycle?: string;
-    } = { organizationId: orgId };
+    } = {};
 
+    if (effectiveOrgId !== "ALL") {
+      whereClause.organizationId = effectiveOrgId;
+    }
     if (participantId) whereClause.participantId = participantId;
-    if (cycle) whereClause.cycle = cycle;
+    if (cycle) whereClause.cycle = cycle.trim();
 
     const registrations = await db.pmePackageRegistration.findMany({
       where: whereClause,
@@ -93,7 +96,6 @@ export async function POST(req: NextRequest) {
       // Cek apakah sudah terdaftar untuk siklus ini
       const existing = await db.pmePackageRegistration.findFirst({
         where: {
-          organizationId: orgId,
           participantId,
           packageId: pkgId,
           cycle: cycle.trim(),
@@ -105,12 +107,12 @@ export async function POST(req: NextRequest) {
       } else {
         const reg = await db.pmePackageRegistration.create({
           data: {
-            organizationId: orgId,
+            organizationId: participant.organizationId,
             participantId,
             packageId: pkgId,
             cycle: cycle.trim(),
             period: period?.trim() || null,
-            year: Number(year) || 2025,
+            year: Number(year) || new Date().getFullYear(),
             status: "REGISTERED",
           },
         });

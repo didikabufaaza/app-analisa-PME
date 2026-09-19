@@ -128,13 +128,16 @@ interface DashboardStatItem {
 }
 
 export function PmeReportsView() {
-  const { user, viewAsTenantId } = useAppStore();
+  const { user, viewAsTenantId, navigate } = useAppStore();
   const { toast } = useToast();
 
   const printAreaRef = useRef<HTMLDivElement>(null);
 
-  const [cycle, setCycle] = useState<string>("Siklus 2 2025");
-  const [category, setCategory] = useState<string>("Kimia Klinik");
+  const [cycle, setCycle] = useState<string>("");
+  const [availableCycles, setAvailableCycles] = useState<string[]>([]);
+  const [customCycleMode, setCustomCycleMode] = useState(false);
+  const [customCycleInput, setCustomCycleInput] = useState("");
+  const [category, setCategory] = useState<string>("ALL");
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>("ALL");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
 
@@ -145,16 +148,23 @@ export function PmeReportsView() {
   const [kopSurat, setKopSurat] = useState<any>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
 
-  const loadReports = async () => {
+  const loadReports = async (overrideCycle?: string) => {
     setLoading(true);
     try {
-      const url = `/api/pme-mgmt/reports?cycle=${encodeURIComponent(cycle)}&category=${encodeURIComponent(category)}${
+      const activeCycle = overrideCycle !== undefined ? overrideCycle : cycle;
+      const url = `/api/pme-mgmt/reports?cycle=${encodeURIComponent(activeCycle || "")}&category=${encodeURIComponent(category)}${
         selectedParticipantId !== "ALL" ? `&participantId=${selectedParticipantId}` : ""
       }`;
 
       const res = await fetch(url, { credentials: "same-origin" });
       if (res.ok) {
         const data = await res.json();
+        if (data.availableCycles && Array.isArray(data.availableCycles)) {
+          setAvailableCycles(data.availableCycles);
+        }
+        if (data.cycle) {
+          setCycle(data.cycle);
+        }
         setSummary(data.summary);
         setDashboardStats(data.dashboardStats || []);
         setParticipantReports(data.participantReports || []);
@@ -171,8 +181,21 @@ export function PmeReportsView() {
   };
 
   useEffect(() => {
-    loadReports();
-  }, [cycle, category, selectedParticipantId, viewAsTenantId]);
+    loadReports(cycle);
+  }, [category, selectedParticipantId, viewAsTenantId]);
+
+  const handleCycleSelect = (newCycle: string) => {
+    setCycle(newCycle);
+    loadReports(newCycle);
+  };
+
+  const handleApplyCustomCycle = () => {
+    if (customCycleInput.trim()) {
+      const newCycle = customCycleInput.trim();
+      setCycle(newCycle);
+      loadReports(newCycle);
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -210,7 +233,7 @@ export function PmeReportsView() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
-      const titleText = `HASIL EVALUASI BIDANG PATOLOGI PARAMETER ${category.toUpperCase()} ${cycle.toUpperCase()}`;
+      const titleText = `HASIL EVALUASI BIDANG PATOLOGI PARAMETER ${category === "ALL" ? "SEMUA BIDANG" : category.toUpperCase()} ${(report.cycle || cycle).toUpperCase()}`;
       doc.text(titleText, pageW / 2, y, { align: "center" });
 
       // Participant Metadata
@@ -496,16 +519,59 @@ export function PmeReportsView() {
         <CardContent className="p-4">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5 items-end">
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                <span>Siklus PME</span>
-              </Label>
-              <Input
-                value={cycle}
-                onChange={(e) => setCycle(e.target.value)}
-                placeholder="Siklus 2 2025"
-                className="h-8 text-xs font-medium"
-              />
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Siklus PME</span>
+                </Label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCustomCycleMode(!customCycleMode);
+                    if (!customCycleMode) setCustomCycleInput(cycle);
+                  }}
+                  className="text-[10px] text-blue-600 hover:underline"
+                >
+                  {customCycleMode ? "Pilih Siklus" : "Ketik Manual"}
+                </button>
+              </div>
+
+              {customCycleMode ? (
+                <div className="flex gap-1.5">
+                  <Input
+                    value={customCycleInput}
+                    onChange={(e) => setCustomCycleInput(e.target.value)}
+                    placeholder="Misal: Siklus 1 2027"
+                    className="h-8 text-xs font-medium"
+                    onKeyDown={(e) => e.key === "Enter" && handleApplyCustomCycle()}
+                  />
+                  <Button
+                    size="sm"
+                    className="h-8 px-2.5 text-xs bg-blue-600 hover:bg-blue-700 text-white"
+                    onClick={handleApplyCustomCycle}
+                  >
+                    Terapkan
+                  </Button>
+                </div>
+              ) : (
+                <Select value={cycle} onValueChange={handleCycleSelect}>
+                  <SelectTrigger className="h-8 text-xs font-medium">
+                    <SelectValue placeholder="Pilih Siklus" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableCycles.map((c) => (
+                      <SelectItem key={c} value={c} className="text-xs font-medium">
+                        {c}
+                      </SelectItem>
+                    ))}
+                    {cycle && !availableCycles.includes(cycle) && (
+                      <SelectItem value={cycle} className="text-xs font-medium">
+                        {cycle}
+                      </SelectItem>
+                    )}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="space-y-1.5">
@@ -518,6 +584,7 @@ export function PmeReportsView() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value="ALL">Semua Kategori</SelectItem>
                   <SelectItem value="Kimia Klinik">Kimia Klinik</SelectItem>
                   <SelectItem value="Hematologi">Hematologi</SelectItem>
                   <SelectItem value="Imunologi">Imunologi</SelectItem>
@@ -614,8 +681,61 @@ export function PmeReportsView() {
               <span>Menghitung biostatistik ISO 13528 & menyusun laporan resmi...</span>
             </Card>
           ) : participantReports.length === 0 ? (
-            <Card className="p-12 text-center text-muted-foreground italic">
-              Belum ada data hasil PME yang dikirim untuk siklus dan kategori ini. Silakan input hasil terlebih dahulu di submenu Input Hasil PME.
+            <Card className="p-8 text-center space-y-4 border-dashed border-2">
+              <div className="p-3 bg-amber-500/10 text-amber-600 rounded-full w-12 h-12 mx-auto flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-foreground">
+                  Tidak Ditemukan Hasil PME untuk {cycle || "Siklus Ini"}
+                </h3>
+                <p className="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+                  Belum ada data hasil pemeriksaan PME berstatus <strong>SUBMITTED</strong> pada filter siklus dan kategori terpilih.
+                </p>
+              </div>
+
+              {availableCycles.length > 0 && (
+                <div className="pt-2">
+                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mb-2">
+                    Siklus yang memiliki data di sistem:
+                  </p>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    {availableCycles.map((c) => (
+                      <Button
+                        key={c}
+                        size="sm"
+                        variant={c === cycle ? "default" : "outline"}
+                        className={`text-xs h-7 ${c === cycle ? "bg-teal-700 hover:bg-teal-800 text-white" : ""}`}
+                        onClick={() => handleCycleSelect(c)}
+                      >
+                        <Calendar className="mr-1.5 h-3 w-3" />
+                        {c} {c === cycle ? "(Aktif)" : "→ Beralih"}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pt-2 flex flex-wrap justify-center gap-2">
+                {category !== "ALL" && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setCategory("ALL")}
+                  >
+                    Tampilkan Semua Kategori
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="default"
+                  className="bg-teal-700 hover:bg-teal-800 text-white text-xs"
+                  onClick={() => navigate("pme-input")}
+                >
+                  Buka Menu Input Hasil PME
+                </Button>
+              </div>
             </Card>
           ) : (
             participantReports.map((report) => (
@@ -659,7 +779,7 @@ export function PmeReportsView() {
                 {/* Title & Metadata Peserta */}
                 <div className="my-5 text-center">
                   <h3 className="text-sm font-extrabold tracking-wide uppercase text-slate-900">
-                    HASIL EVALUASI BIDANG PATOLOGI PARAMETER {category.toUpperCase()} {cycle.toUpperCase()}
+                    HASIL EVALUASI BIDANG PATOLOGI PARAMETER {category === "ALL" ? "SEMUA BIDANG" : category.toUpperCase()} {cycle.toUpperCase()}
                   </h3>
                 </div>
 
@@ -733,7 +853,16 @@ export function PmeReportsView() {
                     </thead>
 
                     <tbody className="divide-y divide-slate-200">
-                      {report.rows.map((row) => {
+                      {report.rows
+                        .filter((row) => {
+                          if (statusFilter === "ALL") return true;
+                          if (statusFilter === "SATISFACTORY") return row.global.keterangan === "Memuaskan";
+                          if (statusFilter === "WARNING") return row.global.keterangan === "Peringatan";
+                          if (statusFilter === "UNSATISFACTORY") return row.global.keterangan === "Tidak Memuaskan";
+                          if (statusFilter === "OUTLIER") return row.outlierStatus.includes("Outlier");
+                          return true;
+                        })
+                        .map((row) => {
                         const isWarn = row.global.keterangan === "Peringatan";
                         const isAction = row.global.keterangan === "Tidak Memuaskan";
 

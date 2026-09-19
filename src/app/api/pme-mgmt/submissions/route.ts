@@ -47,6 +47,20 @@ export async function GET(req: NextRequest) {
       return jsonError("Peserta tidak ditemukan.", 404);
     }
 
+    // Validasi: Status persetujuan Superadmin
+    if (participant.status !== "APPROVED") {
+      return jsonOk({
+        participant,
+        cycle,
+        isApproved: false,
+        participantStatus: participant.status,
+        registeredPackages: [],
+        parameters: [],
+        submission: null,
+        message: `Pendaftaran laboratorium ${participant.labName} berstatus "${participant.status === "REJECTED" ? "Ditolak" : "Menunggu Persetujuan Superadmin"}". Pengisian hasil PME hanya dapat dilakukan setelah pendaftaran disetujui oleh Superadmin.`,
+      });
+    }
+
     // Ambil paket yang dipilih oleh peserta pada siklus ini
     const registrations = await db.pmePackageRegistration.findMany({
       where: {
@@ -157,6 +171,14 @@ export async function POST(req: NextRequest) {
     const participant = await db.pmeParticipant.findUnique({ where: { id: participantId } });
     if (!participant || (user.role !== "SUPERADMIN" && participant.organizationId !== user.organizationId)) {
       return jsonError("Peserta tidak ditemukan.", 404);
+    }
+
+    if (participant.status !== "APPROVED") {
+      return jsonError(
+        "Pendaftaran laboratorium peserta belum disetujui oleh Superadmin. Pengiriman hasil PME hanya dapat dilakukan setelah pendaftaran disetujui.",
+        403,
+        "NOT_APPROVED"
+      );
     }
 
     // Cari atau buat submission

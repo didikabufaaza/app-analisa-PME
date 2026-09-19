@@ -26,6 +26,9 @@ import {
   RefreshCw,
   PackageCheck,
   Zap,
+  Clock,
+  Check,
+  AlertTriangle,
 } from "lucide-react";
 
 interface ParameterRow {
@@ -46,6 +49,8 @@ interface ParticipantOption {
   id: string;
   labName: string;
   participantCode: string | null;
+  cycle?: string | null;
+  status: string; // "PENDING" | "APPROVED" | "REJECTED"
 }
 
 export function PmeInputView() {
@@ -54,13 +59,16 @@ export function PmeInputView() {
 
   const [participants, setParticipants] = useState<ParticipantOption[]>([]);
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>("");
-  const [selectedCycle, setSelectedCycle] = useState<string>("Siklus 2 2025");
+  const [selectedCycle, setSelectedCycle] = useState<string>("Siklus 1 2026");
   const [period, setPeriod] = useState<string>("Tahap 2");
 
   const [loading, setLoading] = useState(false);
   const [registeredPackages, setRegisteredPackages] = useState<{ id: string; name: string; category: string }[]>([]);
   const [parameters, setParameters] = useState<ParameterRow[]>([]);
   const [hasNoPackages, setHasNoPackages] = useState(false);
+  const [isNotApproved, setIsNotApproved] = useState(false);
+  const [approvalMessage, setApprovalMessage] = useState("");
+  const [approvingParticipant, setApprovingParticipant] = useState(false);
   const [isSubmittedBefore, setIsSubmittedBefore] = useState(false);
   const [lastSubmittedAt, setLastSubmittedAt] = useState<string | null>(null);
 
@@ -79,16 +87,61 @@ export function PmeInputView() {
         setParticipants(data.participants || []);
         if (data.participants && data.participants.length > 0 && !selectedParticipantId) {
           setSelectedParticipantId(data.participants[0].id);
+          if (data.participants[0].cycle) {
+            setSelectedCycle(data.participants[0].cycle);
+          }
         }
       })
       .catch(() => undefined);
   }, [viewAsTenantId]);
+
+  const handleSelectParticipant = (pId: string) => {
+    setSelectedParticipantId(pId);
+    const p = participants.find((x) => x.id === pId);
+    if (p?.cycle) {
+      setSelectedCycle(p.cycle);
+    }
+  };
+
+  const handleApproveParticipant = async (pId: string) => {
+    if (!pId) return;
+    setApprovingParticipant(true);
+    try {
+      const res = await fetch("/api/pme-mgmt/participants", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ id: pId, action: "approve" }),
+      });
+      if (res.ok) {
+        toast({
+          title: "Laboratorium Disetujui",
+          description: "Laboratorium disetujui. Memuat formulir hasil PME...",
+        });
+        const pRes = await fetch("/api/pme-mgmt/participants", { credentials: "same-origin" });
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          setParticipants(pData.participants || []);
+        }
+        await loadParticipantParams();
+      } else {
+        const err = await res.json();
+        toast({ title: "Gagal menyetujui", description: err.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Kesalahan jaringan", variant: "destructive" });
+    } finally {
+      setApprovingParticipant(false);
+    }
+  };
 
   // Load parameters for selected participant & cycle
   const loadParticipantParams = async () => {
     if (!selectedParticipantId) return;
     setLoading(true);
     setHasNoPackages(false);
+    setIsNotApproved(false);
+    setApprovalMessage("");
 
     try {
       const res = await fetch(
@@ -98,6 +151,17 @@ export function PmeInputView() {
 
       if (res.ok) {
         const data = await res.json();
+
+        // Cek apakah laboratorium belum disetujui oleh Superadmin
+        if (data.isApproved === false) {
+          setIsNotApproved(true);
+          setApprovalMessage(data.message || "Pendaftaran laboratorium ini belum disetujui oleh Superadmin.");
+          setRegisteredPackages([]);
+          setParameters([]);
+          setIsSubmittedBefore(false);
+          return;
+        }
+
         setRegisteredPackages(data.registeredPackages || []);
 
         if (!data.registeredPackages || data.registeredPackages.length === 0) {
@@ -279,7 +343,7 @@ export function PmeInputView() {
                 <Building2 className="h-3.5 w-3.5 text-teal-600" />
                 <span>Pilih Laboratorium Peserta</span>
               </Label>
-              <Select value={selectedParticipantId} onValueChange={setSelectedParticipantId}>
+              <Select value={selectedParticipantId} onValueChange={handleSelectParticipant}>
                 <SelectTrigger className="h-9 text-xs">
                   <SelectValue placeholder="Pilih Laboratorium..." />
                 </SelectTrigger>
@@ -287,7 +351,7 @@ export function PmeInputView() {
                   {participants.map((p) => (
                     <SelectItem key={p.id} value={p.id} className="text-xs">
                       {p.participantCode ? `[${p.participantCode}] ` : ""}
-                      {p.labName}
+                      {p.labName} {p.status === "APPROVED" ? "✓ (Disetujui)" : p.status === "PENDING" ? "⏳ (Menunggu Persetujuan)" : "✗ (Ditolak)"}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -302,7 +366,7 @@ export function PmeInputView() {
               <Input
                 value={selectedCycle}
                 onChange={(e) => setSelectedCycle(e.target.value)}
-                placeholder="Contoh: Siklus 2 2025"
+                placeholder="Contoh: Siklus 1 2026"
                 className="h-9 text-xs font-semibold"
               />
             </div>
@@ -343,8 +407,42 @@ export function PmeInputView() {
         </CardContent>
       </Card>
 
+      {/* Case 0: Participant Is NOT Approved by Superadmin */}
+      {isNotApproved && (
+        <Card className="border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20">
+          <CardContent className="p-8 text-center space-y-3">
+            <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
+              <Clock className="h-6 w-6" />
+            </div>
+            <h3 className="text-base font-semibold text-foreground">
+              Pendaftaran Laboratorium Belum Disetujui
+            </h3>
+            <p className="text-xs text-muted-foreground max-w-md mx-auto leading-relaxed">
+              {approvalMessage ||
+                "Laboratorium ini berstatus 'Menunggu Persetujuan Superadmin'. Pengisian dan pengiriman hasil pengujian PME baru dapat dilakukan setelah pendaftaran disetujui oleh Superadmin."}
+            </p>
+            {user?.role === "SUPERADMIN" && (
+              <div className="pt-2">
+                <Button
+                  disabled={approvingParticipant}
+                  onClick={() => handleApproveParticipant(selectedParticipantId)}
+                  className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs"
+                >
+                  {approvingParticipant ? (
+                    <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Check className="mr-1.5 h-4 w-4" />
+                  )}
+                  Setujui Pendaftaran Laboratorium Ini
+                </Button>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {/* Case 1: Participant Has NOT Registered Any Packages */}
-      {hasNoPackages && (
+      {!isNotApproved && hasNoPackages && (
         <Card className="border-amber-500/30 bg-amber-50/40 dark:bg-amber-950/20">
           <CardContent className="p-8 text-center space-y-3">
             <div className="mx-auto w-12 h-12 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600">
@@ -370,7 +468,7 @@ export function PmeInputView() {
       )}
 
       {/* Case 2: Form Input Hasil Parameters */}
-      {!hasNoPackages && parameters.length > 0 && (
+      {!isNotApproved && !hasNoPackages && parameters.length > 0 && (
         <form onSubmit={handleSubmit} className="space-y-4">
           {/* Quick Helper Banner */}
           <Card className="shadow-xs border bg-muted/20">

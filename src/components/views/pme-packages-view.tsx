@@ -39,6 +39,10 @@ import {
   Lock,
   Layers,
   Sparkles,
+  Clock,
+  AlertTriangle,
+  Check,
+  XCircle,
 } from "lucide-react";
 
 interface ParameterItem {
@@ -64,6 +68,10 @@ interface ParticipantOption {
   id: string;
   labName: string;
   participantCode: string | null;
+  cycle?: string | null;
+  status: string; // "PENDING" | "APPROVED" | "REJECTED"
+  approvedAt?: string | null;
+  approvedBy?: string | null;
 }
 
 interface EnrollmentItem {
@@ -88,9 +96,10 @@ export function PmePackagesView() {
 
   // Form Pemilihan Paket
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>("");
-  const [selectedCycle, setSelectedCycle] = useState<string>("Siklus 2 2025");
+  const [selectedCycle, setSelectedCycle] = useState<string>("Siklus 1 2026");
   const [selectedPackageIds, setSelectedPackageIds] = useState<string[]>([]);
   const [enrolling, setEnrolling] = useState(false);
+  const [approvingParticipant, setApprovingParticipant] = useState(false);
 
   // Modal Tambah Paket (Superadmin only)
   const [pkgDialogOpen, setPkgDialogOpen] = useState(false);
@@ -107,6 +116,41 @@ export function PmePackagesView() {
   const [paramMethodCode, setParamMethodCode] = useState("");
   const [paramInstrumentCode, setParamInstrumentCode] = useState("");
   const [savingParam, setSavingParam] = useState(false);
+
+  const handleSelectParticipant = (pId: string) => {
+    setSelectedParticipantId(pId);
+    const p = participants.find((x) => x.id === pId);
+    if (p?.cycle) {
+      setSelectedCycle(p.cycle);
+    }
+  };
+
+  const handleApproveParticipant = async (pId: string) => {
+    if (!pId) return;
+    setApprovingParticipant(true);
+    try {
+      const res = await fetch("/api/pme-mgmt/participants", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({ id: pId, action: "approve" }),
+      });
+      if (res.ok) {
+        toast({
+          title: "Laboratorium Disetujui",
+          description: "Laboratorium telah disetujui dan kini dapat memilih paket PME.",
+        });
+        await loadData();
+      } else {
+        const err = await res.json();
+        toast({ title: "Gagal menyetujui", description: err.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Kesalahan jaringan", variant: "destructive" });
+    } finally {
+      setApprovingParticipant(false);
+    }
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -340,7 +384,7 @@ export function PmePackagesView() {
                     <Label className="text-xs font-semibold">
                       Pilih Laboratorium Peserta <span className="text-red-500">*</span>
                     </Label>
-                    <Select value={selectedParticipantId} onValueChange={setSelectedParticipantId}>
+                    <Select value={selectedParticipantId} onValueChange={handleSelectParticipant}>
                       <SelectTrigger className="h-9 text-xs">
                         <SelectValue placeholder="-- Pilih Laboratorium Peserta --" />
                       </SelectTrigger>
@@ -353,7 +397,7 @@ export function PmePackagesView() {
                           participants.map((p) => (
                             <SelectItem key={p.id} value={p.id} className="text-xs">
                               {p.participantCode ? `[${p.participantCode}] ` : ""}
-                              {p.labName}
+                              {p.labName} {p.status === "APPROVED" ? "✓ (Disetujui)" : p.status === "PENDING" ? "⏳ (Menunggu Persetujuan)" : "✗ (Ditolak)"}
                             </SelectItem>
                           ))
                         )}
@@ -366,7 +410,7 @@ export function PmePackagesView() {
                       Siklus PME <span className="text-red-500">*</span>
                     </Label>
                     <Input
-                      placeholder="Contoh: Siklus 2 2025"
+                      placeholder="Contoh: Siklus 1 2026"
                       value={selectedCycle}
                       onChange={(e) => setSelectedCycle(e.target.value)}
                       required
@@ -374,6 +418,46 @@ export function PmePackagesView() {
                     />
                   </div>
                 </div>
+
+                {/* Banner Status Persetujuan Peserta */}
+                {(() => {
+                  const selectedParticipant = participants.find((p) => p.id === selectedParticipantId);
+                  const isApproved = selectedParticipant?.status === "APPROVED";
+
+                  if (!selectedParticipant || isApproved) return null;
+
+                  return (
+                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+                        <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                        <div>
+                          <p className="font-semibold">
+                            Laboratorium ini berstatus: {selectedParticipant.status === "REJECTED" ? "Ditolak" : "Menunggu Persetujuan Superadmin"}
+                          </p>
+                          <p className="text-[11px] text-muted-foreground mt-0.5">
+                            Pemilihan paket PME hanya dapat dilakukan setelah pendaftaran laboratorium disetujui oleh Superadmin.
+                          </p>
+                        </div>
+                      </div>
+                      {isSuperadmin && (
+                        <Button
+                          type="button"
+                          size="sm"
+                          disabled={approvingParticipant}
+                          onClick={() => handleApproveParticipant(selectedParticipant.id)}
+                          className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs shrink-0"
+                        >
+                          {approvingParticipant ? (
+                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Check className="mr-1.5 h-3.5 w-3.5" />
+                          )}
+                          Setujui Pendaftaran Sekarang
+                        </Button>
+                      )}
+                    </div>
+                  );
+                })()}
 
                 {/* Checklist Paket */}
                 <div className="space-y-2.5">
@@ -430,14 +514,28 @@ export function PmePackagesView() {
                   <span className="text-xs text-muted-foreground">
                     {selectedPackageIds.length} paket dipilih
                   </span>
-                  <Button
-                    type="submit"
-                    disabled={enrolling || !selectedParticipantId || selectedPackageIds.length === 0}
-                    className="bg-teal-700 hover:bg-teal-800 text-white text-xs px-5"
-                  >
-                    {enrolling ? <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" /> : <CheckCircle2 className="mr-1.5 h-4 w-4" />}
-                    Simpan Pemilihan Paket
-                  </Button>
+                  {(() => {
+                    const selPart = participants.find((p) => p.id === selectedParticipantId);
+                    const isApproved = selPart?.status === "APPROVED";
+                    const isLocked = !isApproved || !selectedParticipantId || selectedPackageIds.length === 0;
+
+                    return (
+                      <Button
+                        type="submit"
+                        disabled={enrolling || isLocked}
+                        className="bg-teal-700 hover:bg-teal-800 text-white text-xs px-5 disabled:opacity-50"
+                      >
+                        {enrolling ? (
+                          <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                        ) : (
+                          <CheckCircle2 className="mr-1.5 h-4 w-4" />
+                        )}
+                        {!isApproved && selectedParticipantId
+                          ? "Terkunci (Menunggu Persetujuan Superadmin)"
+                          : "Simpan Pemilihan Paket"}
+                      </Button>
+                    );
+                  })()}
                 </div>
               </form>
             </CardContent>

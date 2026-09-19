@@ -78,6 +78,15 @@ export async function POST(req: NextRequest) {
       return jsonError("Data peserta tidak ditemukan.", 404);
     }
 
+    // Validasi: Peserta harus disetujui oleh Superadmin terlebih dahulu
+    if (participant.status !== "APPROVED") {
+      return jsonError(
+        "Pendaftaran laboratorium peserta belum disetujui oleh Superadmin. Pemilihan paket PME hanya dapat dilakukan setelah pendaftaran berstatus Disetujui.",
+        403,
+        "NOT_APPROVED"
+      );
+    }
+
     const createdRegistrations = [];
 
     for (const pkgId of packageIds) {

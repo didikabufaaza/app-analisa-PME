@@ -24,6 +24,11 @@ import {
   RefreshCw,
   Eye,
   Building2,
+  FolderKanban,
+  UserPlus,
+  PackageCheck,
+  FilePenLine,
+  FileBarChart,
 } from "lucide-react";
 import type { TenantOption } from "@/types/pme";
 import { useIdleLogout } from "@/hooks/use-idle-logout";
@@ -51,6 +56,10 @@ const VIEW_TITLES: Record<AppView, string> = {
   settings: "Pengaturan",
   audit: "Log Audit",
   users: "Pengaturan Pengguna & Hak Akses",
+  "pme-registration": "Pendaftaran Peserta PME",
+  "pme-packages": "Pemilihan Paket PME",
+  "pme-input": "Input Hasil PME Peserta",
+  "pme-reports": "Laporan Hasil PME (Superadmin)",
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -111,6 +120,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     return true;
   });
 
+  const isPmeMgmtAllowed =
+    user.role === "SUPERADMIN" ||
+    (user.menuAccess && Array.isArray(user.menuAccess) && (user.menuAccess.includes("pme-management") || user.menuAccess.includes("pme-registration")));
+
   const navList = (
     <nav aria-label="Navigasi utama" className="flex-1 space-y-1 px-3 py-2">
       {filteredNav.map((item) => (
@@ -129,6 +142,84 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           {item.label}
         </button>
       ))}
+
+      {/* Menu Tambahan: Manajemen Data PME & Submenu */}
+      {isPmeMgmtAllowed && (
+        <div className="pt-2 mt-2 border-t border-border/50 space-y-1">
+          <div className="px-3 py-1 flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+            <div className="flex items-center gap-1.5">
+              <FolderKanban className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
+              <span>Manajemen Data PME</span>
+            </div>
+          </div>
+
+          <div className="space-y-0.5 pl-1">
+            <button
+              onClick={() => navigate("pme-registration")}
+              aria-current={view === "pme-registration" ? "page" : undefined}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                view === "pme-registration"
+                  ? "bg-teal-700/10 text-teal-800 dark:text-teal-300 font-semibold"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <UserPlus className="h-4 w-4 shrink-0 text-teal-600" />
+              <span>1. Pendaftaran PME</span>
+            </button>
+
+            <button
+              onClick={() => navigate("pme-packages")}
+              aria-current={view === "pme-packages" ? "page" : undefined}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                view === "pme-packages"
+                  ? "bg-teal-700/10 text-teal-800 dark:text-teal-300 font-semibold"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <PackageCheck className="h-4 w-4 shrink-0 text-blue-600" />
+              <span>2. Pemilihan Paket PME</span>
+            </button>
+
+            <button
+              onClick={() => navigate("pme-input")}
+              aria-current={view === "pme-input" ? "page" : undefined}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                view === "pme-input"
+                  ? "bg-teal-700/10 text-teal-800 dark:text-teal-300 font-semibold"
+                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+              )}
+            >
+              <FilePenLine className="h-4 w-4 shrink-0 text-amber-600" />
+              <span>3. Input Hasil PME</span>
+            </button>
+          </div>
+
+          {/* Menu Laporan Hasil PME: Dibawah menu Manajemen Data PME & HANYA Superadmin */}
+          {user.role === "SUPERADMIN" && (
+            <div className="pt-2 mt-2 border-t border-border/40">
+              <button
+                onClick={() => navigate("pme-reports")}
+                aria-current={view === "pme-reports" ? "page" : undefined}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-xs font-semibold transition-colors",
+                  view === "pme-reports"
+                    ? "bg-teal-700/15 text-teal-900 dark:text-teal-200 ring-1 ring-teal-600/30 font-bold"
+                    : "text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/30"
+                )}
+              >
+                <FileBarChart className="h-4 w-4 shrink-0 text-teal-700 dark:text-teal-400" />
+                <span className="flex-1 text-left">Laporan Hasil PME</span>
+                <span className="text-[9px] bg-teal-600 text-white px-1.5 py-0.5 rounded font-mono font-bold">
+                  SUPER
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
+      )}
     </nav>
   );
 

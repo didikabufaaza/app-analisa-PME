@@ -54,12 +54,13 @@ const ALL_MENUS: { key: string; label: string; desc: string; superAdminOnly?: bo
   { key: "kop-surat", label: "Kop Surat", desc: "Konfigurasi kop surat resmi, logo kanan/kiri, dan identitas RS/Lab" },
   { key: "settings", label: "Pengaturan", desc: "Konfigurasi batas aturan Z-score dan kapasitas sistem" },
   { key: "audit", label: "Log Audit", desc: "Rekaman jejak aktivitas seluruh pengguna" },
+  { key: "pme-management", label: "Manajemen Data PME", desc: "Pendaftaran peserta, pemilihan paket, dan input hasil PME" },
   { key: "users", label: "Pengaturan User", desc: "Manajemen akun pengguna dan hak akses (Superadmin)", superAdminOnly: true },
 ];
 
 const DEFAULT_MENUS_BY_ROLE: Record<string, string[]> = {
-  SUPERADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "users"],
-  ADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit"],
+  SUPERADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management", "users"],
+  ADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management"],
   SUPERVISOR: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
   ANALYST: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
 };

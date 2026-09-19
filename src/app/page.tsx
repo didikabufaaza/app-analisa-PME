@@ -14,6 +14,10 @@ import { SettingsView } from "@/components/views/settings-view";
 import { AuditView } from "@/components/views/audit-view";
 import { UsersView } from "@/components/views/users-view";
 import { KopSuratView } from "@/components/views/kop-surat-view";
+import { PmeRegistrationView } from "@/components/views/pme-registration-view";
+import { PmePackagesView } from "@/components/views/pme-packages-view";
+import { PmeInputView } from "@/components/views/pme-input-view";
+import { PmeReportsView } from "@/components/views/pme-reports-view";
 
 export default function Home() {
   const { user, view, viewAsTenantId } = useAppStore();
@@ -85,6 +89,26 @@ export default function Home() {
         {visited.has("users") && (
           <div className={view === "users" ? "block" : "hidden"}>
             <UsersView />
+          </div>
+        )}
+        {visited.has("pme-registration") && (
+          <div className={view === "pme-registration" ? "block" : "hidden"}>
+            <PmeRegistrationView />
+          </div>
+        )}
+        {visited.has("pme-packages") && (
+          <div className={view === "pme-packages" ? "block" : "hidden"}>
+            <PmePackagesView />
+          </div>
+        )}
+        {visited.has("pme-input") && (
+          <div className={view === "pme-input" ? "block" : "hidden"}>
+            <PmeInputView />
+          </div>
+        )}
+        {visited.has("pme-reports") && (
+          <div className={view === "pme-reports" ? "block" : "hidden"}>
+            <PmeReportsView />
           </div>
         )}
       </div>

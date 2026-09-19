@@ -13,7 +13,11 @@ export type AppView =
   | "kop-surat"
   | "settings"
   | "audit"
-  | "users";
+  | "users"
+  | "pme-registration"
+  | "pme-packages"
+  | "pme-input"
+  | "pme-reports";
 
 interface AppState {
   user: UserInfo | null;

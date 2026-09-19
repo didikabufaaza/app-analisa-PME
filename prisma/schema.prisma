@@ -29,6 +29,11 @@ model Organization {
   capaActions  CapaAction[]
   zscoreRules  ZscoreRule[]
   kopSurat     KopSurat?
+
+  pmeParticipants  PmeParticipant[]
+  pmePackages      PmePackage[]
+  pmeRegistrations PmePackageRegistration[]
+  pmeSubmissions   PmeSubmission[]
 }
 
 model KopSurat {
@@ -308,3 +313,125 @@ model ExtractionLog {
 
   @@index([sessionId])
 }
+
+// ---------------- Modul Manajemen Data PME & Laporan Hasil PME ----------------
+
+model PmeParticipant {
+  id              String       @id @default(cuid())
+  organizationId  String
+  organization    Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participantCode String?
+  labName         String
+  phone           String?
+  email           String?
+  address         String?
+  contactPerson   String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  packageRegistrations PmePackageRegistration[]
+  submissions          PmeSubmission[]
+
+  @@index([organizationId])
+  @@index([participantCode])
+}
+
+model PmePackage {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  name           String
+  code           String
+  category       String       // "Kimia Klinik" | "Hematologi" | "Imunologi" | dll
+  description    String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  parameters    PmePackageParameter[]
+  registrations PmePackageRegistration[]
+
+  @@index([organizationId, category])
+}
+
+model PmePackageParameter {
+  id                    String     @id @default(cuid())
+  packageId             String
+  package               PmePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  name                  String
+  unit                  String?
+  defaultMethodCode     String?
+  defaultMethodName     String?
+  defaultInstrumentCode String?
+  defaultInstrumentName String?
+  sortOrder             Int        @default(0)
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  submissionResults PmeSubmissionResult[]
+
+  @@index([packageId])
+}
+
+model PmePackageRegistration {
+  id             String         @id @default(cuid())
+  organizationId String
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    PmeParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  packageId      String
+  package        PmePackage     @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  cycle          String         // e.g. "Siklus 2 2025"
+  period         String?        // e.g. "Tahap 2"
+  year           Int            @default(2025)
+  status         String         @default("REGISTERED") // REGISTERED | SUBMITTED | EVALUATED
+  registeredAt   DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  submissions PmeSubmission[]
+
+  @@index([organizationId, cycle])
+  @@index([participantId])
+  @@index([packageId])
+}
+
+model PmeSubmission {
+  id             String                  @id @default(cuid())
+  organizationId String
+  organization   Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  participantId  String
+  participant    PmeParticipant          @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  registrationId String?
+  registration   PmePackageRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
+  cycle          String
+  period         String?
+  status         String                  @default("SUBMITTED") // DRAFT | SUBMITTED
+  submittedAt    DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  results PmeSubmissionResult[]
+
+  @@index([organizationId, cycle])
+  @@index([participantId])
+}
+
+model PmeSubmissionResult {
+  id             String               @id @default(cuid())
+  submissionId   String
+  submission     PmeSubmission        @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  parameterId    String?
+  parameter      PmePackageParameter? @relation(fields: [parameterId], references: [id], onDelete: SetNull)
+  parameterName  String
+  unit           String?
+  value          Float?               // Hasil peserta
+  methodCode     String?
+  methodName     String?
+  instrumentCode String?
+  instrumentName String?
+  reagentName    String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  @@index([submissionId])
+}
+

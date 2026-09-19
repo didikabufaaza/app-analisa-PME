@@ -155,10 +155,11 @@ export function PmePackagesView() {
   const loadData = async () => {
     setLoading(true);
     try {
-      const [pkgRes, partRes, enrollRes] = await Promise.all([
+      const [pkgRes, partRes, enrollRes, configRes] = await Promise.all([
         fetch("/api/pme-mgmt/packages", { credentials: "same-origin" }),
         fetch("/api/pme-mgmt/participants", { credentials: "same-origin" }),
         fetch("/api/pme-mgmt/enroll", { credentials: "same-origin" }),
+        fetch("/api/pme-mgmt/config", { credentials: "same-origin" }),
       ]);
 
       if (pkgRes.ok) {
@@ -172,6 +173,12 @@ export function PmePackagesView() {
       if (enrollRes.ok) {
         const d = await enrollRes.json();
         setEnrollments(d.registrations || []);
+      }
+      if (configRes.ok) {
+        const d = await configRes.json();
+        if (d.config?.activeCycle) {
+          setSelectedCycle(d.config.activeCycle);
+        }
       }
     } catch {
       toast({ title: "Gagal memuat data", description: "Terjadi kesalahan jaringan.", variant: "destructive" });
@@ -406,15 +413,22 @@ export function PmePackagesView() {
                   </div>
 
                   <div className="space-y-1.5">
-                    <Label className="text-xs font-semibold">
-                      Siklus PME <span className="text-red-500">*</span>
-                    </Label>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-semibold">
+                        Siklus PME <span className="text-red-500">*</span>
+                      </Label>
+                      <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium bg-teal-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                        <Lock className="h-3 w-3" /> Otomatis Superadmin
+                      </span>
+                    </div>
                     <Input
                       placeholder="Contoh: Siklus 1 2026"
                       value={selectedCycle}
-                      onChange={(e) => setSelectedCycle(e.target.value)}
+                      readOnly
+                      disabled
+                      tabIndex={-1}
                       required
-                      className="h-9 text-xs font-medium"
+                      className="h-9 text-xs font-semibold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
                     />
                   </div>
                 </div>

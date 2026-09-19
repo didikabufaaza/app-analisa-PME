@@ -35,6 +35,7 @@ model Organization {
   pmeRegistrations PmePackageRegistration[]
   pmeSubmissions   PmeSubmission[]
   pmeSigner        PmeSigner?
+  pmeCycleConfig   PmeCycleConfig?
 }
 
 model KopSurat {
@@ -458,6 +459,22 @@ model PmeSigner {
   tempat         String?      @default("Palembang")
   tanggal        String?      // format: "14 November 2025" atau tanggal dinamis
   nip            String?      @default("196907172001122001")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+}
+
+model PmeCycleConfig {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  activeCycle    String       @default("Siklus 1 2026")
+  activePeriod   String?      @default("Tahap 1")
+  infoTitle      String?      @default("Informasi Pelaksanaan Program PME")
+  infoContent    String?      @db.Text
+  infoUpdatedAt  DateTime     @default(now())
+  infoUpdatedBy  String?
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

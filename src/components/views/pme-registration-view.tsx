@@ -48,6 +48,7 @@ import {
   X,
   RotateCcw,
   Calendar,
+  Lock,
 } from "lucide-react";
 
 interface ParticipantItem {
@@ -92,6 +93,7 @@ export function PmeRegistrationView() {
   const [formAddress, setFormAddress] = useState("");
   const [formContactPerson, setFormContactPerson] = useState("");
   const [formCycle, setFormCycle] = useState("Siklus 1 2026");
+  const [activeConfigCycle, setActiveConfigCycle] = useState("Siklus 1 2026");
   const [saving, setSaving] = useState(false);
 
   // Approval processing state
@@ -100,6 +102,21 @@ export function PmeRegistrationView() {
   // Delete modal state
   const [deleteTarget, setDeleteTarget] = useState<ParticipantItem | null>(null);
   const [deleting, setDeleting] = useState(false);
+
+  const fetchActiveConfig = async () => {
+    try {
+      const res = await fetch("/api/pme-mgmt/config", { credentials: "same-origin" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.config?.activeCycle) {
+          setActiveConfigCycle(data.config.activeCycle);
+          setFormCycle(data.config.activeCycle);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const fetchParticipants = async () => {
     setLoading(true);
@@ -121,6 +138,7 @@ export function PmeRegistrationView() {
 
   useEffect(() => {
     fetchParticipants();
+    fetchActiveConfig();
   }, [viewAsTenantId]);
 
   const handleOpenCreate = () => {
@@ -131,7 +149,7 @@ export function PmeRegistrationView() {
     setFormEmail("");
     setFormAddress("");
     setFormContactPerson("");
-    setFormCycle("Siklus 1 2026");
+    setFormCycle(activeConfigCycle);
     setDialogOpen(true);
   };
 
@@ -143,7 +161,7 @@ export function PmeRegistrationView() {
     setFormEmail(p.email || "");
     setFormAddress(p.address || "");
     setFormContactPerson(p.contactPerson || "");
-    setFormCycle(p.cycle || "Siklus 1 2026");
+    setFormCycle(p.cycle || activeConfigCycle);
     setDialogOpen(true);
   };
 
@@ -745,17 +763,24 @@ export function PmeRegistrationView() {
                 />
               </div>
 
-              {/* KOLOM INPUT SIKLUS PME */}
+              {/* KOLOM INPUT SIKLUS PME (TERISI OTOMATIS & TERKUNCI) */}
               <div className="space-y-1">
-                <Label className="text-xs font-semibold">
-                  Siklus PME <span className="text-red-500">*</span>
-                </Label>
+                <div className="flex items-center justify-between">
+                  <Label className="text-xs font-semibold">
+                    Siklus PME <span className="text-red-500">*</span>
+                  </Label>
+                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium bg-teal-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                    <Lock className="h-3 w-3" /> Otomatis Superadmin
+                  </span>
+                </div>
                 <Input
                   placeholder="Contoh: Siklus 1 2026"
                   value={formCycle}
-                  onChange={(e) => setFormCycle(e.target.value)}
+                  readOnly
+                  disabled
+                  tabIndex={-1}
                   required
-                  className="h-8 text-xs font-medium"
+                  className="h-8 text-xs font-semibold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
                 />
               </div>
             </div>

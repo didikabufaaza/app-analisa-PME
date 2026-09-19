@@ -29,6 +29,7 @@ import {
   PackageCheck,
   FilePenLine,
   FileBarChart,
+  Megaphone,
 } from "lucide-react";
 import type { TenantOption } from "@/types/pme";
 import { useIdleLogout } from "@/hooks/use-idle-logout";
@@ -60,6 +61,7 @@ const VIEW_TITLES: Record<AppView, string> = {
   "pme-packages": "Pemilihan Paket PME",
   "pme-input": "Input Hasil PME Peserta",
   "pme-reports": "Laporan Hasil PME (Superadmin)",
+  "pme-info": "Pengaturan Siklus & Informasi PME (Superadmin)",
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -206,6 +208,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <FilePenLine className="h-4.5 w-4.5 shrink-0 text-amber-400" />
               <span className="truncate">3. Input Hasil PME</span>
             </button>
+
+            {user.role === "SUPERADMIN" && (
+              <button
+                onClick={() => navigate("pme-info")}
+                aria-current={view === "pme-info" ? "page" : undefined}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
+                  view === "pme-info"
+                    ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                )}
+              >
+                <Megaphone className="h-4.5 w-4.5 shrink-0 text-teal-400" />
+                <span className="flex-1 text-left truncate">4. Informasi & Siklus PME</span>
+                <span className="text-[9.5px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-1 py-0.2 rounded font-mono font-bold">
+                  SUPER
+                </span>
+              </button>
+            )}
           </div>
 
           {/* Menu Laporan Hasil PME: Dapat diakses oleh Superadmin & Peserta PME */}

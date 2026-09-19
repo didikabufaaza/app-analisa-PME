@@ -39,6 +39,8 @@ import {
   Upload,
   Users,
   XCircle,
+  Megaphone,
+  Info,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -400,12 +402,72 @@ function DashboardEmpty({ onNavigateSessions }: { onNavigateSessions: () => void
   );
 }
 
+/* ------------------------------- announcement ----------------------------- */
+
+interface PmeAnnouncementInfo {
+  activeCycle?: string;
+  activePeriod?: string | null;
+  infoTitle?: string | null;
+  infoContent?: string | null;
+  infoUpdatedAt?: string;
+  infoUpdatedBy?: string;
+}
+
+function PmeAnnouncementBanner({ config }: { config: PmeAnnouncementInfo | null }) {
+  if (!config || !config.infoContent) return null;
+
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-teal-500/30 bg-gradient-to-br from-teal-500/10 via-emerald-500/5 to-slate-900/5 p-4 sm:p-5 shadow-xs transition-all">
+      <div className="absolute top-0 right-0 w-48 h-48 bg-teal-500/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="relative z-10 flex flex-col md:flex-row md:items-start justify-between gap-4">
+        <div className="space-y-2 flex-1">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 rounded-full bg-teal-600 px-3 py-0.5 text-[11px] font-bold text-white shadow-xs">
+              <Sparkles className="h-3 w-3" />
+              <span>INFORMASI RESMI PME</span>
+            </span>
+            {config.activeCycle && (
+              <Badge variant="outline" className="border-teal-500/40 bg-teal-500/10 text-teal-700 dark:text-teal-300 text-[11px] font-bold">
+                {config.activeCycle}
+              </Badge>
+            )}
+            {config.activePeriod && (
+              <Badge variant="outline" className="border-blue-500/40 bg-blue-500/10 text-blue-700 dark:text-blue-300 text-[11px] font-semibold">
+                {config.activePeriod}
+              </Badge>
+            )}
+          </div>
+          <h3 className="text-base sm:text-lg font-bold text-foreground tracking-tight">
+            {config.infoTitle || "Informasi Pelaksanaan Program PME"}
+          </h3>
+          <p className="text-xs sm:text-sm text-muted-foreground whitespace-pre-line leading-relaxed max-w-4xl">
+            {config.infoContent}
+          </p>
+        </div>
+
+        <div className="flex flex-col md:items-end justify-between shrink-0 border-t md:border-t-0 pt-3 md:pt-0 border-muted">
+          <div className="flex items-center gap-1.5 text-[11px] text-teal-600 dark:text-teal-400 font-medium bg-teal-500/10 px-2.5 py-1 rounded-lg">
+            <Megaphone className="h-3.5 w-3.5" />
+            <span>Penyelenggara PME</span>
+          </div>
+          {config.infoUpdatedAt && (
+            <span className="text-[10.5px] text-muted-foreground mt-2 md:text-right">
+              Diperbarui: {new Date(config.infoUpdatedAt).toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* ------------------------------- main view -------------------------------- */
 
 export function DashboardView() {
   const navigate = useAppStore((s) => s.navigate);
   const user = useAppStore((s) => s.user);
   const [data, setData] = useState<DashboardData | null>(null);
+  const [pmeConfig, setPmeConfig] = useState<PmeAnnouncementInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null);
@@ -414,8 +476,15 @@ export function DashboardView() {
     setLoading(true);
     setError(null);
     try {
-      const result = await apiGet<DashboardData>("/api/dashboard");
+      const [result, configRes] = await Promise.all([
+        apiGet<DashboardData>("/api/dashboard"),
+        fetch("/api/pme-mgmt/config", { credentials: "same-origin" }).catch(() => null),
+      ]);
       setData(result);
+      if (configRes && configRes.ok) {
+        const cData = await configRes.json();
+        if (cData.config) setPmeConfig(cData.config);
+      }
       setUpdatedAt(new Date());
     } catch (e) {
       setError(e instanceof Error ? e.message : "Terjadi kesalahan tak terduga.");
@@ -431,7 +500,12 @@ export function DashboardView() {
   if (loading && !data) return <DashboardSkeleton />;
   if (!data && error) return <DashboardError message={error} onRetry={() => void load()} />;
   if (data && data.counts.totalPme === 0) {
-    return <DashboardEmpty onNavigateSessions={() => navigate("sessions")} />;
+    return (
+      <div className="mx-auto w-full max-w-7xl space-y-4 sm:space-y-6">
+        <PmeAnnouncementBanner config={pmeConfig} />
+        <DashboardEmpty onNavigateSessions={() => navigate("sessions")} />
+      </div>
+    );
   }
   if (!data) return null;
 
@@ -491,6 +565,9 @@ export function DashboardView() {
           <span>Gagal memperbarui data: {error}. Menampilkan data terakhir yang tersedia.</span>
         </div>
       ) : null}
+
+      {/* Official PME Announcement Banner (Visible to all participants & superadmins) */}
+      <PmeAnnouncementBanner config={pmeConfig} />
 
       {/* Superadmin Exclusive Insight Cards */}
       {user?.role === "SUPERADMIN" && data.superadminStats && (

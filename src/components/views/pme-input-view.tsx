@@ -29,6 +29,7 @@ import {
   Clock,
   Check,
   AlertTriangle,
+  Lock,
 } from "lucide-react";
 
 interface ParameterRow {
@@ -79,16 +80,28 @@ export function PmeInputView() {
   const [batchInstrument, setBatchInstrument] = useState("");
   const [batchReagent, setBatchReagent] = useState("");
 
-  // Load participants list
+  // Load participants list and active PME config (cycle & period)
   useEffect(() => {
-    fetch("/api/pme-mgmt/participants", { credentials: "same-origin" })
-      .then((res) => (res.ok ? res.json() : { participants: [] }))
-      .then((data) => {
-        setParticipants(data.participants || []);
-        if (data.participants && data.participants.length > 0 && !selectedParticipantId) {
-          setSelectedParticipantId(data.participants[0].id);
-          if (data.participants[0].cycle) {
-            setSelectedCycle(data.participants[0].cycle);
+    Promise.all([
+      fetch("/api/pme-mgmt/participants", { credentials: "same-origin" }),
+      fetch("/api/pme-mgmt/config", { credentials: "same-origin" }),
+    ])
+      .then(async ([pRes, cRes]) => {
+        if (cRes.ok) {
+          const cData = await cRes.json();
+          if (cData.config?.activeCycle) {
+            setSelectedCycle(cData.config.activeCycle);
+          }
+          if (cData.config?.activePeriod) {
+            setPeriod(cData.config.activePeriod);
+          }
+        }
+
+        if (pRes.ok) {
+          const pData = await pRes.json();
+          setParticipants(pData.participants || []);
+          if (pData.participants && pData.participants.length > 0 && !selectedParticipantId) {
+            setSelectedParticipantId(pData.participants[0].id);
           }
         }
       })
@@ -97,10 +110,6 @@ export function PmeInputView() {
 
   const handleSelectParticipant = (pId: string) => {
     setSelectedParticipantId(pId);
-    const p = participants.find((x) => x.id === pId);
-    if (p?.cycle) {
-      setSelectedCycle(p.cycle);
-    }
   };
 
   const handleApproveParticipant = async (pId: string) => {
@@ -359,25 +368,39 @@ export function PmeInputView() {
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5 text-blue-600" />
-                <span>Siklus PME</span>
-              </Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold flex items-center gap-1.5">
+                  <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Siklus PME</span>
+                </Label>
+                <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium bg-teal-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <Lock className="h-3 w-3" /> Otomatis
+                </span>
+              </div>
               <Input
                 value={selectedCycle}
-                onChange={(e) => setSelectedCycle(e.target.value)}
+                readOnly
+                disabled
+                tabIndex={-1}
                 placeholder="Contoh: Siklus 1 2026"
-                className="h-9 text-xs font-semibold"
+                className="h-9 text-xs font-semibold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
               />
             </div>
 
             <div className="space-y-1.5">
-              <Label className="text-xs font-semibold">Periode / Tahap</Label>
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Periode / Tahap</Label>
+                <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium bg-blue-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <Lock className="h-3 w-3" /> Otomatis
+                </span>
+              </div>
               <Input
                 value={period}
-                onChange={(e) => setPeriod(e.target.value)}
-                placeholder="Contoh: Tahap 2 / Periode November"
-                className="h-9 text-xs"
+                readOnly
+                disabled
+                tabIndex={-1}
+                placeholder="Contoh: Tahap 1"
+                className="h-9 text-xs font-semibold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
               />
             </div>
           </div>

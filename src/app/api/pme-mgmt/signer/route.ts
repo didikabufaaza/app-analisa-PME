@@ -3,11 +3,11 @@ import { withAuth, jsonOk, jsonError, getEffectiveOrgId } from "@/lib/api-helper
 import { db } from "@/lib/db";
 
 const DEFAULT_SIGNER = {
-  namaPejabat: "dr. Lisa Dewi, MKes",
+  namaPejabat: "M.Didik Wahyudi, S.Tr.Kes",
   jabatan: "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan",
-  tempat: "Palembang",
-  tanggal: "14 November 2025",
-  nip: "196907172001122001",
+  tempat: "OKU Timur",
+  tanggal: "14 November 2027",
+  nip: "198408152009041001",
 };
 
 /**

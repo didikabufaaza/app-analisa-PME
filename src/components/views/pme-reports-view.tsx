@@ -193,11 +193,11 @@ export function PmeReportsView() {
 
   // Data Penandatangan Laporan
   const [signer, setSigner] = useState<SignerData>({
-    namaPejabat: "dr. Lisa Dewi, MKes",
+    namaPejabat: "M.Didik Wahyudi, S.Tr.Kes",
     jabatan: "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan",
-    tempat: "Palembang",
-    tanggal: "14 November 2025",
-    nip: "196907172001122001",
+    tempat: "OKU Timur",
+    tanggal: "14 November 2027",
+    nip: "198408152009041001",
   });
   const [isSignerModalOpen, setIsSignerModalOpen] = useState(false);
   const [signerForm, setSignerForm] = useState<SignerData>({ ...signer });
@@ -731,14 +731,13 @@ export function PmeReportsView() {
             margin,
             pageH - 6
           );
-          doc.text("pme.bblabkesmaspalembang.go.id", pageW - margin, pageH - 6, { align: "right" });
         },
       });
 
       // Comments & Signature Section below table
       // @ts-ignore
       let finalY = (doc as any).lastAutoTable?.finalY + 5 || y + 80;
-      if (finalY > pageH - 40) {
+      if (finalY > pageH - 45) {
         doc.addPage("a4", "landscape");
         finalY = 20;
       }
@@ -758,20 +757,44 @@ export function PmeReportsView() {
         cY += 3.8;
       });
 
-      // Signature Block Dinamis dari Data Penandatangan
-      const sigX = pageW - margin - 75;
+      // Signature Block Dinamis dari Data Penandatangan di Bagian Kanan Bawah
+      const sigBlockW = 75;
+      const sigX = pageW - margin - sigBlockW;
       let sigY = finalY + 4;
       doc.setFont("helvetica", "normal");
       doc.setFontSize(8);
-      doc.text(`${signer.tempat || "Palembang"}, ${signer.tanggal || "14 November 2025"}`, sigX, sigY);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`${signer.tempat || "OKU Timur"}, ${signer.tanggal || "14 November 2027"}`, sigX, sigY);
       sigY += 4;
-      doc.text(signer.jabatan || "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan", sigX, sigY, { maxWidth: 70 });
-      sigY += 15;
+      const splitJabatan = doc.splitTextToSize(signer.jabatan || "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan", sigBlockW);
+      doc.text(splitJabatan, sigX, sigY);
+      sigY += (splitJabatan.length * 3.8) + 8;
+      
+      // Tanda tangan nama singkat / cursive
+      doc.setFont("times", "italic");
+      doc.setFontSize(10.5);
+      doc.setTextColor(15, 118, 110);
+      const cursiveName = signer.namaPejabat ? signer.namaPejabat.split(",")[0] : "M.Didik Wahyudi";
+      doc.text(cursiveName, sigX, sigY);
+      sigY += 4.5;
+
+      // Nama Pejabat Lengkap dengan Gelar & Garis Bawah
       doc.setFont("helvetica", "bold");
-      doc.text(signer.namaPejabat || "dr. Lisa Dewi, MKes", sigX, sigY);
-      sigY += 3.5;
+      doc.setFontSize(8.5);
+      doc.setTextColor(30, 41, 59);
+      const namaLengkap = signer.namaPejabat || "M.Didik Wahyudi, S.Tr.Kes";
+      doc.text(namaLengkap, sigX, sigY);
+      const nameW = doc.getTextWidth(namaLengkap);
+      doc.setDrawColor(30, 41, 59);
+      doc.setLineWidth(0.2);
+      doc.line(sigX, sigY + 0.6, sigX + nameW, sigY + 0.6);
+      sigY += 4;
+
+      // NIP
       doc.setFont("helvetica", "normal");
-      doc.text(`NIP ${signer.nip || "-"}`, sigX, sigY);
+      doc.setFontSize(8);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`NIP ${signer.nip || "198408152009041001"}`, sigX, sigY);
 
       doc.save(`Laporan_PME_${report.participant.labName.replace(/\s+/g, "_")}_${cycle.replace(/\s+/g, "_")}.pdf`);
       toast({ title: "PDF Berhasil Diunduh", description: "Format lembar evaluasi resmi Kemenkes telah tersimpan." });
@@ -1535,7 +1558,7 @@ export function PmeReportsView() {
                   </div>
 
                   {/* Footer Komentar / Saran & Pengesahan Dinamis */}
-                  <div className="mt-6 pt-2 flex flex-col md:flex-row justify-between items-start gap-6 text-xs text-slate-800">
+                  <div className="mt-6 pt-2 flex flex-row justify-between items-start gap-6 text-xs text-slate-800 print:flex-row print:justify-between">
                     <div className="space-y-1.5 max-w-lg">
                       <h4 className="font-bold text-slate-900">Komentar / Saran</h4>
                       <div className="text-[11px] text-gray-700 space-y-1 leading-relaxed">
@@ -1545,23 +1568,22 @@ export function PmeReportsView() {
                       </div>
                     </div>
 
-                    {/* Kolom Tanda Tangan Dinamis */}
-                    <div className="text-right min-w-[260px] space-y-1 text-slate-900">
-                      <p>{signer.tempat || "Palembang"}, {signer.tanggal || "14 November 2025"}</p>
-                      <p className="text-[11px] text-gray-600 max-w-[280px] ml-auto">{signer.jabatan}</p>
-                      <div className="h-14 flex items-center justify-end">
-                        <span className="font-serif italic text-teal-800 text-lg">
-                          {signer.namaPejabat?.split(",")[0] || "dr. Lisa Dewi"}
+                    {/* Kolom Tanda Tangan Dinamis - Posisi Kanan Bawah */}
+                    <div className="ml-auto text-left min-w-[270px] max-w-xs space-y-1 text-slate-900 print:text-left print:ml-auto">
+                      <p className="font-medium">{signer.tempat || "OKU Timur"}, {signer.tanggal || "14 November 2027"}</p>
+                      <p className="text-[11px] text-gray-600 leading-snug">{signer.jabatan || "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan"}</p>
+                      <div className="h-12 flex items-center justify-start py-1">
+                        <span className="font-serif italic text-teal-800 text-lg font-semibold tracking-wide">
+                          {signer.namaPejabat?.split(",")[0] || "M.Didik Wahyudi"}
                         </span>
                       </div>
-                      <p className="font-bold">{signer.namaPejabat}</p>
-                      <p className="text-[10px] text-gray-500 font-mono">NIP {signer.nip || "-"}</p>
+                      <p className="font-bold text-slate-900 underline underline-offset-2">{signer.namaPejabat || "M.Didik Wahyudi, S.Tr.Kes"}</p>
+                      <p className="text-[11px] text-slate-700 font-mono">NIP {signer.nip || "198408152009041001"}</p>
                     </div>
                   </div>
 
                   <div className="mt-8 pt-3 border-t text-[10px] text-gray-400 flex justify-between items-center italic">
                     <span>* Hasil bersifat rahasia, hanya dapat diunduh oleh peserta melalui aplikasi menggunakan akun masing-masing</span>
-                    <span>pme.bblabkesmaspalembang.go.id</span>
                   </div>
                 </div>
               );
@@ -1860,7 +1882,7 @@ export function PmeReportsView() {
               <Input
                 value={signerForm.namaPejabat}
                 onChange={(e) => setSignerForm({ ...signerForm, namaPejabat: e.target.value })}
-                placeholder="Contoh: dr. Lisa Dewi, MKes"
+                placeholder="Contoh: M.Didik Wahyudi, S.Tr.Kes"
                 required
                 className="h-9 text-xs"
               />
@@ -1883,7 +1905,7 @@ export function PmeReportsView() {
                 <Input
                   value={signerForm.tempat}
                   onChange={(e) => setSignerForm({ ...signerForm, tempat: e.target.value })}
-                  placeholder="Contoh: Palembang"
+                  placeholder="Contoh: OKU Timur"
                   required
                   className="h-9 text-xs"
                 />
@@ -1894,7 +1916,7 @@ export function PmeReportsView() {
                 <Input
                   value={signerForm.tanggal}
                   onChange={(e) => setSignerForm({ ...signerForm, tanggal: e.target.value })}
-                  placeholder="Contoh: 14 November 2025"
+                  placeholder="Contoh: 14 November 2027"
                   required
                   className="h-9 text-xs"
                 />
@@ -1906,7 +1928,7 @@ export function PmeReportsView() {
               <Input
                 value={signerForm.nip}
                 onChange={(e) => setSignerForm({ ...signerForm, nip: e.target.value })}
-                placeholder="Contoh: 196907172001122001"
+                placeholder="Contoh: 198408152009041001"
                 required
                 className="h-9 text-xs font-mono"
               />

@@ -457,11 +457,11 @@ model PmeSigner {
   id             String       @id @default(cuid())
   organizationId String       @unique
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  namaPejabat    String?      @default("dr. Lisa Dewi, MKes")
+  namaPejabat    String?      @default("M.Didik Wahyudi, S.Tr.Kes")
   jabatan        String?      @default("Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan")
-  tempat         String?      @default("Palembang")
-  tanggal        String?      // format: "14 November 2025" atau tanggal dinamis
-  nip            String?      @default("196907172001122001")
+  tempat         String?      @default("OKU Timur")
+  tanggal        String?      @default("14 November 2027")
+  nip            String?      @default("198408152009041001")
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 

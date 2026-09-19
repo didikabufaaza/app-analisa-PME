@@ -12,24 +12,35 @@ import {
 
 export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
-    // Menu ini hanya bisa diakses dan dilihat oleh superadmin
-    if (user.role !== "SUPERADMIN") {
-      return jsonError("Akses ditolak. Menu Laporan Hasil PME hanya dapat diakses oleh Superadmin.", 403, "FORBIDDEN");
-    }
-
+    const isSuperAdmin = user.role === "SUPERADMIN";
     const effectiveOrgId = getEffectiveOrgId(user, req);
     const orgFilter = effectiveOrgId === "ALL" ? {} : { organizationId: effectiveOrgId };
+
+    let participantLab: any = null;
+    if (!isSuperAdmin) {
+      participantLab = await db.pmeParticipant.findFirst({
+        where: { organizationId: user.organizationId },
+      });
+      if (!participantLab) {
+        participantLab = await db.pmeParticipant.findFirst({
+          where: { email: user.email },
+        });
+      }
+      if (!participantLab) {
+        return jsonError("Akses ditolak. Akun Anda belum terdaftar sebagai peserta PME.", 403, "FORBIDDEN");
+      }
+    }
 
     // 1. Dapatkan daftar seluruh siklus yang ada di pmeSubmission dan pmeParticipant
     const [subCycles, partCycles] = await Promise.all([
       db.pmeSubmission.findMany({
-        where: orgFilter,
+        where: isSuperAdmin ? orgFilter : { participantId: participantLab.id },
         select: { cycle: true },
         distinct: ["cycle"],
         orderBy: { submittedAt: "desc" },
       }),
       db.pmeParticipant.findMany({
-        where: orgFilter,
+        where: isSuperAdmin ? orgFilter : { id: participantLab.id },
         select: { cycle: true },
         distinct: ["cycle"],
         orderBy: { createdAt: "desc" },
@@ -48,7 +59,6 @@ export async function GET(req: NextRequest) {
     const rawCycleParam = req.nextUrl.searchParams.get("cycle")?.trim();
     let cycle = rawCycleParam;
     
-    // Jika tidak ada cycle param, atau jika cycle param bernilai default lama yang tidak memiliki data
     if (!cycle || (cycle === "Siklus 2 2025" && !availableCycles.includes("Siklus 2 2025"))) {
       cycle = availableCycles[0] || "Siklus 1 2026";
     }
@@ -57,12 +67,34 @@ export async function GET(req: NextRequest) {
     const packageCategory = categoryParam && categoryParam !== "ALL" ? categoryParam : "ALL";
     const targetParticipantId = req.nextUrl.searchParams.get("participantId");
 
-    // 2. Ambil data Kop Surat untuk instansi penyelenggara
-    let kopSurat = await db.kopSurat.findFirst({
-      where: effectiveOrgId !== "ALL" ? { organizationId: effectiveOrgId } : { organizationId: user.organizationId },
-    });
+    // 2. Ambil data Kop Surat & Penandatangan resmi
+    let [kopSurat, signer] = await Promise.all([
+      db.kopSurat.findFirst({
+        where: effectiveOrgId !== "ALL" ? { organizationId: effectiveOrgId } : { organizationId: user.organizationId },
+      }),
+      db.pmeSigner.findFirst({
+        where: effectiveOrgId !== "ALL" ? { organizationId: effectiveOrgId } : { organizationId: user.organizationId },
+      }),
+    ]);
+
     if (!kopSurat) {
       kopSurat = await db.kopSurat.findFirst();
+    }
+    if (!signer) {
+      signer = await db.pmeSigner.findFirst();
+    }
+    if (!signer) {
+      signer = {
+        id: "default-signer",
+        organizationId: user.organizationId,
+        namaPejabat: "dr. Lisa Dewi, MKes",
+        jabatan: "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan",
+        tempat: "Palembang",
+        tanggal: "14 November 2025",
+        nip: "196907172001122001",
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      };
     }
 
     // 3. Ambil paket-paket dalam kategori ini (jika ALL, ambil semua paket)
@@ -106,12 +138,11 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 4. Ambil semua submissions peserta untuk siklus ini
-    const submissions = await db.pmeSubmission.findMany({
+    // 4. Ambil SEMUA submissions peserta untuk siklus ini untuk kalkulasi biostatistik peer group yang akurat
+    const allCycleSubmissions = await db.pmeSubmission.findMany({
       where: {
-        ...orgFilter,
         cycle,
-        status: "SUBMITTED",
+        status: { in: ["SUBMITTED", "VALIDATED", "PUBLISHED"] },
       },
       include: {
         participant: true,
@@ -122,7 +153,7 @@ export async function GET(req: NextRequest) {
 
     // Pastikan setiap parameter yang ada di submission results peserta juga masuk ke masterParams
     let dynSort = masterParams.length + 1;
-    for (const sub of submissions) {
+    for (const sub of allCycleSubmissions) {
       for (const res of sub.results) {
         if (!masterParams.some((mp) => mp.name.toLowerCase().trim() === res.parameterName.toLowerCase().trim())) {
           masterParams.push({
@@ -138,7 +169,7 @@ export async function GET(req: NextRequest) {
     }
     masterParams.sort((a, b) => a.sortOrder - b.sortOrder);
 
-    // 4. Biostatistical Calculation per Parameter (Global, Method Groups, Instrument Groups)
+    // 5. Biostatistical Calculation per Parameter (Global, Method Groups, Instrument Groups)
     const paramStatsMap = new Map<
       string,
       {
@@ -152,12 +183,11 @@ export async function GET(req: NextRequest) {
     for (const p of masterParams) {
       const pNameLower = p.name.toLowerCase().trim();
 
-      // Kumpulkan seluruh hasil kuantitatif dari seluruh peserta
       const allValues: number[] = [];
       const methodGroups = new Map<string, number[]>();
       const instrumentGroups = new Map<string, number[]>();
 
-      for (const sub of submissions) {
+      for (const sub of allCycleSubmissions) {
         const res = sub.results.find((r) => r.parameterName.toLowerCase().trim() === pNameLower);
         if (res && res.value !== null && res.value !== undefined && !isNaN(res.value)) {
           allValues.push(res.value);
@@ -193,19 +223,47 @@ export async function GET(req: NextRequest) {
       paramStatsMap.set(pNameLower, { stats, dixon, methodStats, instrumentStats });
     }
 
-    // 5. Generate Individual Participant Reports (Format Kemenkes Labkesmas)
+    // 6. Tentukan daftar submissions yang akan ditampilkan pada laporan
+    let reportSubmissions = allCycleSubmissions;
+    if (!isSuperAdmin) {
+      // Peserta hanya melihat submission miliknya yang sudah PUBLISHED
+      reportSubmissions = allCycleSubmissions.filter(
+        (sub) => sub.participantId === participantLab.id && (sub.isPublished || sub.status === "PUBLISHED")
+      );
+
+      // Jika peserta sudah submit tetapi belum dipublish oleh Superadmin
+      const unpubSub = allCycleSubmissions.find((sub) => sub.participantId === participantLab.id);
+      if (reportSubmissions.length === 0 && unpubSub) {
+        return jsonOk({
+          cycle,
+          category: packageCategory,
+          availableCycles,
+          isSuperAdmin: false,
+          isParticipant: true,
+          participant: participantLab,
+          isPublished: false,
+          isValidated: unpubSub.isValidated,
+          message: `Laporan Hasil PME ${participantLab.labName} untuk ${cycle} sedang dalam proses koreksi dan validasi oleh Penyelenggara (Superadmin). Lembar evaluasi resmi akan langsung tersedia setelah dikirimkan oleh Superadmin.`,
+          kopSurat,
+          signer,
+          participantReports: [],
+        });
+      }
+    } else {
+      // Superadmin filter by targetParticipantId if provided
+      if (targetParticipantId && targetParticipantId !== "ALL") {
+        reportSubmissions = reportSubmissions.filter((s) => s.participantId === targetParticipantId);
+      }
+    }
+
+    // 7. Generate Individual Participant Reports (Format Kemenkes Labkesmas)
     const participantReports = [];
     let totalSatisfactory = 0;
     let totalWarning = 0;
     let totalUnsatisfactory = 0;
     let totalOutliers = 0;
 
-    for (const sub of submissions) {
-      // Jika ada filter spesifik participantId, lewati yang bukan target
-      if (targetParticipantId && sub.participantId !== targetParticipantId) {
-        continue;
-      }
-
+    for (const sub of reportSubmissions) {
       const rows = [];
       let participantWarningCount = 0;
       let participantUnsatisfactoryCount = 0;
@@ -259,6 +317,17 @@ export async function GET(req: NextRequest) {
             participantNotAnalyzedInstrumentCount++;
           }
 
+          // Perhitungan Bias % Spesifik
+          const biasMethodPercent =
+            mPeer?.target !== null && mPeer?.target !== undefined && mPeer.target !== 0
+              ? Number((((val! - mPeer.target) / mPeer.target) * 100).toFixed(2))
+              : null;
+
+          const biasInstrumentPercent =
+            iPeer?.target !== null && iPeer?.target !== undefined && iPeer.target !== 0
+              ? Number((((val! - iPeer.target) / iPeer.target) * 100).toFixed(2))
+              : null;
+
           rows.push({
             no: i + 1,
             parameterName: p.name,
@@ -295,10 +364,17 @@ export async function GET(req: NextRequest) {
               keterangan: iPeer?.isAnalyzed ? (instrumentEval?.statusText ?? "-") : "Tidak dianalisa",
               isAnalyzed: iPeer?.isAnalyzed ?? false,
             },
-            biasPercent: evalResult.biasPercent,
-            cvPercent: evalResult.cvRef,
-            totalErrorPercent: evalResult.totalErrorPercent,
+            // Metrik Statistik Lengkap
+            biasPercent: evalResult.biasPercent !== null ? Number(evalResult.biasPercent.toFixed(2)) : null,
+            biasMethodPercent,
+            biasInstrumentPercent,
+            cvPercent: evalResult.cvRef !== null ? Number(evalResult.cvRef.toFixed(2)) : null,
+            totalErrorPercent: evalResult.totalErrorPercent !== null ? Number(evalResult.totalErrorPercent.toFixed(2)) : null,
             outlierStatus: evalResult.outlierStatus,
+            dixonStatus:
+              pStat.dixon.isApplicable && (pStat.dixon.isLowOutlier || pStat.dixon.isHighOutlier)
+                ? pStat.dixon.status
+                : "Normal",
           });
         } else {
           // Parameter tidak diperiksa / kosong
@@ -313,9 +389,12 @@ export async function GET(req: NextRequest) {
             method: { n: 0, target: null, sdpa: null, zScore: null, category: "-", keterangan: "-", isAnalyzed: false },
             instrument: { n: 0, target: null, sdpa: null, zScore: null, category: "-", keterangan: "-", isAnalyzed: false },
             biasPercent: null,
+            biasMethodPercent: null,
+            biasInstrumentPercent: null,
             cvPercent: null,
             totalErrorPercent: null,
             outlierStatus: "NORMAL",
+            dixonStatus: "Normal",
           });
         }
       }
@@ -344,17 +423,25 @@ export async function GET(req: NextRequest) {
       }
 
       participantReports.push({
+        submissionId: sub.id,
         participant: sub.participant,
         cycle: sub.cycle,
         period: sub.period,
         submittedAt: sub.submittedAt,
+        status: sub.status,
+        isValidated: sub.isValidated,
+        validatedAt: sub.validatedAt,
+        validatedBy: sub.validatedBy,
+        isPublished: sub.isPublished,
+        publishedAt: sub.publishedAt,
+        publishedBy: sub.publishedBy,
         category: packageCategory,
         rows,
         comments,
       });
     }
 
-    // Rekapitulasi Statistik Tabel Deskriptif (Untuk Sheet 2 Dashboard View)
+    // Rekapitulasi Statistik Tabel Deskriptif (Sheet 2 Dashboard View)
     const dashboardStats = masterParams.map((p) => {
       const pStat = paramStatsMap.get(p.name.toLowerCase().trim());
       return {
@@ -369,10 +456,13 @@ export async function GET(req: NextRequest) {
       cycle,
       availableCycles,
       category: packageCategory,
-      totalSubmissions: submissions.length,
+      totalSubmissions: reportSubmissions.length,
+      isSuperAdmin,
+      isParticipant: !isSuperAdmin,
       kopSurat,
+      signer,
       summary: {
-        totalParticipants: submissions.length,
+        totalParticipants: reportSubmissions.length,
         totalSatisfactory,
         totalWarning,
         totalUnsatisfactory,
@@ -391,5 +481,97 @@ export async function GET(req: NextRequest) {
       dashboardStats,
       participantReports,
     });
+  });
+}
+
+/**
+ * POST /api/pme-mgmt/reports
+ * Aksi Pengesahan & Pengiriman Laporan oleh Superadmin:
+ * - action: "validate" -> Validasi laporan hasil evaluasi
+ * - action: "publish" / "send" -> Kirim laporan resmi ke akun peserta PME
+ */
+export async function POST(req: NextRequest) {
+  return withAuth(req, async ({ user }) => {
+    if (user.role !== "SUPERADMIN") {
+      return jsonError("Akses ditolak. Hanya Superadmin yang berhak memvalidasi atau mengirimkan laporan hasil PME.", 403, "FORBIDDEN");
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const { action, cycle, participantId } = body;
+
+    if (!cycle || !cycle.trim()) {
+      return jsonError("Siklus PME wajib ditentukan.", 400);
+    }
+
+    const whereClause: any = {
+      cycle: cycle.trim(),
+    };
+    if (participantId && participantId !== "ALL") {
+      whereClause.participantId = participantId;
+    }
+
+    const approverName = user.name || user.email || "Superadmin";
+
+    if (action === "validate") {
+      const updated = await db.pmeSubmission.updateMany({
+        where: whereClause,
+        data: {
+          isValidated: true,
+          validatedAt: new Date(),
+          validatedBy: approverName,
+          status: "VALIDATED",
+        },
+      });
+
+      return jsonOk({
+        success: true,
+        action: "validate",
+        count: updated.count,
+        message: `Laporan hasil PME ${cycle} (${updated.count} peserta) berhasil divalidasi dan dinyatakan selesai.`,
+      });
+    }
+
+    if (action === "publish" || action === "send") {
+      const updated = await db.pmeSubmission.updateMany({
+        where: whereClause,
+        data: {
+          isValidated: true,
+          validatedAt: new Date(),
+          validatedBy: approverName,
+          isPublished: true,
+          publishedAt: new Date(),
+          publishedBy: approverName,
+          status: "PUBLISHED",
+        },
+      });
+
+      return jsonOk({
+        success: true,
+        action: "publish",
+        count: updated.count,
+        message: `Laporan hasil PME ${cycle} (${updated.count} laboratorium) berhasil dikirimkan ke akun peserta. Peserta kini dapat melihat dan mengunduh lembar evaluasi resmi di akun mereka.`,
+      });
+    }
+
+    if (action === "unpublish") {
+      const updated = await db.pmeSubmission.updateMany({
+        where: whereClause,
+        data: {
+          isPublished: false,
+          publishedAt: null,
+          publishedBy: null,
+          status: "VALIDATED",
+        },
+      });
+
+      return jsonOk({
+        success: true,
+        action: "unpublish",
+        count: updated.count,
+        message: `Publikasi laporan ${cycle} berhasil dibatalkan.`,
+      });
+    }
+
+    return jsonError("Aksi tidak valid (gunakan 'validate', 'publish', atau 'unpublish').", 400);
   });
 }

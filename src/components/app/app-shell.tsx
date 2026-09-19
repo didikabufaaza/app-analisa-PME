@@ -125,107 +125,124 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     (user.menuAccess && Array.isArray(user.menuAccess) && (user.menuAccess.includes("pme-management") || user.menuAccess.includes("pme-registration")));
 
   const navList = (
-    <nav aria-label="Navigasi utama" className="flex-1 space-y-1 px-3 py-2">
-      {filteredNav.map((item) => (
-        <button
-          key={item.key}
-          onClick={() => navigate(item.key)}
-          aria-current={view === item.key ? "page" : undefined}
-          className={cn(
-            "flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors",
-            view === item.key
-              ? "bg-teal-700/10 text-teal-800 dark:text-teal-300"
-              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-          )}
-        >
-          <item.icon className={cn("h-4.5 w-4.5 h-[18px] w-[18px]", view === item.key && "text-teal-700 dark:text-teal-300")} />
-          {item.label}
-        </button>
-      ))}
+    <nav
+      aria-label="Navigasi utama"
+      className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1 scrollbar-thin scrollbar-thumb-slate-700/60 hover:scrollbar-thumb-teal-500/80 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700/60 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-teal-500/80"
+    >
+      {filteredNav.map((item) => {
+        const isActive = view === item.key;
+        return (
+          <button
+            key={item.key}
+            onClick={() => navigate(item.key)}
+            aria-current={isActive ? "page" : undefined}
+            className={cn(
+              "group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14.5px] font-medium transition-all duration-200",
+              isActive
+                ? "bg-gradient-to-r from-teal-500/25 via-teal-500/15 to-transparent text-teal-300 font-bold border-l-[3.5px] border-teal-400 shadow-xs"
+                : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+            )}
+          >
+            <item.icon
+              className={cn(
+                "h-5 w-5 shrink-0 transition-colors",
+                isActive ? "text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.4)]" : "text-slate-400 group-hover:text-slate-200"
+              )}
+            />
+            <span className="truncate">{item.label}</span>
+          </button>
+        );
+      })}
 
       {/* Menu Tambahan: Manajemen Data PME & Submenu */}
       {isPmeMgmtAllowed && (
-        <div className="pt-2 mt-2 border-t border-border/50 space-y-1">
-          <div className="px-3 py-1 flex items-center justify-between text-[11px] font-bold text-muted-foreground uppercase tracking-wider">
+        <div className="pt-3 mt-3 border-t border-slate-800/80 space-y-1.5">
+          <div className="px-3 py-1 flex items-center justify-between text-[11.5px] font-bold text-teal-400/90 uppercase tracking-wider">
             <div className="flex items-center gap-1.5">
-              <FolderKanban className="h-3.5 w-3.5 text-teal-700 dark:text-teal-400" />
+              <FolderKanban className="h-4 w-4 text-teal-400" />
               <span>Manajemen Data PME</span>
             </div>
           </div>
 
-          <div className="space-y-0.5 pl-1">
+          <div className="space-y-1 pl-1">
             <button
               onClick={() => navigate("pme-registration")}
               aria-current={view === "pme-registration" ? "page" : undefined}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
                 view === "pme-registration"
-                  ? "bg-teal-700/10 text-teal-800 dark:text-teal-300 font-semibold"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               )}
             >
-              <UserPlus className="h-4 w-4 shrink-0 text-teal-600" />
-              <span>1. Pendaftaran PME</span>
+              <UserPlus className="h-4.5 w-4.5 shrink-0 text-teal-400" />
+              <span className="truncate">1. Pendaftaran PME</span>
             </button>
 
             <button
               onClick={() => navigate("pme-packages")}
               aria-current={view === "pme-packages" ? "page" : undefined}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
                 view === "pme-packages"
-                  ? "bg-teal-700/10 text-teal-800 dark:text-teal-300 font-semibold"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               )}
             >
-              <PackageCheck className="h-4 w-4 shrink-0 text-blue-600" />
-              <span>2. Pemilihan Paket PME</span>
+              <PackageCheck className="h-4.5 w-4.5 shrink-0 text-blue-400" />
+              <span className="truncate">2. Pemilihan Paket PME</span>
             </button>
 
             <button
               onClick={() => navigate("pme-input")}
               aria-current={view === "pme-input" ? "page" : undefined}
               className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-xs font-medium transition-colors",
+                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
                 view === "pme-input"
-                  ? "bg-teal-700/10 text-teal-800 dark:text-teal-300 font-semibold"
-                  : "text-muted-foreground hover:bg-muted hover:text-foreground"
+                  ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
+                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
               )}
             >
-              <FilePenLine className="h-4 w-4 shrink-0 text-amber-600" />
-              <span>3. Input Hasil PME</span>
+              <FilePenLine className="h-4.5 w-4.5 shrink-0 text-amber-400" />
+              <span className="truncate">3. Input Hasil PME</span>
             </button>
           </div>
 
-          {/* Menu Laporan Hasil PME: Dibawah menu Manajemen Data PME & HANYA Superadmin */}
-          {user.role === "SUPERADMIN" && (
-            <div className="pt-2 mt-2 border-t border-border/40">
-              <button
-                onClick={() => navigate("pme-reports")}
-                aria-current={view === "pme-reports" ? "page" : undefined}
-                className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2.5 text-xs font-semibold transition-colors",
-                  view === "pme-reports"
-                    ? "bg-teal-700/15 text-teal-900 dark:text-teal-200 ring-1 ring-teal-600/30 font-bold"
-                    : "text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/30"
-                )}
-              >
-                <FileBarChart className="h-4 w-4 shrink-0 text-teal-700 dark:text-teal-400" />
-                <span className="flex-1 text-left">Laporan Hasil PME</span>
-                <span className="text-[9px] bg-teal-600 text-white px-1.5 py-0.5 rounded font-mono font-bold">
+          {/* Menu Laporan Hasil PME: Dapat diakses oleh Superadmin & Peserta PME */}
+          <div className="pt-2 mt-2 border-t border-slate-800/60">
+            <button
+              onClick={() => navigate("pme-reports")}
+              aria-current={view === "pme-reports" ? "page" : undefined}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200",
+                view === "pme-reports"
+                  ? "bg-gradient-to-r from-teal-500/25 via-teal-500/15 to-transparent text-teal-300 border-l-[3.5px] border-teal-400 shadow-xs font-bold"
+                  : "text-teal-400/90 hover:bg-slate-800/60 hover:text-teal-200"
+              )}
+            >
+              <FileBarChart className="h-5 w-5 shrink-0 text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.3)]" />
+              <span className="flex-1 text-left truncate">
+                {user.role === "SUPERADMIN" ? "Laporan Hasil PME" : "Lembar Hasil Evaluasi PME"}
+              </span>
+              {user.role === "SUPERADMIN" ? (
+                <span className="text-[9.5px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
                   SUPER
                 </span>
-              </button>
-            </div>
-          )}
+              ) : (
+                <span className="text-[9.5px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
+                  RESMI
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       )}
     </nav>
   );
 
   const brand = (
-    <div className="flex items-center gap-3 px-4 pt-5 pb-3">
-      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-teal-500/10 p-1 ring-1 ring-teal-500/20 shadow-sm">
+    <div className="flex items-center gap-3 px-4 pt-5 pb-3.5 border-b border-slate-800/80 bg-slate-950/40">
+      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-teal-500/15 p-1.5 ring-1 ring-teal-500/30 shadow-[0_0_15px_rgba(20,184,166,0.2)]">
         <img
           src="/icon.png"
           alt="di-dismartPME Logo"
@@ -233,37 +250,37 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         />
       </div>
       <div className="leading-tight min-w-0">
-        <p className="text-base font-bold tracking-tight text-foreground truncate">di-dismartPME</p>
-        <p className="text-[10px] text-muted-foreground font-medium truncate">Evaluasi Z-Score & PME</p>
+        <p className="text-[16.5px] font-extrabold tracking-tight text-white truncate">di-dismartPME</p>
+        <p className="text-[11px] text-teal-400 font-medium tracking-wide truncate">Evaluasi Z-Score & PME</p>
       </div>
     </div>
   );
 
   const usageCard = usage ? (
-    <div className="mx-3 mb-3 rounded-lg border bg-muted/40 p-3">
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
-        <span className="flex items-center gap-1 font-medium">
-          <Sparkles className="h-3 w-3 text-teal-600" /> Kapasitas Evaluasi Bulanan
+    <div className="mx-3 mb-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 text-slate-300 shadow-xs">
+      <div className="flex items-center justify-between text-[11.5px] text-slate-400">
+        <span className="flex items-center gap-1.5 font-medium">
+          <Sparkles className="h-3.5 w-3.5 text-teal-400" /> Kapasitas Evaluasi Bulanan
         </span>
         <button onClick={() => refreshUser()} aria-label="Segarkan kuota">
-          <RefreshCw className="h-3 w-3 hover:text-foreground" />
+          <RefreshCw className="h-3 w-3 hover:text-teal-300 transition-colors" />
         </button>
       </div>
-      <div className="mt-1.5">
-        <Progress value={usagePct} className="h-1.5" aria-label={`Kapasitas evaluasi ${usagePct}%`} />
+      <div className="mt-2">
+        <Progress value={usagePct} className="h-1.5 bg-slate-800" aria-label={`Kapasitas evaluasi ${usagePct}%`} />
       </div>
-      <p className="mt-1.5 text-[11px] text-muted-foreground">
+      <p className="mt-1.5 text-[11px] text-slate-400 font-mono">
         {usage.used}/{usage.limit} evaluasi · plan {user.organization.plan}
       </p>
     </div>
   ) : null;
 
   const logoutButton = (
-    <div className="mt-auto p-3 border-t bg-muted/20">
+    <div className="mt-auto p-3 border-t border-slate-800/80 bg-slate-950/60">
       <button
         type="button"
         onClick={() => void useAppStore.getState().logout()}
-        className="flex w-full items-center justify-center gap-2 rounded-lg border border-red-200 dark:border-red-900/40 bg-red-50/80 dark:bg-red-950/40 px-3 py-2 text-xs font-semibold text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/60 transition-colors shadow-xs cursor-pointer"
+        className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-900/40 bg-red-950/30 px-3 py-2.5 text-xs font-semibold text-red-300 hover:bg-red-900/50 hover:text-red-100 transition-colors shadow-xs cursor-pointer"
       >
         <LogOut className="h-4 w-4" />
         <span>Keluar Aplikasi</span>
@@ -274,7 +291,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-60 shrink-0 flex-col border-r bg-card lg:flex">
+      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-[#0B131B] text-slate-200 border-r border-slate-800/80 shadow-2xl lg:flex">
         {brand}
         {navList}
         {usageCard}
@@ -291,7 +308,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-64 p-0 flex flex-col">
+            <SheetContent side="left" className="w-68 p-0 flex flex-col bg-[#0B131B] text-slate-200 border-r border-slate-800">
               <SheetTitle className="sr-only">Menu navigasi</SheetTitle>
               {brand}
               {navList}

@@ -34,6 +34,7 @@ model Organization {
   pmePackages      PmePackage[]
   pmeRegistrations PmePackageRegistration[]
   pmeSubmissions   PmeSubmission[]
+  pmeSigner        PmeSigner?
 }
 
 model KopSurat {
@@ -411,7 +412,13 @@ model PmeSubmission {
   registration   PmePackageRegistration? @relation(fields: [registrationId], references: [id], onDelete: SetNull)
   cycle          String
   period         String?
-  status         String                  @default("SUBMITTED") // DRAFT | SUBMITTED
+  status         String                  @default("SUBMITTED") // DRAFT | SUBMITTED | VALIDATED | PUBLISHED
+  isValidated    Boolean                 @default(false)
+  validatedAt    DateTime?
+  validatedBy    String?
+  isPublished    Boolean                 @default(false)
+  publishedAt    DateTime?
+  publishedBy    String?
   submittedAt    DateTime                @default(now())
   updatedAt      DateTime                @updatedAt
 
@@ -419,6 +426,7 @@ model PmeSubmission {
 
   @@index([organizationId, cycle])
   @@index([participantId])
+  @@index([isPublished])
 }
 
 model PmeSubmissionResult {
@@ -439,5 +447,20 @@ model PmeSubmissionResult {
   updatedAt      DateTime             @updatedAt
 
   @@index([submissionId])
+}
+
+model PmeSigner {
+  id             String       @id @default(cuid())
+  organizationId String       @unique
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  namaPejabat    String?      @default("dr. Lisa Dewi, MKes")
+  jabatan        String?      @default("Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan")
+  tempat         String?      @default("Palembang")
+  tanggal        String?      // format: "14 November 2025" atau tanggal dinamis
+  nip            String?      @default("196907172001122001")
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
 }
 

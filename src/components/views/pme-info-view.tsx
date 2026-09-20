@@ -24,12 +24,14 @@ import {
   FileText,
   Sparkles,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 interface PmeConfigData {
   activeCycle: string;
   activePeriod: string | null;
   infoTitle: string | null;
   infoContent: string | null;
+  isRegistrationOpen?: boolean;
   infoUpdatedAt?: string;
   infoUpdatedBy?: string;
 }
@@ -46,6 +48,7 @@ export function PmeInfoView() {
   // Form State
   const [activeCycle, setActiveCycle] = useState("Siklus 1 2026");
   const [activePeriod, setActivePeriod] = useState("Tahap 1");
+  const [isRegistrationOpen, setIsRegistrationOpen] = useState(true);
   const [infoTitle, setInfoTitle] = useState("Informasi Resmi Pelaksanaan Program PME");
   const [infoContent, setInfoContent] = useState(
     "Selamat datang di Program Pemantapan Mutu Eksternal (PME). Mohon seluruh laboratorium peserta memastikan pendaftaran, pemilihan paket pemeriksaan, serta pengisian hasil pengujian dilakukan secara teliti sebelum batas akhir yang ditentukan. Pastikan sampel kontrol diperlakukan sama seperti sampel pasien rutin sesuai SOP laboratorium."
@@ -65,6 +68,9 @@ export function PmeInfoView() {
         if (data.config) {
           setActiveCycle(data.config.activeCycle || "Siklus 1 2026");
           setActivePeriod(data.config.activePeriod || "Tahap 1");
+          if (typeof data.config.isRegistrationOpen === "boolean") {
+            setIsRegistrationOpen(data.config.isRegistrationOpen);
+          }
           setInfoTitle(data.config.infoTitle || "Informasi Resmi Pelaksanaan Program PME");
           setInfoContent(data.config.infoContent || "");
           if (data.config.runningText) {
@@ -104,6 +110,7 @@ export function PmeInfoView() {
         body: JSON.stringify({
           activeCycle: activeCycle.trim(),
           activePeriod: activePeriod.trim(),
+          isRegistrationOpen,
           infoTitle: infoTitle.trim(),
           infoContent: infoContent.trim(),
           runningText: runningText.trim(),
@@ -115,9 +122,12 @@ export function PmeInfoView() {
         toast({
           title: "Pengaturan & Informasi Berhasil Disimpan!",
           description:
-            "Siklus dan informasi PME berhasil diperbarui. Form peserta dan Dashboard otomatis menampilkan data terbaru.",
+            "Siklus, status pendaftaran, dan informasi PME berhasil diperbarui.",
         });
         if (data.config) {
+          if (typeof data.config.isRegistrationOpen === "boolean") {
+            setIsRegistrationOpen(data.config.isRegistrationOpen);
+          }
           setLastUpdated(data.config.infoUpdatedAt);
           setUpdatedBy(data.config.infoUpdatedBy);
         }
@@ -264,12 +274,60 @@ export function PmeInfoView() {
                 </p>
               </div>
 
+              {/* Tombol Pengaktifan / Penonaktifan Pendaftaran PME */}
+              <div className="p-3.5 rounded-xl border bg-slate-50/80 dark:bg-slate-900/60 space-y-2">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="space-y-1 pr-2">
+                    <div className="flex items-center gap-2">
+                      <Label htmlFor="registration-toggle" className="text-xs font-bold text-slate-900 dark:text-slate-100 cursor-pointer">
+                        Status Pendaftaran Peserta PME
+                      </Label>
+                      {isRegistrationOpen ? (
+                        <Badge className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-400 border-emerald-500/30 text-[10.5px] font-semibold">
+                          <CheckCircle2 className="h-3 w-3 mr-1" />
+                          Pendaftaran Aktif (Dibuka)
+                        </Badge>
+                      ) : (
+                        <Badge variant="destructive" className="text-[10.5px] font-semibold">
+                          <Lock className="h-3 w-3 mr-1" />
+                          Pendaftaran Nonaktif (Ditutup)
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-muted-foreground leading-relaxed">
+                      {isRegistrationOpen ? (
+                        <span className="text-emerald-700 dark:text-emerald-400 font-medium">
+                          ✓ Pendaftaran sedang aktif: Peserta dapat mengklik tombol &quot;Daftar Peserta Baru&quot; di menu Pendaftaran PME.
+                        </span>
+                      ) : (
+                        <span className="text-rose-600 dark:text-rose-400 font-medium">
+                          ✕ Pendaftaran dinonaktifkan: Tombol &quot;Daftar Peserta Baru&quot; pada menu Pendaftaran PME menjadi tidak aktif (terkunci).
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex items-center shrink-0">
+                    <Switch
+                      id="registration-toggle"
+                      checked={isRegistrationOpen}
+                      onCheckedChange={setIsRegistrationOpen}
+                      className="data-[state=checked]:bg-emerald-600"
+                    />
+                  </div>
+                </div>
+              </div>
+
               <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/50 border text-xs space-y-2">
                 <div className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-300 text-[11.5px]">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500" />
                   <span>Dampak Konfigurasi Terhadap Akun Peserta:</span>
                 </div>
                 <ul className="list-disc list-inside text-muted-foreground space-y-1 text-[11px] pl-1 leading-relaxed">
+                  <li>
+                    {isRegistrationOpen
+                      ? "Pendaftaran terbuka: tombol 'Daftar Peserta Baru' aktif di menu Pendaftaran PME."
+                      : "Pendaftaran ditutup: tombol 'Daftar Peserta Baru' terkunci/tidak aktif di menu Pendaftaran PME."}
+                  </li>
                   <li>
                     Peserta tidak perlu lagi mengetik siklus secara manual sehingga menghindari salah ketik nama siklus.
                   </li>

@@ -11,11 +11,12 @@ const DEFAULT_CONFIG = {
     "Selamat datang di Program Pemantapan Mutu Eksternal (PME). Mohon seluruh laboratorium peserta memastikan pendaftaran, pemilihan paket pemeriksaan, serta pengisian hasil pengujian dilakukan secara teliti sebelum batas akhir yang ditentukan. Pastikan sampel kontrol diperlakukan sama seperti sampel pasien rutin sesuai SOP laboratorium.",
   runningText:
     "Selamat datang di Sistem Aplikasi di-dismartPME. Program Pemantapan Mutu Eksternal (PME) Siklus 1 2026 telah dibuka. Silakan masuk dengan akun laboratorium Anda untuk melakukan pendaftaran peserta, pemilihan paket, dan pengisian hasil pemeriksaan.",
+  isRegistrationOpen: true,
 };
 
 /**
  * GET /api/pme-mgmt/config
- * Mengambil konfigurasi siklus aktif, periode/tahap, pengumuman PME, dan teks berjalan (running text).
+ * Mengambil konfigurasi siklus aktif, periode/tahap, status buka pendaftaran, pengumuman PME, dan teks berjalan (running text).
  * Dapat diakses oleh pengguna terautentikasi maupun publik di halaman login (tanpa auth).
  */
 export async function GET(req: NextRequest) {
@@ -57,7 +58,7 @@ export async function GET(req: NextRequest) {
 
 /**
  * POST /api/pme-mgmt/config
- * Menyimpan / memperbarui konfigurasi siklus aktif, periode/tahap, pengumuman PME, dan running text (Khusus Superadmin).
+ * Menyimpan / memperbarui konfigurasi siklus aktif, periode/tahap, buka/tutup pendaftaran, pengumuman PME, dan running text (Khusus Superadmin).
  */
 export async function POST(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { activeCycle, activePeriod, infoTitle, infoContent, runningText } = body;
+    const { activeCycle, activePeriod, infoTitle, infoContent, runningText, isRegistrationOpen } = body;
 
     if (!activeCycle || typeof activeCycle !== "string" || !activeCycle.trim()) {
       return jsonError("Siklus PME wajib diisi.", 400, "BAD_REQUEST");
@@ -86,6 +87,7 @@ export async function POST(req: NextRequest) {
     const titleVal = infoTitle?.trim() || DEFAULT_CONFIG.infoTitle;
     const contentVal = infoContent?.trim() || DEFAULT_CONFIG.infoContent;
     const runningVal = runningText?.trim() || DEFAULT_CONFIG.runningText;
+    const registrationOpenVal = typeof isRegistrationOpen === "boolean" ? isRegistrationOpen : true;
 
     const saved = await db.pmeCycleConfig.upsert({
       where: { organizationId: orgId },
@@ -96,6 +98,7 @@ export async function POST(req: NextRequest) {
         infoTitle: titleVal,
         infoContent: contentVal,
         runningText: runningVal,
+        isRegistrationOpen: registrationOpenVal,
         infoUpdatedAt: new Date(),
         infoUpdatedBy: user.name || "Superadmin",
       },
@@ -105,6 +108,7 @@ export async function POST(req: NextRequest) {
         infoTitle: titleVal,
         infoContent: contentVal,
         runningText: runningVal,
+        isRegistrationOpen: registrationOpenVal,
         infoUpdatedAt: new Date(),
         infoUpdatedBy: user.name || "Superadmin",
       },
@@ -113,7 +117,7 @@ export async function POST(req: NextRequest) {
     return jsonOk({
       success: true,
       config: saved,
-      message: "Konfigurasi Siklus, Periode, Informasi PME, dan Running Text berhasil disimpan.",
+      message: "Konfigurasi Siklus, Periode, Status Pendaftaran, Informasi PME, dan Running Text berhasil disimpan.",
     });
   });
 }

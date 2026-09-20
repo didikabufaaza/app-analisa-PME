@@ -139,6 +139,19 @@ export async function POST(req: NextRequest) {
       return jsonOk({ participant: updated });
     }
 
+    // Cek apakah pendaftaran PME sedang dibuka
+    let cycleConfig = await db.pmeCycleConfig.findUnique({ where: { organizationId: orgId } });
+    if (!cycleConfig) {
+      cycleConfig = await db.pmeCycleConfig.findFirst();
+    }
+    if (cycleConfig && cycleConfig.isRegistrationOpen === false && user.role !== "SUPERADMIN") {
+      return jsonError(
+        "Pendaftaran peserta PME saat ini sedang ditutup/dinonaktifkan oleh pihak penyelenggara.",
+        403,
+        "REGISTRATION_CLOSED"
+      );
+    }
+
     // Create new participant
     // Status awal adalah PENDING menunggu persetujuan Superadmin
     // (Kecuali jika dibuat langsung oleh Superadmin dan ditentukan disetujui)

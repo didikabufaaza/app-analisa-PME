@@ -26,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import {
   UserPlus,
@@ -94,6 +95,7 @@ export function PmeRegistrationView() {
   const [formContactPerson, setFormContactPerson] = useState("");
   const [formCycle, setFormCycle] = useState("Siklus 1 2026");
   const [activeConfigCycle, setActiveConfigCycle] = useState("Siklus 1 2026");
+  const [isRegistrationOpen, setIsRegistrationOpen] = useState(true);
   const [saving, setSaving] = useState(false);
 
   // Approval processing state
@@ -111,6 +113,9 @@ export function PmeRegistrationView() {
         if (data.config?.activeCycle) {
           setActiveConfigCycle(data.config.activeCycle);
           setFormCycle(data.config.activeCycle);
+        }
+        if (typeof data.config?.isRegistrationOpen === "boolean") {
+          setIsRegistrationOpen(data.config.isRegistrationOpen);
         }
       }
     } catch {
@@ -142,6 +147,14 @@ export function PmeRegistrationView() {
   }, [viewAsTenantId]);
 
   const handleOpenCreate = () => {
+    if (!isRegistrationOpen) {
+      toast({
+        title: "Pendaftaran Dinonaktifkan",
+        description: "Pendaftaran peserta PME saat ini sedang ditutup/dinonaktifkan oleh pihak penyelenggara.",
+        variant: "destructive",
+      });
+      return;
+    }
     setEditingItem(null);
     setFormCode("");
     setFormLabName(user?.organization?.name || "");
@@ -311,12 +324,42 @@ export function PmeRegistrationView() {
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Muat Ulang
           </Button>
-          <Button onClick={handleOpenCreate} size="sm" className="bg-teal-700 hover:bg-teal-800 text-white text-xs">
-            <UserPlus className="mr-1.5 h-4 w-4" />
+          <Button
+            onClick={handleOpenCreate}
+            disabled={!isRegistrationOpen}
+            size="sm"
+            className={cn(
+              "text-xs font-medium transition-all",
+              isRegistrationOpen
+                ? "bg-teal-700 hover:bg-teal-800 text-white shadow-sm"
+                : "bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed border"
+            )}
+            title={!isRegistrationOpen ? "Pendaftaran peserta PME saat ini dinonaktifkan oleh penyelenggara" : "Daftar Peserta Baru"}
+          >
+            {isRegistrationOpen ? (
+              <UserPlus className="mr-1.5 h-4 w-4" />
+            ) : (
+              <Lock className="mr-1.5 h-4 w-4 text-slate-400" />
+            )}
             Daftar Peserta Baru
           </Button>
         </div>
       </div>
+
+      {/* Banner Peringatan Ketika Pendaftaran PME Dinonaktifkan */}
+      {!isRegistrationOpen && (
+        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/25 flex items-start sm:items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 text-rose-800 dark:text-rose-300">
+            <Lock className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400" />
+            <span>
+              <strong>Pendaftaran Peserta PME Saat Ini Ditutup:</strong> Penyelenggara telah menonaktifkan periode pendaftaran peserta baru. Tombol <em>&quot;Daftar Peserta Baru&quot;</em> dinonaktifkan sementara waktu hingga dibuka kembali.
+            </span>
+          </div>
+          <Badge variant="destructive" className="shrink-0 text-[10px] font-semibold">
+            PENDAFTARAN NONAKTIF
+          </Badge>
+        </div>
+      )}
 
       {/* Superadmin Notification Banner if Pending */}
       {isSuperadmin && pendingCount > 0 && (
@@ -854,7 +897,12 @@ export function PmeRegistrationView() {
               <Button type="button" variant="outline" size="sm" onClick={() => setDialogOpen(false)} disabled={saving}>
                 Batal
               </Button>
-              <Button type="submit" size="sm" disabled={saving} className="bg-teal-700 hover:bg-teal-800 text-white">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={saving || (!editingItem && !isRegistrationOpen)}
+                className="bg-teal-700 hover:bg-teal-800 text-white"
+              >
                 {saving && <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />}
                 {editingItem ? "Simpan Perubahan" : "Daftarkan Peserta"}
               </Button>

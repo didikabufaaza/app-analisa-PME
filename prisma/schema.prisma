@@ -331,6 +331,7 @@ model PmeParticipant {
   cycle           String?      @default("Siklus 1 2026")
   status          String       @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED"
   allowResubmit   Boolean      @default(false)
+  allowReenroll   Boolean      @default(false)
   approvedAt      DateTime?
   approvedBy      String?
   createdAt       DateTime     @default(now())
@@ -417,6 +418,7 @@ model PmeSubmission {
   status         String                  @default("SUBMITTED") // DRAFT | SUBMITTED | VALIDATED | PUBLISHED
   isLocked       Boolean                 @default(true)
   allowResubmit  Boolean                 @default(false)
+  allowReenroll  Boolean                 @default(false)
   isValidated    Boolean                 @default(false)
   validatedAt    DateTime?
   validatedBy    String?

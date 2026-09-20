@@ -90,6 +90,24 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Validasi: Penguncian pemilihan paket jika hasil input PME sudah pernah dikirimkan
+    const existingSubmission = await db.pmeSubmission.findFirst({
+      where: {
+        participantId,
+        cycle: cycle.trim(),
+      },
+    });
+
+    const isReenrollAllowed = participant.allowReenroll || existingSubmission?.allowReenroll || false;
+
+    if (existingSubmission && !isReenrollAllowed && user.role !== "SUPERADMIN") {
+      return jsonError(
+        "Laboratorium telah mengirimkan hasil input pemeriksaan PME pada siklus ini sehingga pemilihan paket PME telah dikunci. Hubungi Superadmin untuk mendapatkan izin/akses memilih paket kembali.",
+        403,
+        "PACKAGE_SELECTION_LOCKED"
+      );
+    }
+
     const createdRegistrations = [];
 
     for (const pkgId of packageIds) {
@@ -133,12 +151,79 @@ export async function DELETE(req: NextRequest) {
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return jsonError("ID pendaftaran diperlukan.", 400);
 
-    const existing = await db.pmePackageRegistration.findUnique({ where: { id } });
+    const existing = await db.pmePackageRegistration.findUnique({
+      where: { id },
+      include: { participant: true },
+    });
     if (!existing || (user.role !== "SUPERADMIN" && existing.organizationId !== user.organizationId)) {
       return jsonError("Pendaftaran tidak ditemukan.", 404);
     }
 
+    // Cek apakah hasil pemeriksaan sudah dikirimkan
+    const existingSubmission = await db.pmeSubmission.findFirst({
+      where: {
+        participantId: existing.participantId,
+        cycle: existing.cycle,
+      },
+    });
+
+    const isReenrollAllowed = existing.participant?.allowReenroll || existingSubmission?.allowReenroll || false;
+
+    if (existingSubmission && !isReenrollAllowed && user.role !== "SUPERADMIN") {
+      return jsonError(
+        "Paket pemeriksaan PME tidak dapat dibatalkan karena laboratorium telah mengirimkan hasil input pemeriksaan pada siklus ini. Hubungi Superadmin untuk mendapatkan izin.",
+        403,
+        "PACKAGE_SELECTION_LOCKED"
+      );
+    }
+
     await db.pmePackageRegistration.delete({ where: { id } });
     return jsonOk({ success: true, id });
+  });
+}
+
+/**
+ * PATCH /api/pme-mgmt/enroll
+ * Mengatur izin akses pemilihan paket PME kembali bagi laboratorium tertentu oleh Superadmin.
+ */
+export async function PATCH(req: NextRequest) {
+  return withAuth(req, async ({ user }) => {
+    if (user.role !== "SUPERADMIN") {
+      return jsonError("Hanya Superadmin yang berhak memberikan izin pemilihan paket PME kembali.", 403, "FORBIDDEN");
+    }
+
+    const body = await req.json().catch(() => ({}));
+    const { action, participantId, cycle } = body;
+
+    if (!participantId) {
+      return jsonError("participantId wajib ditentukan.", 400);
+    }
+
+    const participant = await db.pmeParticipant.findUnique({ where: { id: participantId } });
+    if (!participant) {
+      return jsonError("Peserta laboratorium tidak ditemukan.", 404);
+    }
+
+    const grantPermission = action === "ALLOW_REENROLL" || action === "UNLOCK_PACKAGES";
+
+    await db.pmeParticipant.update({
+      where: { id: participantId },
+      data: { allowReenroll: grantPermission },
+    });
+
+    if (cycle) {
+      await db.pmeSubmission.updateMany({
+        where: { participantId, cycle: cycle.trim() },
+        data: { allowReenroll: grantPermission },
+      });
+    }
+
+    return jsonOk({
+      success: true,
+      allowReenroll: grantPermission,
+      message: grantPermission
+        ? `Izin pemilihan paket PME berhasil diberikan kepada ${participant.labName}. Laboratorium kini dapat memilih atau mengubah paket kembali.`
+        : `Pemilihan paket PME untuk ${participant.labName} berhasil dikunci kembali.`,
+    });
   });
 }

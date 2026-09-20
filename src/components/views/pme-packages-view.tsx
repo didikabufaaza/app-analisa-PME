@@ -70,6 +70,17 @@ interface ParticipantOption {
   participantCode: string | null;
   cycle?: string | null;
   status: string; // "PENDING" | "APPROVED" | "REJECTED"
+  allowResubmit?: boolean;
+  allowReenroll?: boolean;
+  submissions?: {
+    id: string;
+    cycle: string;
+    status: string;
+    isLocked: boolean;
+    allowResubmit: boolean;
+    allowReenroll: boolean;
+    submittedAt?: string;
+  }[];
   approvedAt?: string | null;
   approvedBy?: string | null;
 }
@@ -100,6 +111,7 @@ export function PmePackagesView() {
   const [selectedPackageIds, setSelectedPackageIds] = useState<string[]>([]);
   const [enrolling, setEnrolling] = useState(false);
   const [approvingParticipant, setApprovingParticipant] = useState(false);
+  const [togglingPackagePermission, setTogglingPackagePermission] = useState(false);
 
   // Modal Tambah Paket (Superadmin only)
   const [pkgDialogOpen, setPkgDialogOpen] = useState(false);
@@ -122,6 +134,38 @@ export function PmePackagesView() {
     const p = participants.find((x) => x.id === pId);
     if (p?.cycle) {
       setSelectedCycle(p.cycle);
+    }
+  };
+
+  const handleTogglePackagePermission = async (pId: string, allow: boolean) => {
+    if (!pId) return;
+    setTogglingPackagePermission(true);
+    try {
+      const res = await fetch("/api/pme-mgmt/enroll", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          action: allow ? "ALLOW_REENROLL" : "LOCK_REENROLL",
+          participantId: pId,
+          cycle: selectedCycle,
+        }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        toast({
+          title: allow ? "Izin Memilih Paket Diberikan" : "Pemilihan Paket Dikunci",
+          description: data.message,
+        });
+        await loadData();
+      } else {
+        const err = await res.json();
+        toast({ title: "Gagal mengubah izin", description: err.error, variant: "destructive" });
+      }
+    } catch {
+      toast({ title: "Kesalahan jaringan", variant: "destructive" });
+    } finally {
+      setTogglingPackagePermission(false);
     }
   };
 
@@ -168,7 +212,14 @@ export function PmePackagesView() {
       }
       if (partRes.ok) {
         const d = await partRes.json();
-        setParticipants(d.participants || []);
+        const parts: ParticipantOption[] = d.participants || [];
+        setParticipants(parts);
+        if (parts.length > 0 && !selectedParticipantId) {
+          setSelectedParticipantId(parts[0].id);
+          if (parts[0].cycle) {
+            setSelectedCycle(parts[0].cycle);
+          }
+        }
       }
       if (enrollRes.ok) {
         const d = await enrollRes.json();
@@ -433,44 +484,132 @@ export function PmePackagesView() {
                   </div>
                 </div>
 
-                {/* Banner Status Persetujuan Peserta */}
+                {/* Banner Status Persetujuan Peserta & Kunci Pemilihan Paket */}
                 {(() => {
                   const selectedParticipant = participants.find((p) => p.id === selectedParticipantId);
                   const isApproved = selectedParticipant?.status === "APPROVED";
 
-                  if (!selectedParticipant || isApproved) return null;
+                  if (!selectedParticipant) return null;
 
-                  return (
-                    <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-                      <div className="flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300">
-                        <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
-                        <div>
-                          <p className="font-semibold">
-                            Laboratorium ini berstatus: {selectedParticipant.status === "REJECTED" ? "Ditolak" : "Menunggu Persetujuan Superadmin"}
-                          </p>
-                          <p className="text-[11px] text-muted-foreground mt-0.5">
-                            Pemilihan paket PME hanya dapat dilakukan setelah pendaftaran laboratorium disetujui oleh Superadmin.
-                          </p>
+                  if (!isApproved) {
+                    return (
+                      <div className="p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5 text-xs text-amber-800 dark:text-amber-300">
+                          <AlertTriangle className="h-5 w-5 shrink-0 text-amber-600 dark:text-amber-400" />
+                          <div>
+                            <p className="font-semibold">
+                              Laboratorium ini berstatus: {selectedParticipant.status === "REJECTED" ? "Ditolak" : "Menunggu Persetujuan Superadmin"}
+                            </p>
+                            <p className="text-[11px] text-muted-foreground mt-0.5">
+                              Pemilihan paket PME hanya dapat dilakukan setelah pendaftaran laboratorium disetujui oleh Superadmin.
+                            </p>
+                          </div>
                         </div>
+                        {isSuperadmin && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            disabled={approvingParticipant}
+                            onClick={() => handleApproveParticipant(selectedParticipant.id)}
+                            className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs shrink-0"
+                          >
+                            {approvingParticipant ? (
+                              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Check className="mr-1.5 h-3.5 w-3.5" />
+                            )}
+                            Setujui Pendaftaran Sekarang
+                          </Button>
+                        )}
                       </div>
-                      {isSuperadmin && (
-                        <Button
-                          type="button"
-                          size="sm"
-                          disabled={approvingParticipant}
-                          onClick={() => handleApproveParticipant(selectedParticipant.id)}
-                          className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs shrink-0"
-                        >
-                          {approvingParticipant ? (
-                            <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                          ) : (
-                            <Check className="mr-1.5 h-3.5 w-3.5" />
-                          )}
-                          Setujui Pendaftaran Sekarang
-                        </Button>
-                      )}
-                    </div>
+                    );
+                  }
+
+                  // Cek apakah laboratorium sudah mengirimkan hasil input PME pada siklus ini
+                  const hasSubmittedOnCycle = Boolean(
+                    selectedParticipant.submissions?.some(
+                      (s) => s.cycle === selectedCycle && (s.status === "SUBMITTED" || s.status === "VALIDATED" || s.status === "PUBLISHED")
+                    )
                   );
+
+                  const isReenrollAllowed = Boolean(
+                    selectedParticipant.allowReenroll ||
+                    selectedParticipant.submissions?.some((s) => s.cycle === selectedCycle && s.allowReenroll)
+                  );
+
+                  if (hasSubmittedOnCycle) {
+                    if (!isReenrollAllowed) {
+                      return (
+                        <div className="p-3.5 rounded-xl bg-rose-500/10 border border-rose-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          <div className="flex items-start sm:items-center gap-2.5 text-rose-900 dark:text-rose-200">
+                            <Lock className="h-5 w-5 shrink-0 text-rose-600 dark:text-rose-400 mt-0.5 sm:mt-0" />
+                            <div>
+                              <div className="flex items-center gap-2 font-bold text-xs">
+                                <span>Pemilihan Paket PME Terkunci</span>
+                                <Badge variant="destructive" className="text-[9px] px-1.5 py-0">HASIL TELAH DIKIRIM</Badge>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Laboratorium ini telah mengirimkan hasil input pemeriksaan PME pada siklus <strong>{selectedCycle}</strong>. Pemilihan atau perubahan paket PME telah dinonaktifkan / dikunci untuk menjaga validitas data pengujian.
+                                {!isSuperadmin && " Hubungi Superadmin jika memerlukan izin untuk memilih kembali paket PME."}
+                              </p>
+                            </div>
+                          </div>
+                          {isSuperadmin && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              disabled={togglingPackagePermission}
+                              onClick={() => handleTogglePackagePermission(selectedParticipant.id, true)}
+                              className="bg-emerald-700 hover:bg-emerald-800 text-white text-xs shrink-0 font-medium shadow-sm"
+                            >
+                              {togglingPackagePermission ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="mr-1.5 h-3.5 w-3.5" />
+                              )}
+                              Beri Izin Memilih Paket Kembali
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    } else {
+                      return (
+                        <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                          <div className="flex items-start sm:items-center gap-2.5 text-emerald-900 dark:text-emerald-200">
+                            <CheckCircle2 className="h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5 sm:mt-0" />
+                            <div>
+                              <div className="flex items-center gap-2 font-bold text-xs">
+                                <span>Izin Khusus Pemilihan Paket Diberikan</span>
+                                <Badge className="bg-emerald-600 text-white text-[9px] px-1.5 py-0">AKSES AKTIF</Badge>
+                              </div>
+                              <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                                Superadmin telah memberikan izin khusus kepada laboratorium ini untuk memilih / mengubah paket pemeriksaan PME kembali meskipun sudah pernah mengirimkan hasil.
+                              </p>
+                            </div>
+                          </div>
+                          {isSuperadmin && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              variant="outline"
+                              disabled={togglingPackagePermission}
+                              onClick={() => handleTogglePackagePermission(selectedParticipant.id, false)}
+                              className="border-rose-300 text-rose-700 hover:bg-rose-50 dark:border-rose-800 dark:text-rose-300 text-xs shrink-0 font-medium"
+                            >
+                              {togglingPackagePermission ? (
+                                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <Lock className="mr-1.5 h-3.5 w-3.5" />
+                              )}
+                              Kunci Kembali Pemilihan Paket
+                            </Button>
+                          )}
+                        </div>
+                      );
+                    }
+                  }
+
+                  return null;
                 })()}
 
                 {/* Checklist Paket */}
@@ -481,14 +620,47 @@ export function PmePackagesView() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                     {packages.map((pkg) => {
                       const isSelected = selectedPackageIds.includes(pkg.id);
+                      const selectedPart = participants.find((p) => p.id === selectedParticipantId);
+                      const isApproved = selectedPart?.status === "APPROVED";
+                      const hasSub = Boolean(
+                        selectedPart?.submissions?.some(
+                          (s) => s.cycle === selectedCycle && (s.status === "SUBMITTED" || s.status === "VALIDATED" || s.status === "PUBLISHED")
+                        )
+                      );
+                      const isReenroll = Boolean(
+                        selectedPart?.allowReenroll ||
+                        selectedPart?.submissions?.some((s) => s.cycle === selectedCycle && s.allowReenroll)
+                      );
+                      const isItemLocked = !isSuperadmin && (!isApproved || (hasSub && !isReenroll));
+
                       return (
                         <div
                           key={pkg.id}
-                          onClick={() => togglePackageSelection(pkg.id)}
-                          className={`cursor-pointer rounded-xl border p-4 transition-all ${
-                            isSelected
-                              ? "border-teal-600 bg-teal-50/50 dark:bg-teal-950/20 ring-1 ring-teal-600"
-                              : "border-border/70 hover:border-teal-500/50 hover:bg-muted/30"
+                          onClick={() => {
+                            if (isItemLocked) {
+                              if (!isApproved) {
+                                toast({
+                                  title: "Peserta Belum Disetujui",
+                                  description: "Pendaftaran laboratorium harus disetujui Superadmin terlebih dahulu.",
+                                  variant: "destructive",
+                                });
+                              } else {
+                                toast({
+                                  title: "Pemilihan Paket Terkunci",
+                                  description: "Laboratorium telah mengirimkan hasil input PME. Hubungi Superadmin untuk mendapatkan izin memilih paket kembali.",
+                                  variant: "destructive",
+                                });
+                              }
+                              return;
+                            }
+                            togglePackageSelection(pkg.id);
+                          }}
+                          className={`rounded-xl border p-4 transition-all ${
+                            isItemLocked
+                              ? "opacity-60 cursor-not-allowed bg-muted/20 border-border"
+                              : isSelected
+                              ? "cursor-pointer border-teal-600 bg-teal-50/50 dark:bg-teal-950/20 ring-1 ring-teal-600"
+                              : "cursor-pointer border-border/70 hover:border-teal-500/50 hover:bg-muted/30"
                           }`}
                         >
                           <div className="flex items-start justify-between">
@@ -503,7 +675,10 @@ export function PmePackagesView() {
                             </div>
                             <Checkbox
                               checked={isSelected}
-                              onCheckedChange={() => togglePackageSelection(pkg.id)}
+                              disabled={isItemLocked}
+                              onCheckedChange={() => {
+                                if (!isItemLocked) togglePackageSelection(pkg.id);
+                              }}
                               className="mt-1"
                             />
                           </div>
@@ -531,12 +706,22 @@ export function PmePackagesView() {
                   {(() => {
                     const selPart = participants.find((p) => p.id === selectedParticipantId);
                     const isApproved = selPart?.status === "APPROVED";
-                    const isLocked = !isApproved || !selectedParticipantId || selectedPackageIds.length === 0;
+                    const hasSub = Boolean(
+                      selPart?.submissions?.some(
+                        (s) => s.cycle === selectedCycle && (s.status === "SUBMITTED" || s.status === "VALIDATED" || s.status === "PUBLISHED")
+                      )
+                    );
+                    const isReenroll = Boolean(
+                      selPart?.allowReenroll ||
+                      selPart?.submissions?.some((s) => s.cycle === selectedCycle && s.allowReenroll)
+                    );
+                    const isSubmissionLocked = !isSuperadmin && hasSub && !isReenroll;
+                    const isSubmitDisabled = enrolling || !isApproved || !selectedParticipantId || selectedPackageIds.length === 0 || isSubmissionLocked;
 
                     return (
                       <Button
                         type="submit"
-                        disabled={enrolling || isLocked}
+                        disabled={isSubmitDisabled}
                         className="bg-teal-700 hover:bg-teal-800 text-white text-xs px-5 disabled:opacity-50"
                       >
                         {enrolling ? (
@@ -546,6 +731,8 @@ export function PmePackagesView() {
                         )}
                         {!isApproved && selectedParticipantId
                           ? "Terkunci (Menunggu Persetujuan Superadmin)"
+                          : isSubmissionLocked
+                          ? "Terkunci (Hasil Input Telah Terkirim)"
                           : "Simpan Pemilihan Paket"}
                       </Button>
                     );
@@ -621,15 +808,40 @@ export function PmePackagesView() {
                             </Button>
                           </td>
                           <td className="p-3 text-center">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Batalkan Pendaftaran Paket"
-                              onClick={() => handleDeleteEnrollment(en.id)}
-                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {(() => {
+                              const enPart = participants.find((p) => p.id === en.participant.id);
+                              const hasSub = Boolean(
+                                enPart?.submissions?.some(
+                                  (s) => s.cycle === en.cycle && (s.status === "SUBMITTED" || s.status === "VALIDATED" || s.status === "PUBLISHED")
+                                )
+                              );
+                              const isReenroll = Boolean(
+                                enPart?.allowReenroll ||
+                                enPart?.submissions?.some((s) => s.cycle === en.cycle && s.allowReenroll)
+                              );
+                              const isDeleteLocked = !isSuperadmin && hasSub && !isReenroll;
+
+                              return (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  disabled={isDeleteLocked}
+                                  title={
+                                    isDeleteLocked
+                                      ? "Terkunci: Hasil input PME telah dikirimkan"
+                                      : "Batalkan Pendaftaran Paket"
+                                  }
+                                  onClick={() => handleDeleteEnrollment(en.id)}
+                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 disabled:opacity-40 disabled:cursor-not-allowed"
+                                >
+                                  {isDeleteLocked ? (
+                                    <Lock className="h-3.5 w-3.5 text-muted-foreground" />
+                                  ) : (
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  )}
+                                </Button>
+                              );
+                            })()}
                           </td>
                         </tr>
                       ))

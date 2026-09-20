@@ -260,14 +260,15 @@ export async function POST(req: NextRequest) {
           isLocked: true,
           // Kunci kembali setelah berhasil kirim ulang
           allowResubmit: false,
+          allowReenroll: false,
           submittedAt: new Date(),
         },
       });
 
-      if (participant.allowResubmit) {
+      if (participant.allowResubmit || participant.allowReenroll) {
         await db.pmeParticipant.update({
           where: { id: participant.id },
-          data: { allowResubmit: false },
+          data: { allowResubmit: false, allowReenroll: false },
         });
       }
 
@@ -285,9 +286,17 @@ export async function POST(req: NextRequest) {
           status: "SUBMITTED",
           isLocked: true,
           allowResubmit: false,
+          allowReenroll: false,
           submittedAt: new Date(),
         },
       });
+
+      if (participant.allowReenroll) {
+        await db.pmeParticipant.update({
+          where: { id: participant.id },
+          data: { allowReenroll: false },
+        });
+      }
     }
 
     // Simpan rincian hasil per parameter

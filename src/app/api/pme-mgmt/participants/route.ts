@@ -33,6 +33,17 @@ export async function GET(req: NextRequest) {
             package: true,
           },
         },
+        submissions: {
+          select: {
+            id: true,
+            cycle: true,
+            status: true,
+            isLocked: true,
+            allowResubmit: true,
+            allowReenroll: true,
+            submittedAt: true,
+          },
+        },
         _count: {
           select: { submissions: true },
         },
@@ -55,16 +66,38 @@ export async function POST(req: NextRequest) {
 
     const { id, participantCode, labName, phone, email, address, contactPerson, cycle, status, action } = body;
 
-    // Aksi Persetujuan oleh Superadmin
+    // Aksi Persetujuan atau Izin Pemilihan Paket oleh Superadmin
     if (action) {
       if (user.role !== "SUPERADMIN") {
-        return jsonError("Hanya Superadmin yang berhak menyetujui atau menolak pendaftaran peserta PME.", 403, "FORBIDDEN");
+        return jsonError("Hanya Superadmin yang berhak mengelola status dan izin peserta PME.", 403, "FORBIDDEN");
       }
       if (!id) return jsonError("ID peserta diperlukan.", 400);
 
       const existing = await db.pmeParticipant.findUnique({ where: { id } });
       if (!existing || (user.role !== "SUPERADMIN" && existing.organizationId !== user.organizationId)) {
         return jsonError("Peserta tidak ditemukan.", 404);
+      }
+
+      // Izin Pemilihan Paket PME Kembali (allowReenroll)
+      if (action === "allow_reenroll" || action === "lock_reenroll" || action === "toggle_reenroll") {
+        const nextAllow = action === "toggle_reenroll" ? !existing.allowReenroll : action === "allow_reenroll";
+        const updated = await db.pmeParticipant.update({
+          where: { id },
+          data: { allowReenroll: nextAllow },
+        });
+        if (cycle) {
+          await db.pmeSubmission.updateMany({
+            where: { participantId: id, cycle: cycle.trim() },
+            data: { allowReenroll: nextAllow },
+          });
+        }
+        return jsonOk({
+          participant: updated,
+          allowReenroll: nextAllow,
+          message: nextAllow
+            ? `Izin pemilihan paket PME berhasil diberikan kepada ${existing.labName}.`
+            : `Pemilihan paket PME untuk ${existing.labName} berhasil dikunci kembali.`,
+        });
       }
 
       let newStatus = "PENDING";
@@ -84,7 +117,7 @@ export async function POST(req: NextRequest) {
         approvedAt = null;
         approvedBy = null;
       } else {
-        return jsonError("Aksi tidak valid (gunakan: approve, reject, atau pending).", 400);
+        return jsonError("Aksi tidak valid (gunakan: approve, reject, pending, allow_reenroll, atau lock_reenroll).", 400);
       }
 
       const updated = await db.pmeParticipant.update({

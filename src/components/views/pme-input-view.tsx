@@ -624,11 +624,18 @@ export function PmeInputView() {
       return;
     }
 
-    const filledRows = parameters.filter((p) => p.value.trim() !== "");
-    if (filledRows.length === 0) {
+    const hasAnyContent = parameters.some(
+      (p) =>
+        p.value.trim() !== "" ||
+        p.methodCode.trim() !== "" ||
+        p.instrumentCode.trim() !== "" ||
+        p.reagentName.trim() !== ""
+    );
+
+    if (!hasAnyContent) {
       toast({
-        title: "Belum Ada Hasil",
-        description: "Silakan isi minimal satu nilai hasil pemeriksaan untuk disimpan sebagai draft.",
+        title: "Belum Ada Data",
+        description: "Silakan isi minimal satu nilai hasil atau pilihan metode/alat/reagen untuk disimpan sebagai draft.",
         variant: "destructive",
       });
       return;
@@ -643,16 +650,26 @@ export function PmeInputView() {
         action: "SAVE_DRAFT",
         isDraft: true,
         results: parameters
-          .filter((p) => p.value.trim() !== "")
-          .map((p) => ({
-            parameterId: p.id,
-            parameterName: p.name,
-            unit: p.unit,
-            value: parseFloat(p.value.replace(/,/g, ".")),
-            methodCode: p.methodCode,
-            instrumentCode: p.instrumentCode,
-            reagentName: p.reagentName,
-          })),
+          .filter(
+            (p) =>
+              p.value.trim() !== "" ||
+              p.methodCode.trim() !== "" ||
+              p.instrumentCode.trim() !== "" ||
+              p.reagentName.trim() !== ""
+          )
+          .map((p) => {
+            const raw = p.value.trim().replace(/,/g, ".");
+            const parsed = parseFloat(raw);
+            return {
+              parameterId: p.id,
+              parameterName: p.name,
+              unit: p.unit,
+              value: !isNaN(parsed) && raw !== "" ? parsed : null,
+              methodCode: p.methodCode,
+              instrumentCode: p.instrumentCode,
+              reagentName: p.reagentName,
+            };
+          }),
       };
 
       const res = await fetch("/api/pme-mgmt/submissions", {
@@ -674,8 +691,8 @@ export function PmeInputView() {
         }
         await loadParticipantParams();
       } else {
-        const err = await res.json();
-        toast({ title: "Gagal menyimpan draft", description: err.error, variant: "destructive" });
+        const err = await res.json().catch(() => ({}));
+        toast({ title: "Gagal menyimpan draft", description: err.error || "Terjadi kesalahan pada server.", variant: "destructive" });
       }
     } catch {
       toast({ title: "Kesalahan jaringan", description: "Gagal menyimpan draft hasil.", variant: "destructive" });
@@ -870,15 +887,19 @@ export function PmeInputView() {
         isDraft: false,
         results: parameters
           .filter((p) => p.value.trim() !== "")
-          .map((p) => ({
-            parameterId: p.id,
-            parameterName: p.name,
-            unit: p.unit,
-            value: parseFloat(p.value.replace(/,/g, ".")),
-            methodCode: p.methodCode,
-            instrumentCode: p.instrumentCode,
-            reagentName: p.reagentName,
-          })),
+          .map((p) => {
+            const raw = p.value.trim().replace(/,/g, ".");
+            const parsed = parseFloat(raw);
+            return {
+              parameterId: p.id,
+              parameterName: p.name,
+              unit: p.unit,
+              value: !isNaN(parsed) && raw !== "" ? parsed : null,
+              methodCode: p.methodCode,
+              instrumentCode: p.instrumentCode,
+              reagentName: p.reagentName,
+            };
+          }),
       };
 
       const res = await fetch("/api/pme-mgmt/submissions", {
@@ -903,8 +924,8 @@ export function PmeInputView() {
         setIsLocked(true);
         await loadParticipantParams();
       } else {
-        const err = await res.json();
-        toast({ title: "Gagal mengirim hasil", description: err.error, variant: "destructive" });
+        const err = await res.json().catch(() => ({}));
+        toast({ title: "Gagal mengirim hasil", description: err.error || "Terjadi kesalahan pada server.", variant: "destructive" });
       }
     } catch {
       toast({ title: "Gagal mengirim", description: "Terjadi kesalahan sistem.", variant: "destructive" });

@@ -352,7 +352,7 @@ export async function POST(req: NextRequest) {
           // Kunci kembali setelah berhasil kirim final
           allowResubmit: savingDraft ? submission.allowResubmit : false,
           allowReenroll: savingDraft ? submission.allowReenroll : false,
-          submittedAt: savingDraft ? submission.submittedAt : new Date(),
+          submittedAt: savingDraft ? (submission.submittedAt || new Date()) : new Date(),
         },
       });
 
@@ -381,7 +381,7 @@ export async function POST(req: NextRequest) {
           isLocked: nextLocked,
           allowResubmit: false,
           allowReenroll: false,
-          submittedAt: savingDraft ? null : new Date(),
+          submittedAt: new Date(),
         },
       });
 
@@ -393,28 +393,53 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Ambil daftar parameterId yang valid dari database untuk mencegah error foreign key
+    const allValidParams = await db.pmePackageParameter.findMany({ select: { id: true } });
+    const validParamIds = new Set(allValidParams.map((p) => p.id));
+
     // Simpan rincian hasil per parameter
     let savedCount = 0;
     for (const r of results) {
-      if (r.parameterName && (r.value !== null && r.value !== undefined && r.value !== "")) {
-        const numVal = parseFloat(String(r.value).replace(/,/g, "."));
-        if (!isNaN(numVal)) {
-          await db.pmeSubmissionResult.create({
-            data: {
-              submissionId: submission.id,
-              parameterId: r.parameterId || null,
-              parameterName: r.parameterName.trim(),
-              unit: r.unit?.trim() || null,
-              value: numVal,
-              methodCode: r.methodCode?.trim() || null,
-              methodName: r.methodName?.trim() || null,
-              instrumentCode: r.instrumentCode?.trim() || null,
-              instrumentName: r.instrumentName?.trim() || null,
-              reagentName: r.reagentName?.trim() || null,
-            },
-          });
-          savedCount++;
+      if (!r.parameterName) continue;
+
+      let numVal: number | null = null;
+      if (r.value !== null && r.value !== undefined) {
+        const strVal = String(r.value).trim().replace(/,/g, ".");
+        if (strVal !== "" && strVal !== "null" && strVal !== "undefined") {
+          const parsed = parseFloat(strVal);
+          if (!isNaN(parsed)) {
+            numVal = parsed;
+          }
         }
+      }
+
+      const hasValue = numVal !== null;
+      const hasMethod = Boolean(r.methodCode && String(r.methodCode).trim());
+      const hasInstrument = Boolean(r.instrumentCode && String(r.instrumentCode).trim());
+      const hasReagent = Boolean(r.reagentName && String(r.reagentName).trim());
+
+      // Jika simpan draft: simpan baris yang memiliki nilai atau metode/alat/reagen terisi
+      // Jika submit final: simpan baris yang memiliki nilai uji numerik
+      const shouldSave = savingDraft ? (hasValue || hasMethod || hasInstrument || hasReagent) : hasValue;
+
+      if (shouldSave) {
+        const safeParameterId = r.parameterId && validParamIds.has(r.parameterId) ? r.parameterId : null;
+
+        await db.pmeSubmissionResult.create({
+          data: {
+            submissionId: submission.id,
+            parameterId: safeParameterId,
+            parameterName: r.parameterName.trim(),
+            unit: r.unit?.trim() || null,
+            value: numVal,
+            methodCode: r.methodCode?.trim() || null,
+            methodName: r.methodName?.trim() || null,
+            instrumentCode: r.instrumentCode?.trim() || null,
+            instrumentName: r.instrumentName?.trim() || null,
+            reagentName: r.reagentName?.trim() || null,
+          },
+        });
+        savedCount++;
       }
     }
 

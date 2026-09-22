@@ -36,6 +36,9 @@ model Organization {
   pmeSubmissions   PmeSubmission[]
   pmeSigner        PmeSigner?
   pmeCycleConfig   PmeCycleConfig?
+  pmeMasterInstruments PmeMasterInstrument[]
+  pmeMasterMethods     PmeMasterMethod[]
+  pmeMasterReagents    PmeMasterReagent[]
 }
 
 model KopSurat {
@@ -330,9 +333,11 @@ model PmeParticipant {
   contactPerson   String?
   cycle           String?      @default("Siklus 1 2026")
   status          String       @default("PENDING") // "PENDING" | "APPROVED" | "REJECTED"
-  allowResubmit   Boolean      @default(false)
-  allowReenroll   Boolean      @default(false)
-  approvedAt      DateTime?
+  allowResubmit      Boolean      @default(false)
+  allowReenroll      Boolean      @default(false)
+  allowExpiredInput  Boolean      @default(false)
+  customDeadline     DateTime?
+  approvedAt         DateTime?
   approvedBy      String?
   createdAt       DateTime     @default(now())
   updatedAt       DateTime     @updatedAt
@@ -480,10 +485,54 @@ model PmeCycleConfig {
   infoContent        String?      @db.Text
   runningText        String?      @db.Text
   isRegistrationOpen Boolean      @default(true)
+  submissionDeadline DateTime?
+  isSubmissionOpen   Boolean      @default(true)
   infoUpdatedAt      DateTime     @default(now())
   infoUpdatedBy      String?
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
 
   @@index([organizationId])
+}
+
+model PmeMasterInstrument {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String       // e.g. "ALT-001"
+  name           String       // e.g. "Mindray BS-240"
+  description    String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, code])
+}
+
+model PmeMasterMethod {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String       // e.g. "MTD-001"
+  name           String       // e.g. "GOD-PAP (Glukosa Oksidase)"
+  description    String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, code])
+}
+
+model PmeMasterReagent {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  code           String       // e.g. "RGN-001"
+  name           String       // e.g. "DiaSys"
+  description    String?
+  isActive       Boolean      @default(true)
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId, code])
 }

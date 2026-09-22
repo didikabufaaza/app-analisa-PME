@@ -18,7 +18,8 @@ export type AppView =
   | "pme-packages"
   | "pme-input"
   | "pme-reports"
-  | "pme-info";
+  | "pme-info"
+  | "master-data";
 
 interface AppState {
   user: UserInfo | null;

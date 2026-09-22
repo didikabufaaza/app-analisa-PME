@@ -19,6 +19,7 @@ import { PmePackagesView } from "@/components/views/pme-packages-view";
 import { PmeInputView } from "@/components/views/pme-input-view";
 import { PmeReportsView } from "@/components/views/pme-reports-view";
 import { PmeInfoView } from "@/components/views/pme-info-view";
+import { MasterDataView } from "@/components/views/master-data-view";
 
 export default function Home() {
   const { user, view, viewAsTenantId } = useAppStore();
@@ -115,6 +116,11 @@ export default function Home() {
         {visited.has("pme-info") && (
           <div className={view === "pme-info" ? "block" : "hidden"}>
             <PmeInfoView />
+          </div>
+        )}
+        {visited.has("master-data") && (
+          <div className={view === "master-data" ? "block" : "hidden"}>
+            <MasterDataView />
           </div>
         )}
       </div>

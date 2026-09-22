@@ -151,24 +151,38 @@ export async function GET(req: NextRequest) {
     const isSuper = user.role === "SUPERADMIN";
     const hasResubmitPermission = canResubmitPme(user);
 
-    const isSubmitted = Boolean(existingSubmission);
+    const isDraft = existingSubmission?.status === "DRAFT";
+    const isSubmitted = Boolean(existingSubmission && existingSubmission.status !== "DRAFT");
     const isLocked = existingSubmission?.isLocked ?? false;
     const isAllowedBySubmission = existingSubmission?.allowResubmit ?? false;
     const isAllowedByParticipant = participant.allowResubmit ?? false;
 
+    // Ambil konfigurasi batas waktu PME
+    const cycleConfig =
+      (await db.pmeCycleConfig.findUnique({ where: { organizationId: participant.organizationId } })) ||
+      (await db.pmeCycleConfig.findFirst());
+    const effectiveDeadline = participant.customDeadline || cycleConfig?.submissionDeadline || null;
+    const isSubmissionOpen = cycleConfig?.isSubmissionOpen ?? true;
+    const isExpired = Boolean(
+      effectiveDeadline && new Date() > new Date(effectiveDeadline) && !participant.allowExpiredInput
+    );
+
     // canEdit bernilai true jika:
-    // 1. Belum pernah submit
+    // 1. Belum pernah submit (atau baru berstatus draft)
     // 2. Pengguna adalah Superadmin
     // 3. Pengguna memiliki izin khusus "pme-resubmit"
     // 4. Superadmin telah membuka kunci pada submission ini (allowResubmit === true)
     // 5. Superadmin telah membuka kunci pada laboratorium peserta ini (participant.allowResubmit === true)
-    const canEdit =
+    // Dan waktu pengisian belum expired (kecuali superadmin atau allowExpiredInput)
+    const canEditDueToSubmission =
       !isSubmitted ||
       isSuper ||
       hasResubmitPermission ||
       isAllowedBySubmission ||
       isAllowedByParticipant ||
       !isLocked;
+
+    const canEdit = isSuper ? true : canEditDueToSubmission && isSubmissionOpen && !isExpired;
 
     return jsonOk({
       participant,
@@ -181,10 +195,20 @@ export async function GET(req: NextRequest) {
       })),
       parameters,
       submission: existingSubmission,
+      isDraft,
+      isSubmitted,
       canEdit,
       isLocked: isSubmitted ? isLocked : false,
       allowResubmit: isAllowedBySubmission || isAllowedByParticipant,
       hasResubmitPermission,
+      deadlineInfo: {
+        submissionDeadline: cycleConfig?.submissionDeadline || null,
+        customDeadline: participant.customDeadline || null,
+        effectiveDeadline,
+        isSubmissionOpen,
+        allowExpiredInput: participant.allowExpiredInput,
+        isExpired,
+      },
     });
   });
 }
@@ -198,7 +222,8 @@ export async function POST(req: NextRequest) {
     const orgId = getEffectiveOrgId(user, req) === "ALL" ? user.organizationId : getEffectiveOrgId(user, req);
     const body = await req.json();
 
-    const { participantId, cycle, period, results } = body;
+    const { participantId, cycle, period, results, isDraft, action } = body;
+    const savingDraft = Boolean(isDraft || action === "SAVE_DRAFT");
 
     if (!participantId) {
       return jsonError("Peserta wajib ditentukan.", 400);
@@ -217,7 +242,7 @@ export async function POST(req: NextRequest) {
 
     if (participant.status !== "APPROVED") {
       return jsonError(
-        "Pendaftaran laboratorium peserta belum disetujui oleh Superadmin. Pengiriman hasil PME hanya dapat dilakukan setelah pendaftaran disetujui.",
+        "Pendaftaran laboratorium peserta belum disetujui oleh Superadmin. Pengisian hasil PME hanya dapat dilakukan setelah pendaftaran disetujui.",
         403,
         "NOT_APPROVED"
       );
@@ -225,6 +250,28 @@ export async function POST(req: NextRequest) {
 
     const isSuper = user.role === "SUPERADMIN";
     const hasResubmitPermission = canResubmitPme(user);
+
+    // Validasi Batas Waktu Pengisian (Deadline Check) jika bukan Superadmin
+    if (!isSuper) {
+      const cycleConfig =
+        (await db.pmeCycleConfig.findUnique({ where: { organizationId: participant.organizationId } })) ||
+        (await db.pmeCycleConfig.findFirst());
+
+      if (cycleConfig && !cycleConfig.isSubmissionOpen && !participant.allowExpiredInput) {
+        return jsonError("Pengisian hasil PME saat ini sedang dinonaktifkan oleh Superadmin.", 403, "SUBMISSION_CLOSED");
+      }
+
+      const effectiveDeadline = participant.customDeadline || cycleConfig?.submissionDeadline;
+      if (effectiveDeadline && new Date() > new Date(effectiveDeadline) && !participant.allowExpiredInput) {
+        return jsonError(
+          `Batas waktu pengisian hasil PME untuk siklus ini telah berakhir pada ${new Date(
+            effectiveDeadline
+          ).toLocaleString("id-ID")}. Hubungi Superadmin untuk mengajukan perpanjangan batas waktu pengisian.`,
+          403,
+          "DEADLINE_EXPIRED"
+        );
+      }
+    }
 
     // Cari submission yang sudah ada
     let submission = await db.pmeSubmission.findFirst({
@@ -235,63 +282,74 @@ export async function POST(req: NextRequest) {
     });
 
     if (submission) {
-      // Validasi izin pengeditan ulang
-      const isAllowed =
-        isSuper ||
-        hasResubmitPermission ||
-        submission.allowResubmit ||
-        participant.allowResubmit ||
-        !submission.isLocked;
+      // Jika submission sebelumnya berstatus DRAFT, user bebas menyimpan/mengedit kembali
+      const wasDraft = submission.status === "DRAFT";
 
-      if (!isAllowed) {
-        return jsonError(
-          "Hasil PME untuk siklus ini telah dikirim dan terkunci. Pengeditan ulang hanya dapat dibuka atas izin Superadmin.",
-          403,
-          "SUBMISSION_LOCKED"
-        );
+      if (!wasDraft) {
+        // Validasi izin pengeditan ulang jika sebelumnya sudah SUBMITTED
+        const isAllowed =
+          isSuper ||
+          hasResubmitPermission ||
+          submission.allowResubmit ||
+          participant.allowResubmit ||
+          !submission.isLocked;
+
+        if (!isAllowed) {
+          return jsonError(
+            "Hasil PME untuk siklus ini telah dikirim dan terkunci. Pengeditan ulang hanya dapat dibuka atas izin Superadmin.",
+            403,
+            "SUBMISSION_LOCKED"
+          );
+        }
       }
 
       // Update submission metadata
+      const nextStatus = savingDraft ? "DRAFT" : "SUBMITTED";
+      const nextLocked = savingDraft ? false : true;
+
       submission = await db.pmeSubmission.update({
         where: { id: submission.id },
         data: {
           period: period?.trim() || submission.period,
-          status: "SUBMITTED",
-          isLocked: true,
-          // Kunci kembali setelah berhasil kirim ulang
-          allowResubmit: false,
-          allowReenroll: false,
-          submittedAt: new Date(),
+          status: nextStatus,
+          isLocked: nextLocked,
+          // Kunci kembali setelah berhasil kirim final
+          allowResubmit: savingDraft ? submission.allowResubmit : false,
+          allowReenroll: savingDraft ? submission.allowReenroll : false,
+          submittedAt: savingDraft ? submission.submittedAt : new Date(),
         },
       });
 
-      if (participant.allowResubmit || participant.allowReenroll) {
+      if (!savingDraft && (participant.allowResubmit || participant.allowReenroll)) {
         await db.pmeParticipant.update({
           where: { id: participant.id },
           data: { allowResubmit: false, allowReenroll: false },
         });
       }
 
-      // Hapus hasil lama untuk di-replace dengan yang baru dikirim
+      // Hapus hasil lama untuk di-replace dengan yang baru
       await db.pmeSubmissionResult.deleteMany({
         where: { submissionId: submission.id },
       });
     } else {
+      const nextStatus = savingDraft ? "DRAFT" : "SUBMITTED";
+      const nextLocked = savingDraft ? false : true;
+
       submission = await db.pmeSubmission.create({
         data: {
           organizationId: participant.organizationId,
           participantId,
           cycle: cycle.trim(),
           period: period?.trim() || null,
-          status: "SUBMITTED",
-          isLocked: true,
+          status: nextStatus,
+          isLocked: nextLocked,
           allowResubmit: false,
           allowReenroll: false,
-          submittedAt: new Date(),
+          submittedAt: savingDraft ? null : new Date(),
         },
       });
 
-      if (participant.allowReenroll) {
+      if (!savingDraft && participant.allowReenroll) {
         await db.pmeParticipant.update({
           where: { id: participant.id },
           data: { allowReenroll: false },
@@ -328,8 +386,11 @@ export async function POST(req: NextRequest) {
       success: true,
       submissionId: submission.id,
       savedCount,
-      isLocked: true,
-      message: `Hasil PME ${participant.labName} untuk ${cycle} berhasil dikirim (${savedCount} parameter tercatat). Formulir kini terkunci secara otomatis.`,
+      isLocked: savingDraft ? false : true,
+      isDraft: savingDraft,
+      message: savingDraft
+        ? `Draft hasil PME ${participant.labName} untuk ${cycle} berhasil disimpan (${savedCount} parameter tercatat). Formulir tetap dapat diedit sebelum dikirimkan secara final.`
+        : `Hasil PME ${participant.labName} untuk ${cycle} berhasil dikirim (${savedCount} parameter tercatat). Formulir kini terkunci secara otomatis.`,
     });
   });
 }

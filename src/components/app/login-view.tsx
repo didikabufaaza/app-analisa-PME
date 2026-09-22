@@ -10,6 +10,7 @@ import { apiSend, ApiError } from "@/lib/api-client";
 import { useAppStore } from "@/lib/store";
 import type { UserInfo } from "@/types/pme";
 import { cn } from "@/lib/utils";
+import { PmeCountdownTimer } from "@/components/pme/pme-countdown-timer";
 
 const FEATURES = [
   { icon: ScanLine, title: "Ekstraksi Laporan Otomatis", desc: "Membaca dan memproses berkas laporan PME apa pun formatnya: parameter, nilai peserta, target, dan Z-score." },
@@ -33,13 +34,21 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
   const [name, setName] = useState("");
   const [organizationName, setOrganizationName] = useState("");
   const [runningText, setRunningText] = useState<string>("");
+  const [submissionDeadline, setSubmissionDeadline] = useState<string | null>(null);
+  const [isSubmissionOpen, setIsSubmissionOpen] = useState<boolean>(true);
+  const [activeCycle, setActiveCycle] = useState<string>("Siklus 1 2026");
+  const [activePeriod, setActivePeriod] = useState<string>("Tahap 1");
 
   useEffect(() => {
     fetch("/api/pme-mgmt/config")
       .then((res) => (res.ok ? res.json() : null))
       .then((data) => {
-        if (data?.config?.runningText) {
-          setRunningText(data.config.runningText);
+        if (data?.config) {
+          if (data.config.runningText) setRunningText(data.config.runningText);
+          if (data.config.submissionDeadline) setSubmissionDeadline(data.config.submissionDeadline);
+          if (typeof data.config.isSubmissionOpen === "boolean") setIsSubmissionOpen(data.config.isSubmissionOpen);
+          if (data.config.activeCycle) setActiveCycle(data.config.activeCycle);
+          if (data.config.activePeriod) setActivePeriod(data.config.activePeriod);
         }
       })
       .catch(() => undefined);
@@ -121,6 +130,15 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
             </div>
           </div>
         ) : null}
+
+        {/* View Waktu Pengisian yang Berjalan Mundur di Form Login Kiri Atas */}
+        <PmeCountdownTimer
+          deadline={submissionDeadline}
+          isSubmissionOpen={isSubmissionOpen}
+          cycle={activeCycle}
+          period={activePeriod}
+          variant="login"
+        />
 
         <main className="relative z-10 max-w-4xl space-y-8 py-8">
           <div className="space-y-4">

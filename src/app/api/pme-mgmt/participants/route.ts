@@ -100,6 +100,48 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Izin Pengisian PME saat Waktu Habis / Batas Waktu Khusus (allowExpiredInput / customDeadline)
+      if (
+        action === "allow_expired" ||
+        action === "lock_expired" ||
+        action === "toggle_expired" ||
+        action === "set_custom_deadline"
+      ) {
+        const nextAllow =
+          action === "toggle_expired"
+            ? !existing.allowExpiredInput
+            : action === "allow_expired"
+            ? true
+            : action === "lock_expired"
+            ? false
+            : existing.allowExpiredInput;
+
+        let parsedDeadline = existing.customDeadline;
+        if (action === "set_custom_deadline") {
+          parsedDeadline = body.customDeadline ? new Date(body.customDeadline) : null;
+        }
+
+        const updated = await db.pmeParticipant.update({
+          where: { id },
+          data: {
+            allowExpiredInput: nextAllow,
+            customDeadline: parsedDeadline,
+          },
+        });
+
+        return jsonOk({
+          participant: updated,
+          allowExpiredInput: nextAllow,
+          customDeadline: parsedDeadline,
+          message:
+            action === "set_custom_deadline"
+              ? `Batas waktu pengisian khusus untuk ${existing.labName} berhasil diperbarui.`
+              : nextAllow
+              ? `Izin khusus pengisian PME (bypass waktu habis) berhasil diberikan kepada ${existing.labName}.`
+              : `Izin khusus pengisian PME untuk ${existing.labName} telah dicabut.`,
+        });
+      }
+
       let newStatus = "PENDING";
       let approvedAt: Date | null = null;
       let approvedBy: string | null = null;

@@ -12,6 +12,8 @@ const DEFAULT_CONFIG = {
   runningText:
     "Selamat datang di Sistem Aplikasi di-dismartPME. Program Pemantapan Mutu Eksternal (PME) Siklus 1 2026 telah dibuka. Silakan masuk dengan akun laboratorium Anda untuk melakukan pendaftaran peserta, pemilihan paket, dan pengisian hasil pemeriksaan.",
   isRegistrationOpen: true,
+  isSubmissionOpen: true,
+  submissionDeadline: null as Date | null,
 };
 
 /**
@@ -76,7 +78,16 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json().catch(() => ({}));
-    const { activeCycle, activePeriod, infoTitle, infoContent, runningText, isRegistrationOpen } = body;
+    const {
+      activeCycle,
+      activePeriod,
+      infoTitle,
+      infoContent,
+      runningText,
+      isRegistrationOpen,
+      isSubmissionOpen,
+      submissionDeadline,
+    } = body;
 
     if (!activeCycle || typeof activeCycle !== "string" || !activeCycle.trim()) {
       return jsonError("Siklus PME wajib diisi.", 400, "BAD_REQUEST");
@@ -88,6 +99,8 @@ export async function POST(req: NextRequest) {
     const contentVal = infoContent?.trim() || DEFAULT_CONFIG.infoContent;
     const runningVal = runningText?.trim() || DEFAULT_CONFIG.runningText;
     const registrationOpenVal = typeof isRegistrationOpen === "boolean" ? isRegistrationOpen : true;
+    const submissionOpenVal = typeof isSubmissionOpen === "boolean" ? isSubmissionOpen : true;
+    const deadlineVal = submissionDeadline ? new Date(submissionDeadline) : null;
 
     const saved = await db.pmeCycleConfig.upsert({
       where: { organizationId: orgId },
@@ -99,6 +112,8 @@ export async function POST(req: NextRequest) {
         infoContent: contentVal,
         runningText: runningVal,
         isRegistrationOpen: registrationOpenVal,
+        isSubmissionOpen: submissionOpenVal,
+        submissionDeadline: deadlineVal,
         infoUpdatedAt: new Date(),
         infoUpdatedBy: user.name || "Superadmin",
       },
@@ -109,6 +124,8 @@ export async function POST(req: NextRequest) {
         infoContent: contentVal,
         runningText: runningVal,
         isRegistrationOpen: registrationOpenVal,
+        isSubmissionOpen: submissionOpenVal,
+        submissionDeadline: deadlineVal,
         infoUpdatedAt: new Date(),
         infoUpdatedBy: user.name || "Superadmin",
       },
@@ -117,7 +134,7 @@ export async function POST(req: NextRequest) {
     return jsonOk({
       success: true,
       config: saved,
-      message: "Konfigurasi Siklus, Periode, Status Pendaftaran, Informasi PME, dan Running Text berhasil disimpan.",
+      message: "Konfigurasi Siklus, Periode, Batas Waktu Pengisian, Informasi PME, dan Running Text berhasil disimpan.",
     });
   });
 }

@@ -22,6 +22,12 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+  PopoverAnchor,
+} from "@/components/ui/popover";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -54,10 +60,204 @@ import {
   BookmarkCheck,
   FileText,
   ChevronDown,
+  Search,
+  X,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 import { PmeCountdownTimer } from "@/components/pme/pme-countdown-timer";
+
+interface MasterItem {
+  id: string;
+  code: string;
+  name: string;
+}
+
+interface MasterComboboxInputProps {
+  label: string;
+  placeholder?: string;
+  value: string;
+  onChange: (val: string) => void;
+  items: MasterItem[];
+  formatValue?: (item: MasterItem) => string;
+  disabled?: boolean;
+  className?: string;
+  inputClassName?: string;
+}
+
+/**
+ * Komponen Input Master Data dengan SATU tombol dropdown chevron terintegrasi
+ * Mendukung:
+ * 1. Ketik manual / pencarian langsung di input
+ * 2. Satu tombol dropdown chevron yang membuka daftar pilihan
+ * 3. Fitur ketik pencarian interaktif di dalam menu pilihan dropdown
+ */
+function MasterComboboxInput({
+  label,
+  placeholder,
+  value,
+  onChange,
+  items,
+  formatValue,
+  disabled = false,
+  className,
+  inputClassName,
+}: MasterComboboxInputProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filteredItems = items.filter((item) => {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase().trim();
+    return (
+      item.code.toLowerCase().includes(q) ||
+      item.name.toLowerCase().includes(q)
+    );
+  });
+
+  const handleSelect = (item: MasterItem) => {
+    const formatted = formatValue ? formatValue(item) : `${item.code} - ${item.name}`;
+    onChange(formatted);
+    setIsOpen(false);
+    setSearchQuery("");
+  };
+
+  return (
+    <Popover open={isOpen} onOpenChange={setIsOpen}>
+      <PopoverAnchor asChild>
+        <div className={`relative flex items-center w-full ${className || ""}`}>
+          <Input
+            type="text"
+            placeholder={placeholder || `Pilih / Cari ${label}...`}
+            value={value}
+            disabled={disabled}
+            onFocus={(e) => e.target.select()}
+            onChange={(e) => onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+              }
+              if (e.key === "ArrowDown" && !isOpen && !disabled) {
+                e.preventDefault();
+                setIsOpen(true);
+              }
+            }}
+            className={`h-8 pr-7 text-xs bg-background [&::-webkit-calendar-picker-indicator]:hidden ${
+              disabled ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed" : ""
+            } ${inputClassName || ""}`}
+          />
+          {!disabled && (
+            <PopoverTrigger asChild>
+              <button
+                type="button"
+                tabIndex={-1}
+                onClick={() => setIsOpen((prev) => !prev)}
+                title={`Pilih ${label} (${items.length} pilihan)`}
+                className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
+              >
+                <ChevronDown
+                  className={`h-3.5 w-3.5 transition-transform duration-200 ${
+                    isOpen ? "rotate-180" : ""
+                  }`}
+                />
+              </button>
+            </PopoverTrigger>
+          )}
+        </div>
+      </PopoverAnchor>
+      <PopoverContent
+        align="start"
+        sideOffset={4}
+        className="w-80 p-2.5 shadow-xl border bg-popover z-50 text-xs rounded-lg"
+      >
+        <div className="space-y-2">
+          {/* Header Panel */}
+          <div className="flex items-center justify-between pb-1.5 border-b">
+            <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Pilihan Master {label} ({items.length})
+            </span>
+            {value && (
+              <button
+                type="button"
+                onClick={() => {
+                  onChange("");
+                  setIsOpen(false);
+                  setSearchQuery("");
+                }}
+                className="text-[11px] text-rose-600 hover:text-rose-700 hover:underline font-medium"
+              >
+                Kosongkan
+              </button>
+            )}
+          </div>
+
+          {/* Kolom Ketik Pencarian */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder={`Ketik pencarian ${label.toLowerCase()}...`}
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && filteredItems.length > 0) {
+                  e.preventDefault();
+                  handleSelect(filteredItems[0]);
+                }
+              }}
+              className="h-8 pl-8 pr-7 text-xs bg-muted/30 focus:bg-background"
+              autoFocus
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground p-0.5 rounded"
+              >
+                <X className="h-3 w-3" />
+              </button>
+            )}
+          </div>
+
+          {/* List Pilihan Master Data */}
+          <div className="max-h-56 overflow-y-auto space-y-1 divide-y divide-border/30 pr-0.5">
+            {filteredItems.length === 0 ? (
+              <div className="py-6 text-center text-muted-foreground text-xs">
+                {searchQuery
+                  ? `Tidak ada ${label.toLowerCase()} cocok dengan "${searchQuery}"`
+                  : `Belum ada data master ${label.toLowerCase()}`}
+              </div>
+            ) : (
+              filteredItems.map((item) => {
+                const itemFormatted = formatValue ? formatValue(item) : `${item.code} - ${item.name}`;
+                const isSelected =
+                  value === itemFormatted || value === item.name || value === item.code;
+
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => handleSelect(item)}
+                    className={`w-full flex items-start gap-2 p-1.5 pt-2 text-left rounded text-xs transition-colors hover:bg-teal-500/10 ${
+                      isSelected
+                        ? "bg-teal-500/15 font-semibold text-teal-800 dark:text-teal-300 border border-teal-500/30"
+                        : "text-foreground"
+                    }`}
+                  >
+                    <span className="font-bold text-teal-700 dark:text-teal-400 shrink-0 font-mono text-[10px] bg-teal-500/10 px-1.5 py-0.5 rounded border border-teal-500/20">
+                      {item.code}
+                    </span>
+                    <span className="flex-1 leading-snug break-words">{item.name}</span>
+                    {isSelected && <Check className="h-3.5 w-3.5 text-teal-600 shrink-0 mt-0.5" />}
+                  </button>
+                );
+              })
+            )}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
 
 interface ParameterRow {
   id: string;
@@ -1164,149 +1364,42 @@ export function PmeInputView() {
                     <span className="hidden sm:inline">Terapkan kode alat/metode/reagen dari Master Data ke semua parameter:</span>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    {/* Batch Metode with Dropdown */}
-                    <div className="relative flex items-center">
-                      <Input
-                        list="master-methods-list"
-                        placeholder="Kode / Nama Metode"
-                        value={batchMethod}
-                        disabled={isFormLocked}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setBatchMethod(e.target.value)}
-                        className={`h-7 w-44 pr-7 text-[11px] font-mono ${isFormLocked ? "cursor-not-allowed opacity-60" : ""}`}
-                      />
-                      {!isFormLocked && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              tabIndex={-1}
-                              title="Pilih Metode dari Master Data"
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                            >
-                              <ChevronDown className="h-3 w-3" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-80 max-h-64 overflow-y-auto p-1 text-xs z-50">
-                            <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">
-                              Pilihan Master Metode ({masterMethods.length})
-                            </div>
-                            {masterMethods.length === 0 ? (
-                              <div className="p-2 text-center text-muted-foreground text-xs">Belum ada master data metode</div>
-                            ) : (
-                              masterMethods.map((m) => (
-                                <DropdownMenuItem
-                                  key={m.id}
-                                  onClick={() => setBatchMethod(`${m.code} - ${m.name}`)}
-                                  className="flex items-start gap-2 py-1.5 px-2 cursor-pointer text-xs"
-                                >
-                                  <span className="font-bold text-teal-700 dark:text-teal-400 shrink-0 font-mono text-[10px] bg-teal-500/10 px-1 py-0.5 rounded">
-                                    {m.code}
-                                  </span>
-                                  <span className="text-foreground leading-snug">{m.name}</span>
-                                </DropdownMenuItem>
-                              ))
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
+                    {/* Batch Metode */}
+                    <MasterComboboxInput
+                      label="Metode"
+                      placeholder="Kode / Nama Metode"
+                      value={batchMethod}
+                      onChange={setBatchMethod}
+                      items={masterMethods}
+                      disabled={isFormLocked}
+                      className="w-44"
+                      inputClassName="h-7 text-[11px] font-mono"
+                    />
 
-                    {/* Batch Alat with Dropdown */}
-                    <div className="relative flex items-center">
-                      <Input
-                        list="master-instruments-list"
-                        placeholder="Kode / Nama Alat"
-                        value={batchInstrument}
-                        disabled={isFormLocked}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setBatchInstrument(e.target.value)}
-                        className={`h-7 w-44 pr-7 text-[11px] font-mono ${isFormLocked ? "cursor-not-allowed opacity-60" : ""}`}
-                      />
-                      {!isFormLocked && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              tabIndex={-1}
-                              title="Pilih Alat dari Master Data"
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                            >
-                              <ChevronDown className="h-3 w-3" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-80 max-h-64 overflow-y-auto p-1 text-xs z-50">
-                            <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">
-                              Pilihan Master Alat ({masterInstruments.length})
-                            </div>
-                            {masterInstruments.length === 0 ? (
-                              <div className="p-2 text-center text-muted-foreground text-xs">Belum ada master data alat</div>
-                            ) : (
-                              masterInstruments.map((inst) => (
-                                <DropdownMenuItem
-                                  key={inst.id}
-                                  onClick={() => setBatchInstrument(`${inst.code} - ${inst.name}`)}
-                                  className="flex items-start gap-2 py-1.5 px-2 cursor-pointer text-xs"
-                                >
-                                  <span className="font-bold text-teal-700 dark:text-teal-400 shrink-0 font-mono text-[10px] bg-teal-500/10 px-1 py-0.5 rounded">
-                                    {inst.code}
-                                  </span>
-                                  <span className="text-foreground leading-snug">{inst.name}</span>
-                                </DropdownMenuItem>
-                              ))
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
+                    {/* Batch Alat */}
+                    <MasterComboboxInput
+                      label="Alat"
+                      placeholder="Kode / Nama Alat"
+                      value={batchInstrument}
+                      onChange={setBatchInstrument}
+                      items={masterInstruments}
+                      disabled={isFormLocked}
+                      className="w-44"
+                      inputClassName="h-7 text-[11px] font-mono"
+                    />
 
-                    {/* Batch Reagen with Dropdown */}
-                    <div className="relative flex items-center">
-                      <Input
-                        list="master-reagents-list"
-                        placeholder="Nama Reagen"
-                        value={batchReagent}
-                        disabled={isFormLocked}
-                        onFocus={(e) => e.target.select()}
-                        onChange={(e) => setBatchReagent(e.target.value)}
-                        className={`h-7 w-44 pr-7 text-[11px] ${isFormLocked ? "cursor-not-allowed opacity-60" : ""}`}
-                      />
-                      {!isFormLocked && (
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <button
-                              type="button"
-                              tabIndex={-1}
-                              title="Pilih Reagen dari Master Data"
-                              className="absolute right-1 top-1/2 -translate-y-1/2 h-5 w-5 flex items-center justify-center rounded text-muted-foreground hover:text-foreground"
-                            >
-                              <ChevronDown className="h-3 w-3" />
-                            </button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="start" className="w-80 max-h-64 overflow-y-auto p-1 text-xs z-50">
-                            <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">
-                              Pilihan Master Reagen ({masterReagents.length})
-                            </div>
-                            {masterReagents.length === 0 ? (
-                              <div className="p-2 text-center text-muted-foreground text-xs">Belum ada master data reagen</div>
-                            ) : (
-                              masterReagents.map((r) => (
-                                <DropdownMenuItem
-                                  key={r.id}
-                                  onClick={() => setBatchReagent(r.name)}
-                                  className="flex items-start gap-2 py-1.5 px-2 cursor-pointer text-xs"
-                                >
-                                  <span className="font-bold text-teal-700 dark:text-teal-400 shrink-0 font-mono text-[10px] bg-teal-500/10 px-1 py-0.5 rounded">
-                                    {r.code}
-                                  </span>
-                                  <span className="text-foreground leading-snug">{r.name}</span>
-                                </DropdownMenuItem>
-                              ))
-                            )}
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      )}
-                    </div>
+                    {/* Batch Reagen */}
+                    <MasterComboboxInput
+                      label="Reagen"
+                      placeholder="Nama Reagen"
+                      value={batchReagent}
+                      onChange={setBatchReagent}
+                      items={masterReagents}
+                      formatValue={(r) => r.name}
+                      disabled={isFormLocked}
+                      className="w-44"
+                      inputClassName="h-7 text-[11px]"
+                    />
 
                     <Button
                       type="button"
@@ -1385,164 +1478,39 @@ export function PmeInputView() {
                               }`}
                             />
                           </td>
-                          {/* Kolom Metode with Datalist Autocomplete & Direct Dropdown Menu */}
+                          {/* Kolom Metode with Single Integrated Combobox Dropdown */}
                           <td className="p-2">
-                            <div className="relative flex items-center w-full">
-                              <Input
-                                list="master-methods-list"
-                                placeholder={param.defaultMethodCode || "Pilih / Cari Metode..."}
-                                value={param.methodCode}
-                                disabled={isFormLocked}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => handleRowChange(idx, "methodCode", e.target.value)}
-                                className={`h-8 pr-7 text-xs ${
-                                  isFormLocked
-                                    ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
-                                    : "bg-background"
-                                }`}
-                              />
-                              {!isFormLocked && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <button
-                                      type="button"
-                                      tabIndex={-1}
-                                      title="Buka Pilihan Metode"
-                                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-                                    >
-                                      <ChevronDown className="h-3.5 w-3.5" />
-                                    </button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-80 max-h-64 overflow-y-auto p-1 text-xs z-50">
-                                    <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">
-                                      Pilihan Master Metode ({masterMethods.length})
-                                    </div>
-                                    {masterMethods.length === 0 ? (
-                                      <div className="p-2 text-center text-muted-foreground text-xs">Belum ada master data metode</div>
-                                    ) : (
-                                      masterMethods.map((m) => (
-                                        <DropdownMenuItem
-                                          key={m.id}
-                                          onClick={() => handleRowChange(idx, "methodCode", `${m.code} - ${m.name}`)}
-                                          className="flex items-start gap-2 py-1.5 px-2 cursor-pointer text-xs hover:bg-teal-50 dark:hover:bg-teal-950/40"
-                                        >
-                                          <span className="font-bold text-teal-700 dark:text-teal-400 shrink-0 font-mono text-[10px] bg-teal-500/10 px-1 py-0.5 rounded">
-                                            {m.code}
-                                          </span>
-                                          <span className="text-foreground leading-snug">{m.name}</span>
-                                        </DropdownMenuItem>
-                                      ))
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
-                            </div>
+                            <MasterComboboxInput
+                              label="Metode"
+                              placeholder={param.defaultMethodCode || "Pilih / Cari Metode..."}
+                              value={param.methodCode}
+                              onChange={(val) => handleRowChange(idx, "methodCode", val)}
+                              items={masterMethods}
+                              disabled={isFormLocked}
+                            />
                           </td>
-                          {/* Kolom Alat with Datalist Autocomplete & Direct Dropdown Menu */}
+                          {/* Kolom Alat with Single Integrated Combobox Dropdown */}
                           <td className="p-2">
-                            <div className="relative flex items-center w-full">
-                              <Input
-                                list="master-instruments-list"
-                                placeholder={param.defaultInstrumentCode || "Pilih / Cari Alat..."}
-                                value={param.instrumentCode}
-                                disabled={isFormLocked}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => handleRowChange(idx, "instrumentCode", e.target.value)}
-                                className={`h-8 pr-7 text-xs ${
-                                  isFormLocked
-                                    ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
-                                    : "bg-background"
-                                }`}
-                              />
-                              {!isFormLocked && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <button
-                                      type="button"
-                                      tabIndex={-1}
-                                      title="Buka Pilihan Alat"
-                                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-                                    >
-                                      <ChevronDown className="h-3.5 w-3.5" />
-                                    </button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-80 max-h-64 overflow-y-auto p-1 text-xs z-50">
-                                    <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">
-                                      Pilihan Master Alat ({masterInstruments.length})
-                                    </div>
-                                    {masterInstruments.length === 0 ? (
-                                      <div className="p-2 text-center text-muted-foreground text-xs">Belum ada master data alat</div>
-                                    ) : (
-                                      masterInstruments.map((inst) => (
-                                        <DropdownMenuItem
-                                          key={inst.id}
-                                          onClick={() => handleRowChange(idx, "instrumentCode", `${inst.code} - ${inst.name}`)}
-                                          className="flex items-start gap-2 py-1.5 px-2 cursor-pointer text-xs hover:bg-teal-50 dark:hover:bg-teal-950/40"
-                                        >
-                                          <span className="font-bold text-teal-700 dark:text-teal-400 shrink-0 font-mono text-[10px] bg-teal-500/10 px-1 py-0.5 rounded">
-                                            {inst.code}
-                                          </span>
-                                          <span className="text-foreground leading-snug">{inst.name}</span>
-                                        </DropdownMenuItem>
-                                      ))
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
-                            </div>
+                            <MasterComboboxInput
+                              label="Alat"
+                              placeholder={param.defaultInstrumentCode || "Pilih / Cari Alat..."}
+                              value={param.instrumentCode}
+                              onChange={(val) => handleRowChange(idx, "instrumentCode", val)}
+                              items={masterInstruments}
+                              disabled={isFormLocked}
+                            />
                           </td>
-                          {/* Kolom Nama Reagen with Datalist Autocomplete & Direct Dropdown Menu */}
+                          {/* Kolom Nama Reagen with Single Integrated Combobox Dropdown */}
                           <td className="p-2">
-                            <div className="relative flex items-center w-full">
-                              <Input
-                                list="master-reagents-list"
-                                placeholder="Pilih / Cari Nama Reagen..."
-                                value={param.reagentName}
-                                disabled={isFormLocked}
-                                onFocus={(e) => e.target.select()}
-                                onChange={(e) => handleRowChange(idx, "reagentName", e.target.value)}
-                                className={`h-8 pr-7 text-xs ${
-                                  isFormLocked
-                                    ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
-                                    : "bg-background"
-                                }`}
-                              />
-                              {!isFormLocked && (
-                                <DropdownMenu>
-                                  <DropdownMenuTrigger asChild>
-                                    <button
-                                      type="button"
-                                      tabIndex={-1}
-                                      title="Buka Pilihan Reagen"
-                                      className="absolute right-1 top-1/2 -translate-y-1/2 h-6 w-6 flex items-center justify-center rounded text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors"
-                                    >
-                                      <ChevronDown className="h-3.5 w-3.5" />
-                                    </button>
-                                  </DropdownMenuTrigger>
-                                  <DropdownMenuContent align="end" className="w-80 max-h-64 overflow-y-auto p-1 text-xs z-50">
-                                    <div className="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase border-b mb-1">
-                                      Pilihan Master Reagen ({masterReagents.length})
-                                    </div>
-                                    {masterReagents.length === 0 ? (
-                                      <div className="p-2 text-center text-muted-foreground text-xs">Belum ada master data reagen</div>
-                                    ) : (
-                                      masterReagents.map((r) => (
-                                        <DropdownMenuItem
-                                          key={r.id}
-                                          onClick={() => handleRowChange(idx, "reagentName", r.name)}
-                                          className="flex items-start gap-2 py-1.5 px-2 cursor-pointer text-xs hover:bg-teal-50 dark:hover:bg-teal-950/40"
-                                        >
-                                          <span className="font-bold text-teal-700 dark:text-teal-400 shrink-0 font-mono text-[10px] bg-teal-500/10 px-1 py-0.5 rounded">
-                                            {r.code}
-                                          </span>
-                                          <span className="text-foreground leading-snug">{r.name}</span>
-                                        </DropdownMenuItem>
-                                      ))
-                                    )}
-                                  </DropdownMenuContent>
-                                </DropdownMenu>
-                              )}
-                            </div>
+                            <MasterComboboxInput
+                              label="Reagen"
+                              placeholder="Pilih / Cari Nama Reagen..."
+                              value={param.reagentName}
+                              onChange={(val) => handleRowChange(idx, "reagentName", val)}
+                              items={masterReagents}
+                              formatValue={(r) => r.name}
+                              disabled={isFormLocked}
+                            />
                           </td>
                         </tr>
                       ))}
@@ -1686,46 +1654,6 @@ export function PmeInputView() {
             </AlertDialogFooter>
           </AlertDialogContent>
         </AlertDialog>
-
-        {/* HTML5 Datalists for Master Data Autocomplete & Typing Search */}
-        <datalist id="master-methods-list">
-          {masterMethods.map((m) => (
-            <option key={m.id} value={`${m.code} - ${m.name}`}>
-              {m.name}
-            </option>
-          ))}
-          {masterMethods.map((m) => (
-            <option key={`code-${m.id}`} value={m.code}>
-              {m.name}
-            </option>
-          ))}
-        </datalist>
-
-        <datalist id="master-instruments-list">
-          {masterInstruments.map((inst) => (
-            <option key={inst.id} value={`${inst.code} - ${inst.name}`}>
-              {inst.name}
-            </option>
-          ))}
-          {masterInstruments.map((inst) => (
-            <option key={`code-${inst.id}`} value={inst.code}>
-              {inst.name}
-            </option>
-          ))}
-        </datalist>
-
-        <datalist id="master-reagents-list">
-          {masterReagents.map((r) => (
-            <option key={r.id} value={r.name}>
-              {r.code} - {r.name}
-            </option>
-          ))}
-          {masterReagents.map((r) => (
-            <option key={`combo-${r.id}`} value={`${r.code} - ${r.name}`}>
-              {r.name}
-            </option>
-          ))}
-        </datalist>
       </div>
     </div>
   );

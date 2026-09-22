@@ -41,35 +41,32 @@ const DEFAULT_REAGENTS = [
 
 /**
  * Generate next auto-code for Instrument (ALT-xxx), Method (MTD-xxx), Reagent (RGN-xxx)
+ * across the entire database to ensure global uniqueness and continuous numbering.
  */
 async function generateNextCode(
-  type: "INSTRUMENT" | "METHOD" | "REAGENT",
-  orgId: string
+  type: "INSTRUMENT" | "METHOD" | "REAGENT"
 ): Promise<string> {
   const prefix = type === "INSTRUMENT" ? "ALT" : type === "METHOD" ? "MTD" : "RGN";
 
   let existingCodes: string[] = [];
   if (type === "INSTRUMENT") {
     const list = await db.pmeMasterInstrument.findMany({
-      where: { organizationId: orgId },
       select: { code: true },
     });
     existingCodes = list.map((x) => x.code);
   } else if (type === "METHOD") {
     const list = await db.pmeMasterMethod.findMany({
-      where: { organizationId: orgId },
       select: { code: true },
     });
     existingCodes = list.map((x) => x.code);
   } else {
     const list = await db.pmeMasterReagent.findMany({
-      where: { organizationId: orgId },
       select: { code: true },
     });
     existingCodes = list.map((x) => x.code);
   }
 
-  // Cari angka tertinggi
+  // Cari angka tertinggi dari format PREFIX-XXX
   let maxNum = 0;
   for (const c of existingCodes) {
     const match = c.match(/^[A-Z]+-(\d+)$/i);
@@ -84,9 +81,26 @@ async function generateNextCode(
 }
 
 /**
+ * Deduplikasi daftar master data berdasarkan kode dan nama agar tidak ada duplikasi
+ */
+function deduplicateMasterItems<T extends { id: string; code: string; name: string; description?: string | null }>(
+  items: T[]
+): T[] {
+  const map = new Map<string, T>();
+  for (const item of items) {
+    const key = `${item.code.toUpperCase().trim()}:::${item.name.toLowerCase().trim()}`;
+    if (!map.has(key)) {
+      map.set(key, item);
+    }
+  }
+  return Array.from(map.values()).sort((a, b) =>
+    a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: "base" })
+  );
+}
+
+/**
  * GET /api/pme-mgmt/master
- * Mengambil master data Alat, Metode, dan Reagen.
- * Dapat diakses oleh semua pengguna terautentikasi (untuk dropdown pengisian peserta & pengelolaan superadmin).
+ * Mengambil master data Alat, Metode, dan Reagen secara global untuk seluruh laboratorium peserta dan superadmin.
  */
 export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
@@ -94,28 +108,29 @@ export async function GET(req: NextRequest) {
     if (orgId === "ALL") {
       orgId = user.organizationId;
     }
+    if (!orgId) {
+      const firstOrg = await db.organization.findFirst();
+      orgId = firstOrg?.id || "";
+    }
 
-    const { searchParams } = new URL(req.url);
-    const filterType = searchParams.get("type"); // "INSTRUMENT" | "METHOD" | "REAGENT" | "ALL"
-
-    // Ambil data dari database
-    let [instruments, methods, reagents] = await Promise.all([
+    // Ambil master data aktif dari seluruh database (global bagi seluruh peserta PME)
+    let [rawInstruments, rawMethods, rawReagents] = await Promise.all([
       db.pmeMasterInstrument.findMany({
-        where: { organizationId: orgId, isActive: true },
+        where: { isActive: true },
         orderBy: { code: "asc" },
       }),
       db.pmeMasterMethod.findMany({
-        where: { organizationId: orgId, isActive: true },
+        where: { isActive: true },
         orderBy: { code: "asc" },
       }),
       db.pmeMasterReagent.findMany({
-        where: { organizationId: orgId, isActive: true },
+        where: { isActive: true },
         orderBy: { code: "asc" },
       }),
     ]);
 
-    // Jika database masih kosong pada organisasi ini, lakukan seeding default secara transparan
-    if (instruments.length === 0 && methods.length === 0 && reagents.length === 0) {
+    // Jika database masih benar-benar kosong, lakukan seeding default awal
+    if (rawInstruments.length === 0 && rawMethods.length === 0 && rawReagents.length === 0 && orgId) {
       await Promise.all([
         ...DEFAULT_INSTRUMENTS.map((item) =>
           db.pmeMasterInstrument.create({
@@ -134,28 +149,31 @@ export async function GET(req: NextRequest) {
         ),
       ]);
 
-      // Ambil kembali setelah seed
-      [instruments, methods, reagents] = await Promise.all([
+      [rawInstruments, rawMethods, rawReagents] = await Promise.all([
         db.pmeMasterInstrument.findMany({
-          where: { organizationId: orgId, isActive: true },
+          where: { isActive: true },
           orderBy: { code: "asc" },
         }),
         db.pmeMasterMethod.findMany({
-          where: { organizationId: orgId, isActive: true },
+          where: { isActive: true },
           orderBy: { code: "asc" },
         }),
         db.pmeMasterReagent.findMany({
-          where: { organizationId: orgId, isActive: true },
+          where: { isActive: true },
           orderBy: { code: "asc" },
         }),
       ]);
     }
 
-    // Hitung next code untuk tiap kategori (membantu form tambah data langsung menampilkan kode otomatis)
+    const instruments = deduplicateMasterItems(rawInstruments);
+    const methods = deduplicateMasterItems(rawMethods);
+    const reagents = deduplicateMasterItems(rawReagents);
+
+    // Hitung next code untuk tiap kategori (global)
     const [nextInstrumentCode, nextMethodCode, nextReagentCode] = await Promise.all([
-      generateNextCode("INSTRUMENT", orgId),
-      generateNextCode("METHOD", orgId),
-      generateNextCode("REAGENT", orgId),
+      generateNextCode("INSTRUMENT"),
+      generateNextCode("METHOD"),
+      generateNextCode("REAGENT"),
     ]);
 
     return jsonOk({
@@ -182,8 +200,12 @@ export async function POST(req: NextRequest) {
     }
 
     let orgId = getEffectiveOrgId(user, req);
-    if (orgId === "ALL") {
+    if (orgId === "ALL" || !orgId) {
       orgId = user.organizationId;
+    }
+    if (!orgId) {
+      const firstOrg = await db.organization.findFirst();
+      orgId = firstOrg?.id || "";
     }
 
     const body = await req.json().catch(() => ({}));
@@ -200,10 +222,10 @@ export async function POST(req: NextRequest) {
         return jsonError("Nama master data wajib diisi.", 400);
       }
 
-      // Gunakan kode yang diberikan atau generate otomatis
+      // Gunakan kode yang diberikan atau generate otomatis secara global
       let finalCode = code?.trim();
       if (!finalCode) {
-        finalCode = await generateNextCode(type, orgId);
+        finalCode = await generateNextCode(type);
       }
 
       let created;

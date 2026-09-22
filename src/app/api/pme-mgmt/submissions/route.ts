@@ -184,6 +184,39 @@ export async function GET(req: NextRequest) {
 
     const canEdit = isSuper ? true : canEditDueToSubmission && isSubmissionOpen && !isExpired;
 
+    // Ambil master data Alat, Metode, dan Reagen aktif secara global agar form peserta selalu sinkron
+    const [rawInstruments, rawMethods, rawReagents] = await Promise.all([
+      db.pmeMasterInstrument.findMany({
+        where: { isActive: true },
+        orderBy: { code: "asc" },
+      }),
+      db.pmeMasterMethod.findMany({
+        where: { isActive: true },
+        orderBy: { code: "asc" },
+      }),
+      db.pmeMasterReagent.findMany({
+        where: { isActive: true },
+        orderBy: { code: "asc" },
+      }),
+    ]);
+
+    const deduplicate = <T extends { id: string; code: string; name: string }>(items: T[]): T[] => {
+      const map = new Map<string, T>();
+      for (const item of items) {
+        const key = `${item.code.toUpperCase().trim()}:::${item.name.toLowerCase().trim()}`;
+        if (!map.has(key)) {
+          map.set(key, item);
+        }
+      }
+      return Array.from(map.values()).sort((a, b) =>
+        a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: "base" })
+      );
+    };
+
+    const masterInstruments = deduplicate(rawInstruments);
+    const masterMethods = deduplicate(rawMethods);
+    const masterReagents = deduplicate(rawReagents);
+
     return jsonOk({
       participant,
       cycle,
@@ -201,6 +234,9 @@ export async function GET(req: NextRequest) {
       isLocked: isSubmitted ? isLocked : false,
       allowResubmit: isAllowedBySubmission || isAllowedByParticipant,
       hasResubmitPermission,
+      masterInstruments,
+      masterMethods,
+      masterReagents,
       deadlineInfo: {
         submissionDeadline: cycleConfig?.submissionDeadline || null,
         customDeadline: participant.customDeadline || null,

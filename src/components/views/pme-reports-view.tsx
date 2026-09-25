@@ -53,6 +53,7 @@ import {
   Upload,
   Image as ImageIcon,
   Trash2,
+  FileSpreadsheet,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -63,6 +64,7 @@ interface EvaluationRow {
   unit: string;
   methodCode: string;
   instrumentCode: string;
+  reagentName?: string;
   participantValue: number | null;
   global: {
     n: number;
@@ -190,6 +192,18 @@ export function PmeReportsView() {
   const [isParticipant, setIsParticipant] = useState(false);
   const [participantNotice, setParticipantNotice] = useState<string | null>(null);
   const [isExportingPdf, setIsExportingPdf] = useState(false);
+
+  const [activeTab, setActiveTab] = useState<string>("report");
+
+  // State Filter & Status Rekapitulasi Laporan Hasil PME
+  const [recapPeriod, setRecapPeriod] = useState<string>("ALL");
+  const [recapCategory, setRecapCategory] = useState<string>("ALL");
+  const [recapParticipant, setRecapParticipant] = useState<string>("ALL");
+  const [recapParameter, setRecapParameter] = useState<string>("ALL");
+  const [recapStatus, setRecapStatus] = useState<string>("ALL");
+  const [recapSearch, setRecapSearch] = useState<string>("");
+  const [isExportingRecapPdf, setIsExportingRecapPdf] = useState(false);
+  const [isExportingRecapExcel, setIsExportingRecapExcel] = useState(false);
 
   // Data Penandatangan Laporan
   const [signer, setSigner] = useState<SignerData>({
@@ -537,6 +551,726 @@ export function PmeReportsView() {
     });
     return Array.from(set).sort();
   }, [participantReports]);
+
+  // Flatten data untuk Tab Rekapitulasi Laporan Hasil PME
+  const flattenedRecapData = useMemo(() => {
+    const list: Array<{
+      no: number;
+      submissionId: string;
+      participantId: string;
+      participantCode: string;
+      labName: string;
+      cycle: string;
+      period: string;
+      category: string;
+      parameterName: string;
+      unit: string;
+      participantValue: number | null;
+      target: number | null;
+      sdpa: number | null;
+      zScore: number | null;
+      keterangan: string;
+      categoryStatus: string;
+      methodCode: string;
+      instrumentCode: string;
+      reagentName: string;
+      biasPercent: number | null;
+      cvPercent: number | null;
+      totalErrorPercent: number | null;
+    }> = [];
+
+    let count = 1;
+    participantReports.forEach((pr) => {
+      pr.rows.forEach((r) => {
+        list.push({
+          no: count++,
+          submissionId: pr.submissionId,
+          participantId: pr.participant.id,
+          participantCode: pr.participant.participantCode || "-",
+          labName: pr.participant.labName,
+          cycle: pr.cycle,
+          period: pr.period || "-",
+          category: pr.category,
+          parameterName: r.parameterName,
+          unit: r.unit || "-",
+          participantValue: r.participantValue,
+          target: r.global.target,
+          sdpa: r.global.sdpa,
+          zScore: r.global.zScore,
+          keterangan: r.global.keterangan,
+          categoryStatus: r.global.category,
+          methodCode: r.methodCode || "-",
+          instrumentCode: r.instrumentCode || "-",
+          reagentName: r.reagentName || "-",
+          biasPercent: r.biasPercent,
+          cvPercent: r.cvPercent,
+          totalErrorPercent: r.totalErrorPercent,
+        });
+      });
+    });
+    return list;
+  }, [participantReports]);
+
+  // Filter Data Rekapitulasi
+  const filteredRecapData = useMemo(() => {
+    return flattenedRecapData.filter((item) => {
+      if (recapPeriod !== "ALL" && item.period !== recapPeriod) return false;
+      if (recapCategory !== "ALL" && item.category !== recapCategory) return false;
+      if (recapParticipant !== "ALL" && item.participantId !== recapParticipant) return false;
+      if (recapParameter !== "ALL" && item.parameterName.toLowerCase() !== recapParameter.toLowerCase()) return false;
+      if (recapStatus !== "ALL") {
+        if (recapStatus === "SATISFACTORY" && item.keterangan !== "Memuaskan") return false;
+        if (recapStatus === "WARNING" && item.keterangan !== "Peringatan") return false;
+        if (recapStatus === "UNSATISFACTORY" && item.keterangan !== "Tidak Memuaskan") return false;
+        if (recapStatus === "NOT_EXAMINED" && item.participantValue !== null) return false;
+      }
+      if (recapSearch.trim()) {
+        const q = recapSearch.toLowerCase().trim();
+        const match =
+          item.labName.toLowerCase().includes(q) ||
+          item.participantCode.toLowerCase().includes(q) ||
+          item.parameterName.toLowerCase().includes(q) ||
+          item.methodCode.toLowerCase().includes(q) ||
+          item.instrumentCode.toLowerCase().includes(q) ||
+          item.reagentName.toLowerCase().includes(q);
+        if (!match) return false;
+      }
+      return true;
+    });
+  }, [flattenedRecapData, recapPeriod, recapCategory, recapParticipant, recapParameter, recapStatus, recapSearch]);
+
+  // Pilihan Periode Unik untuk Filter Rekap
+  const recapAvailablePeriods = useMemo(() => {
+    const set = new Set<string>();
+    flattenedRecapData.forEach((d) => {
+      if (d.period && d.period !== "-") set.add(d.period);
+    });
+    return Array.from(set).sort();
+  }, [flattenedRecapData]);
+
+  // Pilihan Kategori Unik untuk Filter Rekap
+  const recapAvailableCategories = useMemo(() => {
+    const set = new Set<string>();
+    flattenedRecapData.forEach((d) => {
+      if (d.category) set.add(d.category);
+    });
+    return Array.from(set).sort();
+  }, [flattenedRecapData]);
+
+  // Pilihan Peserta Unik untuk Filter Rekap
+  const recapAvailableParticipants = useMemo(() => {
+    const map = new Map<string, { id: string; code: string; name: string }>();
+    flattenedRecapData.forEach((d) => {
+      if (!map.has(d.participantId)) {
+        map.set(d.participantId, {
+          id: d.participantId,
+          code: d.participantCode,
+          name: d.labName,
+        });
+      }
+    });
+    return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+  }, [flattenedRecapData]);
+
+  // Pilihan Parameter Unik untuk Filter Rekap
+  const recapAvailableParameters = useMemo(() => {
+    const set = new Set<string>();
+    flattenedRecapData.forEach((d) => {
+      if (d.parameterName) set.add(d.parameterName);
+    });
+    return Array.from(set).sort();
+  }, [flattenedRecapData]);
+
+  // Metrik Statistik Rekapitulasi
+  const recapStats = useMemo(() => {
+    const totalTests = filteredRecapData.length;
+    const uniqueLabs = new Set(filteredRecapData.map((d) => d.participantId)).size;
+    const satisfactory = filteredRecapData.filter((d) => d.keterangan === "Memuaskan").length;
+    const warning = filteredRecapData.filter((d) => d.keterangan === "Peringatan").length;
+    const unsatisfactory = filteredRecapData.filter((d) => d.keterangan === "Tidak Memuaskan").length;
+    const notExamined = filteredRecapData.filter((d) => d.participantValue === null).length;
+    const evaluatedTests = totalTests - notExamined;
+    const passRate = evaluatedTests > 0 ? ((satisfactory / evaluatedTests) * 100).toFixed(1) : "0.0";
+
+    return {
+      totalTests,
+      uniqueLabs,
+      satisfactory,
+      warning,
+      unsatisfactory,
+      notExamined,
+      evaluatedTests,
+      passRate,
+    };
+  }, [filteredRecapData]);
+
+  const handleResetRecapFilters = () => {
+    setRecapPeriod("ALL");
+    setRecapCategory("ALL");
+    setRecapParticipant("ALL");
+    setRecapParameter("ALL");
+    setRecapStatus("ALL");
+    setRecapSearch("");
+  };
+
+  // Ekspor Excel Rekap Lengkap (2 Sheets dengan ExcelJS)
+  const handleExportRecapExcel = async () => {
+    try {
+      setIsExportingRecapExcel(true);
+      const ExcelJS = (await import("exceljs")).default;
+      const wb = new ExcelJS.Workbook();
+      wb.creator = "SmartPME System";
+      wb.lastModifiedBy = signer.namaPejabat || "Superadmin SmartPME";
+      wb.created = new Date();
+
+      // ===== SHEET 1: REKAP HASIL PME =====
+      const ws1 = wb.addWorksheet("Rekap Hasil PME", {
+        views: [{ showGridLines: true }],
+        pageSetup: { orientation: "landscape", fitToPage: true, fitToWidth: 1 },
+      });
+
+      // Title & Header Information
+      ws1.mergeCells("A1:P1");
+      const titleCell = ws1.getCell("A1");
+      titleCell.value = (kopSurat?.pemda || "KEMENTERIAN KESEHATAN REPUBLIK INDONESIA").toUpperCase();
+      titleCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF334155" } };
+      titleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      ws1.mergeCells("A2:P2");
+      const instansiCell = ws1.getCell("A2");
+      instansiCell.value = (kopSurat?.namaRumahSakit || "BALAI BESAR LABORATORIUM KESEHATAN MASYARAKAT PALEMBANG").toUpperCase();
+      instansiCell.font = { name: "Arial", size: 12, bold: true, color: { argb: "FF0F172A" } };
+      instansiCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      ws1.mergeCells("A3:P3");
+      const subTitleCell = ws1.getCell("A3");
+      subTitleCell.value = `REKAPITULASI LAPORAN HASIL PROGRAM EVALUASI MUTU EKSTERNAL (PME) - SIKLUS: ${cycle.toUpperCase()}`;
+      subTitleCell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FF047857" } };
+      subTitleCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      ws1.mergeCells("A4:P4");
+      const metaCell = ws1.getCell("A4");
+      metaCell.value = `Tanggal Ekspor: ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })} | Total Hasil Uji: ${recapStats.totalTests} | Total Lab: ${recapStats.uniqueLabs} | Pass Rate: ${recapStats.passRate}%`;
+      metaCell.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF64748B" } };
+      metaCell.alignment = { horizontal: "center", vertical: "middle" };
+
+      ws1.addRow([]);
+
+      const headers = [
+        "No",
+        "Kode Lab",
+        "Nama Laboratorium",
+        "Siklus",
+        "Periode",
+        "Kategori",
+        "Parameter",
+        "Satuan",
+        "Hasil Lab",
+        "Target (Median)",
+        "SDPA",
+        "Z-Score",
+        "Status Kinerja",
+        "Metode",
+        "Alat",
+        "Nama Reagen",
+      ];
+      const headerRow = ws1.addRow(headers);
+      headerRow.height = 28;
+      headerRow.eachCell((cell) => {
+        cell.fill = {
+          type: "pattern",
+          pattern: "solid",
+          fgColor: { argb: "FF0F766E" },
+        };
+        cell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.alignment = { horizontal: "center", vertical: "middle", wrapText: true };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFCBD5E1" } },
+          left: { style: "thin", color: { argb: "FFCBD5E1" } },
+          bottom: { style: "medium", color: { argb: "FF0F172A" } },
+          right: { style: "thin", color: { argb: "FFCBD5E1" } },
+        };
+      });
+
+      filteredRecapData.forEach((item, idx) => {
+        const row = ws1.addRow([
+          idx + 1,
+          item.participantCode,
+          item.labName,
+          item.cycle,
+          item.period,
+          item.category,
+          item.parameterName,
+          item.unit,
+          item.participantValue !== null ? item.participantValue : "-",
+          item.target !== null ? item.target : "-",
+          item.sdpa !== null ? item.sdpa : "-",
+          item.zScore !== null ? `${item.zScore > 0 ? "+" : ""}${item.zScore.toFixed(2)}` : "-",
+          item.keterangan,
+          item.methodCode,
+          item.instrumentCode,
+          item.reagentName,
+        ]);
+        row.height = 20;
+
+        row.eachCell((cell, colNumber) => {
+          cell.font = { name: "Arial", size: 9 };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+            right: { style: "thin", color: { argb: "FFE2E8F0" } },
+          };
+
+          if ([1, 2, 4, 5, 8, 12, 14, 15].includes(colNumber)) {
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+          } else if ([9, 10, 11].includes(colNumber)) {
+            cell.alignment = { horizontal: "right", vertical: "middle" };
+          } else if (colNumber === 13) {
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+          } else {
+            cell.alignment = { horizontal: "left", vertical: "middle" };
+          }
+
+          if (idx % 2 === 1 && colNumber !== 13) {
+            cell.fill = {
+              type: "pattern",
+              pattern: "solid",
+              fgColor: { argb: "FFF8FAFC" },
+            };
+          }
+        });
+
+        const statusCell = row.getCell(13);
+        if (item.keterangan === "Memuaskan") {
+          statusCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
+          statusCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF166534" } };
+        } else if (item.keterangan === "Peringatan") {
+          statusCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEF3C7" } };
+          statusCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF92400E" } };
+        } else if (item.keterangan === "Tidak Memuaskan") {
+          statusCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFFEE2E2" } };
+          statusCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF991B1B" } };
+        }
+      });
+
+      ws1.columns = [
+        { width: 6 },
+        { width: 14 },
+        { width: 30 },
+        { width: 14 },
+        { width: 10 },
+        { width: 16 },
+        { width: 22 },
+        { width: 12 },
+        { width: 12 },
+        { width: 14 },
+        { width: 12 },
+        { width: 12 },
+        { width: 18 },
+        { width: 16 },
+        { width: 16 },
+        { width: 22 },
+      ];
+
+      const lastRowIndex = ws1.rowCount + 2;
+      const sigCol = 13;
+      ws1.getCell(lastRowIndex, sigCol).value = `${signer.tempat || "Palembang"}, ${signer.tanggal || new Date().toLocaleDateString("id-ID")}`;
+      ws1.getCell(lastRowIndex, sigCol).font = { name: "Arial", size: 9 };
+      ws1.getCell(lastRowIndex + 1, sigCol).value = signer.jabatan || "Penanggung Jawab Mutu";
+      ws1.getCell(lastRowIndex + 1, sigCol).font = { name: "Arial", size: 9 };
+      ws1.getCell(lastRowIndex + 4, sigCol).value = signer.namaPejabat || "Penyelenggara PME";
+      ws1.getCell(lastRowIndex + 4, sigCol).font = { name: "Arial", size: 9.5, bold: true, underline: true };
+      ws1.getCell(lastRowIndex + 5, sigCol).value = `NIP. ${signer.nip || "-"}`;
+      ws1.getCell(lastRowIndex + 5, sigCol).font = { name: "Arial", size: 8.5 };
+
+      // ===== SHEET 2: RINGKASAN PER LABORATORIUM =====
+      const ws2 = wb.addWorksheet("Ringkasan Per Lab", {
+        views: [{ showGridLines: true }],
+      });
+
+      ws2.mergeCells("A1:H1");
+      const s2Title = ws2.getCell("A1");
+      s2Title.value = `RINGKASAN PERFORMA EVALUASI MUTU PER LABORATORIUM - SIKLUS: ${cycle.toUpperCase()}`;
+      s2Title.font = { name: "Arial", size: 11, bold: true, color: { argb: "FF0F766E" } };
+      s2Title.alignment = { horizontal: "center", vertical: "middle" };
+
+      ws2.addRow([]);
+
+      const s2Headers = [
+        "No",
+        "Kode Lab",
+        "Nama Laboratorium",
+        "Total Uji",
+        "Memuaskan",
+        "Peringatan",
+        "Tidak Memuaskan",
+        "Pass Rate (%)",
+      ];
+      const s2HeaderRow = ws2.addRow(s2Headers);
+      s2HeaderRow.height = 24;
+      s2HeaderRow.eachCell((cell) => {
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF1E293B" } };
+        cell.font = { name: "Arial", size: 9.5, bold: true, color: { argb: "FFFFFFFF" } };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+        cell.border = {
+          top: { style: "thin", color: { argb: "FFCBD5E1" } },
+          left: { style: "thin", color: { argb: "FFCBD5E1" } },
+          bottom: { style: "medium", color: { argb: "FF0F172A" } },
+          right: { style: "thin", color: { argb: "FFCBD5E1" } },
+        };
+      });
+
+      const labMap = new Map<string, { code: string; name: string; total: number; sat: number; warn: number; unsat: number }>();
+      filteredRecapData.forEach((d) => {
+        if (!labMap.has(d.participantId)) {
+          labMap.set(d.participantId, {
+            code: d.participantCode,
+            name: d.labName,
+            total: 0,
+            sat: 0,
+            warn: 0,
+            unsat: 0,
+          });
+        }
+        const lab = labMap.get(d.participantId)!;
+        if (d.participantValue !== null) {
+          lab.total++;
+          if (d.keterangan === "Memuaskan") lab.sat++;
+          else if (d.keterangan === "Peringatan") lab.warn++;
+          else if (d.keterangan === "Tidak Memuaskan") lab.unsat++;
+        }
+      });
+
+      let s2Idx = 1;
+      let totalAll = 0;
+      let satAll = 0;
+      let warnAll = 0;
+      let unsatAll = 0;
+
+      labMap.forEach((lab) => {
+        const rate = lab.total > 0 ? ((lab.sat / lab.total) * 100).toFixed(1) : "0.0";
+        totalAll += lab.total;
+        satAll += lab.sat;
+        warnAll += lab.warn;
+        unsatAll += lab.unsat;
+
+        const row = ws2.addRow([
+          s2Idx++,
+          lab.code,
+          lab.name,
+          lab.total,
+          lab.sat,
+          lab.warn,
+          lab.unsat,
+          `${rate}%`,
+        ]);
+        row.height = 20;
+        row.eachCell((cell, colNum) => {
+          cell.font = { name: "Arial", size: 9 };
+          cell.border = {
+            top: { style: "thin", color: { argb: "FFE2E8F0" } },
+            left: { style: "thin", color: { argb: "FFE2E8F0" } },
+            bottom: { style: "thin", color: { argb: "FFE2E8F0" } },
+            right: { style: "thin", color: { argb: "FFE2E8F0" } },
+          };
+          if ([1, 2, 4, 5, 6, 7, 8].includes(colNum)) {
+            cell.alignment = { horizontal: "center", vertical: "middle" };
+          } else {
+            cell.alignment = { horizontal: "left", vertical: "middle" };
+          }
+        });
+      });
+
+      const summaryRate = totalAll > 0 ? ((satAll / totalAll) * 100).toFixed(1) : "0.0";
+      const totalRow = ws2.addRow([
+        "",
+        "",
+        "TOTAL KESELURUHAN",
+        totalAll,
+        satAll,
+        warnAll,
+        unsatAll,
+        `${summaryRate}%`,
+      ]);
+      totalRow.height = 22;
+      totalRow.eachCell((cell) => {
+        cell.font = { name: "Arial", size: 9.5, bold: true };
+        cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF1F5F9" } };
+        cell.border = {
+          top: { style: "double", color: { argb: "FF0F172A" } },
+          bottom: { style: "double", color: { argb: "FF0F172A" } },
+        };
+        cell.alignment = { horizontal: "center", vertical: "middle" };
+      });
+      totalRow.getCell(3).alignment = { horizontal: "left", vertical: "middle" };
+
+      ws2.columns = [
+        { width: 6 },
+        { width: 14 },
+        { width: 34 },
+        { width: 14 },
+        { width: 14 },
+        { width: 14 },
+        { width: 16 },
+        { width: 16 },
+      ];
+
+      const buffer = await wb.xlsx.writeBuffer();
+      const blob = new Blob([buffer], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Rekap_Laporan_Hasil_PME_${cycle || "Semua"}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      toast({
+        title: "Export Excel Berhasil!",
+        description: `Rekapitulasi ${filteredRecapData.length} data berhasil diekspor ke Excel (.xlsx).`,
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Gagal Ekspor Excel",
+        description: err.message || "Terjadi kesalahan saat memproses file Excel.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExportingRecapExcel(false);
+    }
+  };
+
+  // Unduh PDF Rekap Laporan Hasil PME (Format Landscape Resmi)
+  const handleDownloadRecapPdf = () => {
+    try {
+      setIsExportingRecapPdf(true);
+      const doc = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
+      const pageW = doc.internal.pageSize.getWidth();
+      const pageH = doc.internal.pageSize.getHeight();
+      const margin = 10;
+
+      let y = 8;
+      const logoSize = 16;
+
+      if (kopSurat?.logoKiri) {
+        try {
+          doc.addImage(kopSurat.logoKiri, "PNG", margin, y, logoSize, logoSize);
+        } catch {}
+      }
+
+      if (kopSurat?.logoKanan) {
+        try {
+          doc.addImage(kopSurat.logoKanan, "PNG", pageW - margin - logoSize, y, logoSize, logoSize);
+        } catch {}
+      }
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(9);
+      doc.setTextColor(30, 41, 59);
+      doc.text(
+        (kopSurat?.pemda || "KEMENTERIAN KESEHATAN REPUBLIK INDONESIA").toUpperCase(),
+        pageW / 2,
+        y + 3,
+        { align: "center" }
+      );
+
+      doc.setFontSize(10.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text(
+        (kopSurat?.namaRumahSakit || "BALAI BESAR LABORATORIUM KESEHATAN MASYARAKAT PALEMBANG").toUpperCase(),
+        pageW / 2,
+        y + 7.5,
+        { align: "center" }
+      );
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(71, 85, 105);
+      doc.text(
+        kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan",
+        pageW / 2,
+        y + 11.5,
+        { align: "center" }
+      );
+      doc.text(
+        kopSurat?.kontakRumahSakit || "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id",
+        pageW / 2,
+        y + 15,
+        { align: "center" }
+      );
+
+      doc.setDrawColor(30, 41, 59);
+      doc.setLineWidth(0.5);
+      doc.line(margin, y + 17.5, pageW - margin, y + 17.5);
+      doc.setLineWidth(0.2);
+      doc.line(margin, y + 18.2, pageW - margin, y + 18.2);
+
+      y += 23;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10.5);
+      doc.setTextColor(15, 23, 42);
+      doc.text("REKAPITULASI LAPORAN HASIL PROGRAM EVALUASI MUTU EKSTERNAL (PME)", pageW / 2, y, { align: "center" });
+
+      y += 4.5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(51, 65, 85);
+      const metaText = `Siklus: ${cycle || "-"} | Periode: ${recapPeriod === "ALL" ? "Semua" : recapPeriod} | Kategori: ${recapCategory === "ALL" ? "Semua" : recapCategory} | Total Uji: ${recapStats.totalTests} | Total Lab: ${recapStats.uniqueLabs} | Pass Rate: ${recapStats.passRate}%`;
+      doc.text(metaText, pageW / 2, y, { align: "center" });
+
+      const tableHead = [
+        [
+          "No",
+          "Kode Lab",
+          "Nama Laboratorium",
+          "Kategori",
+          "Parameter",
+          "Satuan",
+          "Hasil Lab",
+          "Target",
+          "SDPA",
+          "Z-Score",
+          "Status Kinerja",
+          "Metode",
+          "Alat",
+          "Reagen",
+        ],
+      ];
+
+      const tableBody = filteredRecapData.map((d, i) => [
+        String(i + 1),
+        d.participantCode,
+        d.labName,
+        d.category,
+        d.parameterName,
+        d.unit,
+        d.participantValue !== null ? String(d.participantValue) : "-",
+        d.target !== null ? String(d.target) : "-",
+        d.sdpa !== null ? String(d.sdpa) : "-",
+        d.zScore !== null ? `${d.zScore > 0 ? "+" : ""}${d.zScore.toFixed(2)}` : "-",
+        d.keterangan,
+        d.methodCode,
+        d.instrumentCode,
+        d.reagentName,
+      ]);
+
+      autoTable(doc, {
+        head: tableHead,
+        body: tableBody,
+        startY: y + 3,
+        margin: { left: margin, right: margin },
+        styles: {
+          font: "helvetica",
+          fontSize: 6.5,
+          cellPadding: 1.2,
+          valign: "middle",
+          overflow: "linebreak",
+        },
+        headStyles: {
+          fillColor: [15, 118, 110],
+          textColor: 255,
+          fontStyle: "bold",
+          halign: "center",
+        },
+        columnStyles: {
+          0: { cellWidth: 7, halign: "center" },
+          1: { cellWidth: 14, halign: "center" },
+          2: { cellWidth: 38 },
+          3: { cellWidth: 18 },
+          4: { cellWidth: 26 },
+          5: { cellWidth: 12, halign: "center" },
+          6: { cellWidth: 14, halign: "right" },
+          7: { cellWidth: 14, halign: "right" },
+          8: { cellWidth: 13, halign: "right" },
+          9: { cellWidth: 13, halign: "center" },
+          10: { cellWidth: 20, halign: "center" },
+          11: { cellWidth: 26 },
+          12: { cellWidth: 26 },
+          13: { cellWidth: 36 },
+        },
+        alternateRowStyles: {
+          fillColor: [248, 250, 252],
+        },
+        didParseCell: (data) => {
+          if (data.section === "body" && data.column.index === 10) {
+            const val = String(data.cell.raw);
+            if (val === "Memuaskan") {
+              data.cell.styles.textColor = [22, 101, 52];
+              data.cell.styles.fontStyle = "bold";
+            } else if (val === "Peringatan") {
+              data.cell.styles.textColor = [146, 64, 14];
+              data.cell.styles.fontStyle = "bold";
+            } else if (val === "Tidak Memuaskan") {
+              data.cell.styles.textColor = [153, 27, 27];
+              data.cell.styles.fontStyle = "bold";
+            }
+          }
+        },
+      });
+
+      let finalY = (doc as any).lastAutoTable.finalY + 6;
+      if (finalY > pageH - 35) {
+        doc.addPage("a4", "landscape");
+        finalY = 15;
+      }
+
+      const sigBlockW = 75;
+      const sigX = pageW - margin - sigBlockW;
+      let sigY = finalY;
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(30, 41, 59);
+      doc.text(`${signer.tempat || "Palembang"}, ${signer.tanggal || new Date().toLocaleDateString("id-ID")}`, sigX, sigY);
+      sigY += 3.8;
+      const splitJabatan = doc.splitTextToSize(signer.jabatan || "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan", sigBlockW);
+      doc.text(splitJabatan, sigX, sigY);
+      sigY += (splitJabatan.length * 3.5) + 9;
+
+      doc.setFont("times", "italic");
+      doc.setFontSize(9.5);
+      doc.setTextColor(15, 118, 110);
+      const cursiveName = signer.namaPejabat ? signer.namaPejabat.split(",")[0] : "Penyelenggara PME";
+      doc.text(cursiveName, sigX, sigY);
+      sigY += 4;
+
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(30, 41, 59);
+      const namaLengkap = signer.namaPejabat || "M.Didik Wahyudi, S.Tr.Kes";
+      doc.text(namaLengkap, sigX, sigY);
+      const nameW = doc.getTextWidth(namaLengkap);
+      doc.setDrawColor(30, 41, 59);
+      doc.setLineWidth(0.2);
+      doc.line(sigX, sigY + 0.5, sigX + nameW, sigY + 0.5);
+
+      sigY += 3.5;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.setTextColor(71, 85, 105);
+      doc.text(`NIP. ${signer.nip || "-"}`, sigX, sigY);
+
+      doc.save(`Rekap_Laporan_Hasil_PME_${cycle || "Semua"}.pdf`);
+      toast({
+        title: "Export PDF Berhasil!",
+        description: "Berkas PDF rekap laporan hasil PME berhasil diunduh.",
+      });
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: "Gagal Ekspor PDF",
+        description: err.message || "Terjadi kesalahan saat memproses file PDF.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExportingRecapPdf(false);
+    }
+  };
 
   // Generate Official PDF Matching Kemenkes Labkesmas Palembang Format
   const handleDownloadPdf = (report: ParticipantReport) => {
@@ -1210,11 +1944,15 @@ export function PmeReportsView() {
       )}
 
       {/* Tabs Laporan */}
-      <Tabs defaultValue="report" className="space-y-4">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList className="bg-muted/60 p-1 no-print">
           <TabsTrigger value="report" className="text-xs flex items-center gap-1.5">
             <Award className="h-3.5 w-3.5 text-teal-600" />
             <span>Lembar Laporan Resmi Kemenkes</span>
+          </TabsTrigger>
+          <TabsTrigger value="recap" className="text-xs flex items-center gap-1.5">
+            <FileBarChart className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Rekap Laporan Hasil PME</span>
           </TabsTrigger>
           <TabsTrigger value="comprehensive" className="text-xs flex items-center gap-1.5">
             <TableProperties className="h-3.5 w-3.5 text-indigo-600" />
@@ -1860,6 +2598,549 @@ export function PmeReportsView() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* TAB 4: REKAPITULASI LAPORAN HASIL PME (LENGKAP SEMUA PESERTA & PARAMETER) */}
+        <TabsContent value="recap" className="space-y-6">
+          {/* Top Control Bar & Export Buttons (No Print) */}
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 p-4 rounded-xl border bg-card shadow-xs no-print">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <FileBarChart className="h-5 w-5 text-emerald-600" />
+                <h3 className="text-base font-bold text-foreground">
+                  Rekapitulasi Laporan Hasil PME
+                </h3>
+                <Badge variant="outline" className="text-xs bg-emerald-50 text-emerald-700 border-emerald-300 dark:bg-emerald-950/40 dark:text-emerald-400">
+                  {filteredRecapData.length} Data Hasil Uji
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Rekap lengkap hasil pemeriksaan seluruh laboratorium peserta, nilai sasaran (target), SDPA, evaluasi Z-Score, instrumen, dan reagen.
+              </p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleExportRecapExcel}
+                disabled={isExportingRecapExcel || filteredRecapData.length === 0}
+                className="text-xs border-emerald-600 text-emerald-700 hover:bg-emerald-50 dark:hover:bg-emerald-950/40 font-medium"
+              >
+                {isExportingRecapExcel ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <FileSpreadsheet className="h-3.5 w-3.5 mr-1.5 text-emerald-600" />
+                )}
+                Export Excel (.xlsx)
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleDownloadRecapPdf}
+                disabled={isExportingRecapPdf || filteredRecapData.length === 0}
+                className="text-xs border-red-600 text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40 font-medium"
+              >
+                {isExportingRecapPdf ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" />
+                ) : (
+                  <Download className="h-3.5 w-3.5 mr-1.5 text-red-600" />
+                )}
+                Export PDF (.pdf)
+              </Button>
+
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handlePrint}
+                disabled={filteredRecapData.length === 0}
+                className="text-xs border-slate-400 text-slate-700 hover:bg-slate-50 dark:text-slate-200 dark:hover:bg-slate-800 font-medium"
+              >
+                <Printer className="h-3.5 w-3.5 mr-1.5" />
+                Cetak / Print
+              </Button>
+            </div>
+          </div>
+
+          {/* Filter Bar Lengkap (No Print) */}
+          <Card className="shadow-xs border no-print">
+            <CardHeader className="p-4 pb-2 border-b bg-muted/20">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Filter className="h-4 w-4 text-teal-600" />
+                  <CardTitle className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                    Filter Lengkap Rekapitulasi Data
+                  </CardTitle>
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={handleResetRecapFilters}
+                  className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  <RotateCcw className="h-3 w-3 mr-1" />
+                  Reset Filter
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-4 space-y-3.5">
+              {/* Row 1: Siklus, Periode, Kategori, Status */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Filter Siklus */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Calendar className="h-3 w-3 text-blue-600" />
+                    <span>Siklus PME</span>
+                  </Label>
+                  <Select
+                    value={cycle}
+                    onValueChange={(val) => {
+                      setCycle(val);
+                      loadReports(val);
+                    }}
+                  >
+                    <SelectTrigger className="h-8 text-xs font-medium">
+                      <SelectValue placeholder="Pilih Siklus" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableCycles.map((c) => (
+                        <SelectItem key={c} value={c} className="text-xs font-medium">
+                          {c}
+                        </SelectItem>
+                      ))}
+                      {cycle && !availableCycles.includes(cycle) && (
+                        <SelectItem value={cycle} className="text-xs font-medium">
+                          {cycle}
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Periode */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Clock className="h-3 w-3 text-amber-600" />
+                    <span>Periode / Tahap</span>
+                  </Label>
+                  <Select value={recapPeriod} onValueChange={setRecapPeriod}>
+                    <SelectTrigger className="h-8 text-xs font-medium">
+                      <SelectValue placeholder="Semua Periode" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        Semua Periode
+                      </SelectItem>
+                      {recapAvailablePeriods.map((p) => (
+                        <SelectItem key={p} value={p} className="text-xs font-medium">
+                          Periode {p}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Kategori Paket */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Layers className="h-3 w-3 text-teal-600" />
+                    <span>Kategori Paket</span>
+                  </Label>
+                  <Select value={recapCategory} onValueChange={setRecapCategory}>
+                    <SelectTrigger className="h-8 text-xs font-medium">
+                      <SelectValue placeholder="Semua Kategori" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        Semua Kategori
+                      </SelectItem>
+                      {recapAvailableCategories.map((cat) => (
+                        <SelectItem key={cat} value={cat} className="text-xs font-medium">
+                          {cat}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Status Kinerja */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Award className="h-3 w-3 text-purple-600" />
+                    <span>Status Evaluasi Mutu</span>
+                  </Label>
+                  <Select value={recapStatus} onValueChange={setRecapStatus}>
+                    <SelectTrigger className="h-8 text-xs font-medium">
+                      <SelectValue placeholder="Semua Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        Semua Status Kinerja
+                      </SelectItem>
+                      <SelectItem value="SATISFACTORY" className="text-xs font-medium text-emerald-600">
+                        Memuaskan (|Z| ≤ 2.0)
+                      </SelectItem>
+                      <SelectItem value="WARNING" className="text-xs font-medium text-amber-600">
+                        Peringatan (2.0 &lt; |Z| &lt; 3.0)
+                      </SelectItem>
+                      <SelectItem value="UNSATISFACTORY" className="text-xs font-medium text-red-600">
+                        Tidak Memuaskan (|Z| ≥ 3.0)
+                      </SelectItem>
+                      <SelectItem value="NOT_EXAMINED" className="text-xs font-medium text-slate-500">
+                        Parameter Tidak Diperiksa / Kosong
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+
+              {/* Row 2: Laboratorium, Parameter, Pencarian Cepat */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
+                {/* Filter Laboratorium */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Building2 className="h-3 w-3 text-indigo-600" />
+                    <span>Laboratorium Peserta</span>
+                  </Label>
+                  <Select value={recapParticipant} onValueChange={setRecapParticipant}>
+                    <SelectTrigger className="h-8 text-xs font-medium">
+                      <SelectValue placeholder="Semua Laboratorium" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        Semua Laboratorium ({recapAvailableParticipants.length})
+                      </SelectItem>
+                      {recapAvailableParticipants.map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs font-medium">
+                          {p.name} {p.code && p.code !== "-" ? `(${p.code})` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Parameter */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Activity className="h-3 w-3 text-emerald-600" />
+                    <span>Parameter Pemeriksaan</span>
+                  </Label>
+                  <Select value={recapParameter} onValueChange={setRecapParameter}>
+                    <SelectTrigger className="h-8 text-xs font-medium">
+                      <SelectValue placeholder="Semua Parameter" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        Semua Parameter ({recapAvailableParameters.length})
+                      </SelectItem>
+                      {recapAvailableParameters.map((param) => (
+                        <SelectItem key={param} value={param} className="text-xs font-medium">
+                          {param}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Pencarian Cepat Teks */}
+                <div className="space-y-1 lg:col-span-2">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Search className="h-3 w-3 text-slate-500" />
+                    <span>Pencarian Cepat (Lab, Parameter, Metode, Alat, Reagen)</span>
+                  </Label>
+                  <div className="relative">
+                    <Input
+                      value={recapSearch}
+                      onChange={(e) => setRecapSearch(e.target.value)}
+                      placeholder="Ketik kata kunci pencarian..."
+                      className="h-8 text-xs pl-8 font-medium"
+                    />
+                    <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                    {recapSearch && (
+                      <button
+                        onClick={() => setRecapSearch("")}
+                        className="absolute right-2.5 top-2 text-[10px] text-muted-foreground hover:text-foreground"
+                      >
+                        Bersihkan
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* KPI Summary Cards (No Print) */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 no-print">
+            <Card className="p-3 border shadow-xs bg-card">
+              <p className="text-[11px] text-muted-foreground font-medium">Total Hasil Uji</p>
+              <h4 className="text-lg font-bold mt-1 text-foreground">{recapStats.totalTests} Data</h4>
+            </Card>
+            <Card className="p-3 border shadow-xs bg-blue-50/50 dark:bg-blue-950/20 border-blue-500/20">
+              <p className="text-[11px] text-blue-700 dark:text-blue-400 font-medium">Laboratorium</p>
+              <h4 className="text-lg font-bold mt-1 text-blue-700 dark:text-blue-400">{recapStats.uniqueLabs} Lab</h4>
+            </Card>
+            <Card className="p-3 border shadow-xs bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500/20">
+              <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">Memuaskan (|Z| ≤ 2)</p>
+              <h4 className="text-lg font-bold mt-1 text-emerald-700 dark:text-emerald-400">{recapStats.satisfactory}</h4>
+            </Card>
+            <Card className="p-3 border shadow-xs bg-amber-50/50 dark:bg-amber-950/20 border-amber-500/20">
+              <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Peringatan (2 &lt; |Z| &lt; 3)</p>
+              <h4 className="text-lg font-bold mt-1 text-amber-700 dark:text-amber-400">{recapStats.warning}</h4>
+            </Card>
+            <Card className="p-3 border shadow-xs bg-red-50/50 dark:bg-red-950/20 border-red-500/20">
+              <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">Tdk Memuaskan (|Z| ≥ 3)</p>
+              <h4 className="text-lg font-bold mt-1 text-red-700 dark:text-red-400">{recapStats.unsatisfactory}</h4>
+            </Card>
+            <Card className="p-3 border shadow-xs bg-purple-50/50 dark:bg-purple-950/20 border-purple-500/20">
+              <p className="text-[11px] text-purple-700 dark:text-purple-400 font-medium">Tingkat Kelulusan</p>
+              <h4 className="text-lg font-bold mt-1 text-purple-700 dark:text-purple-400">{recapStats.passRate}%</h4>
+            </Card>
+          </div>
+
+          {/* Main Recap Document & Table Card (Printable Area) */}
+          <div className="relative bg-white text-black p-6 sm:p-8 rounded-xl shadow-md border print:border-none print:shadow-none print:p-0 print:m-0 overflow-hidden">
+            {/* Kop Surat Header (Resmi Kemenkes) */}
+            <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
+              {/* Logo Kiri */}
+              <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center shrink-0">
+                {kopSurat?.logoKiri ? (
+                  <img
+                    src={kopSurat.logoKiri}
+                    alt="Logo Kiri"
+                    className="max-h-16 max-w-16 sm:max-h-20 sm:max-w-20 object-contain"
+                  />
+                ) : (
+                  <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-700 border border-teal-500/20">
+                    <ShieldCheck className="h-8 w-8 sm:h-9 sm:w-9 text-teal-700" />
+                  </div>
+                )}
+              </div>
+
+              {/* Teks Tengah KOP Surat */}
+              <div className="flex-1 text-center px-3 sm:px-4 space-y-0.5">
+                <h2 className="text-xs sm:text-sm font-bold tracking-wider text-slate-800 uppercase">
+                  {kopSurat?.pemda || "Kementerian Kesehatan Republik Indonesia"}
+                </h2>
+                <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 uppercase">
+                  {kopSurat?.namaRumahSakit || "Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)"}
+                </h1>
+                <p className="text-[10px] sm:text-[11px] text-slate-600 font-normal leading-tight">
+                  {kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan"}
+                </p>
+                <p className="text-[9px] sm:text-[10px] text-slate-600 font-medium">
+                  {kopSurat?.kontakRumahSakit || "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id"}
+                </p>
+              </div>
+
+              {/* Logo Kanan */}
+              <div className="w-16 h-16 sm:w-20 sm:h-20 flex items-center justify-center shrink-0">
+                {kopSurat?.logoKanan ? (
+                  <img
+                    src={kopSurat.logoKanan}
+                    alt="Logo Kanan"
+                    className="max-h-16 max-w-16 sm:max-h-20 sm:max-w-20 object-contain"
+                  />
+                ) : (
+                  <div className="h-14 w-14 sm:h-16 sm:w-16 rounded-xl bg-blue-500/10 flex items-center justify-center text-blue-700 border border-blue-500/20">
+                    <Award className="h-8 w-8 sm:h-9 sm:w-9 text-blue-700" />
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Document Title */}
+            <div className="text-center my-4 space-y-1">
+              <h2 className="text-sm sm:text-base font-bold text-slate-900 uppercase tracking-wide">
+                REKAPITULASI LAPORAN HASIL PROGRAM EVALUASI MUTU EKSTERNAL (PME)
+              </h2>
+              <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 text-xs text-slate-600">
+                <span><strong>Siklus:</strong> {cycle || "-"}</span>
+                {recapPeriod !== "ALL" && <span>• <strong>Periode:</strong> {recapPeriod}</span>}
+                {recapCategory !== "ALL" && <span>• <strong>Kategori:</strong> {recapCategory}</span>}
+                <span>• <strong>Total Uji:</strong> {recapStats.totalTests} Data</span>
+                <span>• <strong>Tingkat Kelulusan:</strong> {recapStats.passRate}%</span>
+              </div>
+            </div>
+
+            {/* Tabel Data Rekapitulasi */}
+            {filteredRecapData.length === 0 ? (
+              <div className="p-10 text-center space-y-3 border-2 border-dashed rounded-lg my-4">
+                <div className="p-3 bg-amber-500/10 text-amber-600 rounded-full w-12 h-12 mx-auto flex items-center justify-center">
+                  <AlertTriangle className="h-6 w-6" />
+                </div>
+                <h4 className="text-sm font-semibold text-slate-800">
+                  Tidak Ada Data Rekapitulasi yang Sesuai
+                </h4>
+                <p className="text-xs text-slate-500 max-w-md mx-auto">
+                  Silakan periksa kembali kriteria filter yang Anda gunakan atau klik tombol Reset Filter di atas.
+                </p>
+                <Button size="sm" variant="outline" onClick={handleResetRecapFilters} className="text-xs">
+                  <RotateCcw className="h-3 w-3 mr-1.5" />
+                  Reset Filter
+                </Button>
+              </div>
+            ) : (
+              <div className="overflow-x-auto print:overflow-visible my-3 border rounded-lg">
+                <table className="w-full text-xs border-collapse">
+                  <thead>
+                    <tr className="bg-teal-700 text-white border-b border-teal-800 font-semibold text-center">
+                      <th className="p-2 border border-teal-800 w-10">No</th>
+                      <th className="p-2 border border-teal-800 w-24">Kode Lab</th>
+                      <th className="p-2 border border-teal-800 min-w-[150px] text-left">Nama Laboratorium</th>
+                      <th className="p-2 border border-teal-800 w-20">Siklus</th>
+                      <th className="p-2 border border-teal-800 w-16">Periode</th>
+                      <th className="p-2 border border-teal-800 w-24 text-left">Kategori</th>
+                      <th className="p-2 border border-teal-800 min-w-[130px] text-left">Parameter</th>
+                      <th className="p-2 border border-teal-800 w-16">Satuan</th>
+                      <th className="p-2 border border-teal-800 w-20 text-right">Hasil Lab</th>
+                      <th className="p-2 border border-teal-800 w-20 text-right">Target</th>
+                      <th className="p-2 border border-teal-800 w-16 text-right">SDPA</th>
+                      <th className="p-2 border border-teal-800 w-16">Z-Score</th>
+                      <th className="p-2 border border-teal-800 min-w-[130px]">Status Kinerja</th>
+                      <th className="p-2 border border-teal-800 min-w-[120px] text-left">Metode</th>
+                      <th className="p-2 border border-teal-800 min-w-[120px] text-left">Alat</th>
+                      <th className="p-2 border border-teal-800 min-w-[130px] text-left">Nama Reagen</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-200">
+                    {filteredRecapData.map((d, idx) => {
+                      const isUnsat = d.keterangan === "Tidak Memuaskan";
+                      const isWarn = d.keterangan === "Peringatan";
+                      const isSat = d.keterangan === "Memuaskan";
+
+                      return (
+                        <tr
+                          key={`${d.submissionId}-${d.parameterName}-${idx}`}
+                          className={`hover:bg-slate-50/80 transition-colors ${
+                            idx % 2 === 1 ? "bg-slate-50/40" : "bg-white"
+                          } ${isUnsat ? "bg-red-50/30" : isWarn ? "bg-amber-50/20" : ""}`}
+                        >
+                          <td className="p-2 border border-slate-200 text-center font-mono text-slate-500">
+                            {idx + 1}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center font-mono font-semibold text-slate-800">
+                            {d.participantCode}
+                          </td>
+                          <td className="p-2 border border-slate-200 font-medium text-slate-900">
+                            {d.labName}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center text-slate-700">
+                            {d.cycle}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center font-mono text-slate-700">
+                            {d.period}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-slate-700">
+                            {d.category}
+                          </td>
+                          <td className="p-2 border border-slate-200 font-semibold text-slate-900">
+                            {d.parameterName}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center font-mono text-slate-600">
+                            {d.unit}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-right font-mono font-bold text-slate-900">
+                            {d.participantValue !== null ? d.participantValue : "-"}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-right font-mono text-teal-800 font-semibold">
+                            {d.target !== null ? d.target.toFixed(2) : "-"}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-right font-mono text-blue-800">
+                            {d.sdpa !== null ? d.sdpa.toFixed(2) : "-"}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center font-mono font-bold">
+                            {d.zScore !== null ? (
+                              <span
+                                className={
+                                  isSat
+                                    ? "text-emerald-700"
+                                    : isWarn
+                                    ? "text-amber-700"
+                                    : isUnsat
+                                    ? "text-red-700"
+                                    : "text-slate-500"
+                                }
+                              >
+                                {d.zScore > 0 ? "+" : ""}
+                                {d.zScore.toFixed(2)}
+                              </span>
+                            ) : (
+                              "-"
+                            )}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center">
+                            {isSat ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-emerald-50 text-emerald-700 border-emerald-300 font-semibold text-[10px]"
+                              >
+                                Memuaskan
+                              </Badge>
+                            ) : isWarn ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-amber-50 text-amber-700 border-amber-300 font-semibold text-[10px]"
+                              >
+                                Peringatan ($)
+                              </Badge>
+                            ) : isUnsat ? (
+                              <Badge
+                                variant="outline"
+                                className="bg-red-50 text-red-700 border-red-300 font-semibold text-[10px]"
+                              >
+                                Tidak Memuaskan (Action)
+                              </Badge>
+                            ) : (
+                              <Badge
+                                variant="outline"
+                                className="bg-slate-100 text-slate-500 border-slate-300 text-[10px]"
+                              >
+                                Tidak Diperiksa
+                              </Badge>
+                            )}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-slate-700">
+                            {d.methodCode}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-slate-700">
+                            {d.instrumentCode}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-slate-700">
+                            {d.reagentName}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+
+            {/* Official Signer Footer Block */}
+            <div className="pt-6 flex justify-end">
+              <div className="w-72 text-right space-y-1 text-xs text-slate-800">
+                <p>{signer.tempat || "Palembang"}, {signer.tanggal || "14 November 2027"}</p>
+                <p className="font-medium text-slate-700">{signer.jabatan || "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan"}</p>
+                
+                {/* Signature Cursive Sign */}
+                <div className="py-4">
+                  <p className="font-serif italic text-sm text-teal-800">
+                    {signer.namaPejabat ? signer.namaPejabat.split(",")[0] : "Penyelenggara PME"}
+                  </p>
+                </div>
+
+                {/* Nama Pejabat Lengkap */}
+                <p className="font-bold underline text-slate-900">
+                  {signer.namaPejabat || "M.Didik Wahyudi, S.Tr.Kes"}
+                </p>
+                <p className="text-[11px] text-slate-600 font-mono">
+                  NIP. {signer.nip || "198408152009041001"}
+                </p>
+              </div>
+            </div>
+          </div>
         </TabsContent>
       </Tabs>
 

@@ -282,6 +282,7 @@ export async function GET(req: NextRequest) {
 
         const mCode = res?.methodCode?.trim() || p.defaultMethodCode || "-";
         const iCode = res?.instrumentCode?.trim() || p.defaultInstrumentCode || "-";
+        const rName = res?.reagentName?.trim() || "-";
 
         if (hasResult && pStat && pStat.stats) {
           const globalTarget = pStat.stats.median;
@@ -336,6 +337,7 @@ export async function GET(req: NextRequest) {
             unit: p.unit || "",
             methodCode: mCode,
             instrumentCode: iCode,
+            reagentName: rName,
             participantValue: val,
             // Seluruh Peserta
             global: {
@@ -386,6 +388,7 @@ export async function GET(req: NextRequest) {
             unit: p.unit || "",
             methodCode: "-",
             instrumentCode: "-",
+            reagentName: "-",
             participantValue: null,
             global: { n: 0, target: null, sdpa: null, zScore: null, category: "-", keterangan: "-" },
             method: { n: 0, target: null, sdpa: null, zScore: null, category: "-", keterangan: "-", isAnalyzed: false },

@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth, writeAudit } from "@/lib/api-helpers";
+import { withAuth, writeAudit, checkNotReadOnly } from "@/lib/api-helpers";
 import { getActiveRule, computeZStatus } from "@/services/pme/zscore-engine";
 import { revalidateStoredResult } from "@/services/pme/validation-engine";
 
 /** PATCH /api/pme/results/:resultId — human review edit (Review Center / detail page). */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ resultId: string }> }) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
+
     const { resultId } = await params;
     const result = await db.pmeResult.findFirst({
       where: { id: resultId, organizationId: user.organizationId },

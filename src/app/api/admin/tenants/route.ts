@@ -5,8 +5,8 @@ import { withAuth, withSuperAdmin, writeAudit, jsonError, jsonOk } from "@/lib/a
 /** GET /api/admin/tenants — List all organizations / tenants. */
 export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
-    // If not superadmin, only return user's own organization
-    if (user.role !== "SUPERADMIN") {
+    // If not superadmin or admin2, only return user's own organization
+    if (user.role !== "SUPERADMIN" && user.role !== "ADMIN2") {
       const org = await db.organization.findUnique({
         where: { id: user.organizationId },
         select: { id: true, name: true, slug: true, plan: true, monthlyAiLimit: true },

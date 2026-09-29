@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth, writeAudit, jsonError } from "@/lib/api-helpers";
+import { withAuth, writeAudit, jsonError, checkNotReadOnly } from "@/lib/api-helpers";
 import { savePmePdf } from "@/lib/storage";
 import { uploadPdfToDrive } from "@/services/storage/google-drive";
 import { validateUploadMeta, validatePdfBuffer } from "@/services/pme/pdf-processor";
@@ -9,6 +9,8 @@ import { enqueueSession, pump } from "@/services/pme/processor";
 /** POST /api/pme/upload — upload a PME PDF, create session, enqueue processing. */
 export async function POST(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
     const form = await req.formData().catch(() => null);
     const file = form?.get("file");
     if (!file || !(file instanceof File)) {

@@ -935,11 +935,12 @@ export function PmeInputView() {
   };
 
   const isSuperadmin = user?.role === "SUPERADMIN";
+  const isReadOnly = user?.role === "ADMIN2";
   const isDeadlineExpired = Boolean(deadlineInfo?.isExpired && !deadlineInfo?.allowExpiredInput);
   const isSubmissionClosed = Boolean(!deadlineInfo?.isSubmissionOpen && !deadlineInfo?.allowExpiredInput);
   const isTimeLocked = !isSuperadmin && (isDeadlineExpired || isSubmissionClosed);
-  // Peserta non-admin terkunci jika sudah pernah submit final dan canEdit === false, atau jika waktu pengisian terkunci
-  const isFormLocked = (!isSuperadmin && isSubmittedBefore && !canEdit) || isTimeLocked;
+  // Peserta non-admin terkunci jika sudah pernah submit final dan canEdit === false, atau jika waktu pengisian terkunci, atau ADMIN2 (Lihat Saja)
+  const isFormLocked = isReadOnly || (!isSuperadmin && isSubmittedBefore && !canEdit) || isTimeLocked;
   // Status apakah submission ini terkunci secara umum di database
   const isSubmissionLocked = isSubmittedBefore && isLocked && !allowResubmit;
 
@@ -1068,7 +1069,7 @@ export function PmeInputView() {
           </div>
 
           <div className="flex items-center gap-2">
-            {user?.role === "SUPERADMIN" && (
+            {(isSuperadmin || isReadOnly) && (
               <Button
                 variant="outline"
                 size="sm"
@@ -1097,6 +1098,21 @@ export function PmeInputView() {
               loadParticipantParams();
             }}
           />
+        )}
+
+        {/* Banner Khusus Peran ADMIN2 (Lihat Saja) */}
+        {isReadOnly && (
+          <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 text-xs text-sky-800 dark:text-sky-300">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-2 w-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+              <p>
+                <strong>Mode Lihat Saja (Read-Only):</strong> Anda masuk sebagai <strong>ADMIN2</strong>. Anda dapat melihat hasil pengisian PME peserta serta mencetak atau mengunduh lembar draft hasil, namun tidak dapat mengubah nilai ataupun mengirimkan hasil.
+              </p>
+            </div>
+            <Badge variant="outline" className="bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30 shrink-0 text-[10px] font-bold">
+              ADMIN2 (LIHAT SAJA)
+            </Badge>
+          </div>
         )}
 
         {/* Participant & Cycle Selector Card */}
@@ -1544,7 +1560,11 @@ export function PmeInputView() {
             {/* Action Footer: [Cetak / Print Draft] [Unduh PDF Draft] [Simpan Draft Hasil] [Kirim Hasil PME] */}
             <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 pt-2">
               <div className="text-xs text-muted-foreground">
-                {isFormLocked ? (
+                {isReadOnly ? (
+                  <span className="text-sky-700 dark:text-sky-300 font-medium">
+                    Akun ADMIN2 berada dalam mode lihat saja (read-only). Seluruh kolom hasil dinonaktifkan.
+                  </span>
+                ) : isFormLocked ? (
                   isTimeLocked ? (
                     <span className="text-rose-600 dark:text-rose-400 font-medium">
                       Batas waktu pengisian PME telah berakhir atau sedang dinonaktifkan. Hubungi Superadmin untuk mengajukan perpanjangan waktu pengisian khusus.
@@ -1590,25 +1610,36 @@ export function PmeInputView() {
                   Unduh PDF Draft
                 </Button>
 
-                {/* 3. Tombol Simpan Draft Hasil */}
-                <Button
-                  type="button"
-                  variant="secondary"
-                  size="sm"
-                  disabled={isFormLocked || savingDraft || filledCount === 0}
-                  onClick={handleSaveDraft}
-                  className="text-xs h-9 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-200 border border-amber-500/30"
-                >
-                  {savingDraft ? (
-                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Save className="mr-1.5 h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-                  )}
-                  Simpan Draft Hasil
-                </Button>
+                {/* 3. Tombol Simpan Draft Hasil (Hanya jika bukan ADMIN2) */}
+                {!isReadOnly && (
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    size="sm"
+                    disabled={isFormLocked || savingDraft || filledCount === 0}
+                    onClick={handleSaveDraft}
+                    className="text-xs h-9 bg-amber-500/15 hover:bg-amber-500/25 text-amber-900 dark:text-amber-200 border border-amber-500/30"
+                  >
+                    {savingDraft ? (
+                      <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                    ) : (
+                      <Save className="mr-1.5 h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                    )}
+                    Simpan Draft Hasil
+                  </Button>
+                )}
 
                 {/* 4. Tombol Kirim Hasil PME */}
-                {isFormLocked ? (
+                {isReadOnly ? (
+                  <Button
+                    type="button"
+                    disabled
+                    className="bg-sky-500/10 text-sky-700 dark:text-sky-300 border border-sky-500/30 cursor-not-allowed px-5 text-xs h-9 shadow-xs"
+                  >
+                    <Lock className="mr-1.5 h-3.5 w-3.5 text-sky-500" />
+                    Mode Lihat Saja (ADMIN2)
+                  </Button>
+                ) : isFormLocked ? (
                   <Button
                     type="button"
                     disabled

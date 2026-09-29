@@ -99,6 +99,7 @@ export function PmePackagesView() {
   const { toast } = useToast();
 
   const isSuperadmin = user?.role === "SUPERADMIN";
+  const isReadOnly = user?.role === "ADMIN2";
 
   const [packages, setPackages] = useState<PackageItem[]>([]);
   const [participants, setParticipants] = useState<ParticipantOption[]>([]);
@@ -407,6 +408,21 @@ export function PmePackagesView() {
         </div>
       </div>
 
+      {/* Banner Khusus Peran ADMIN2 (Lihat Saja) */}
+      {isReadOnly && (
+        <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 text-xs text-sky-800 dark:text-sky-300">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+            <p>
+              <strong>Mode Lihat Saja (Read-Only):</strong> Anda masuk sebagai <strong>ADMIN2</strong>. Anda dapat melihat katalog paket dan riwayat pendaftaran paket laboratorium, namun tidak dapat memilih paket, menambah paket/parameter, atau menghapus pendaftaran.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30 shrink-0 text-[10px] font-bold">
+            ADMIN2 (LIHAT SAJA)
+          </Badge>
+        </div>
+      )}
+
       <Tabs defaultValue="enrollment" className="space-y-5">
         <TabsList className="bg-muted/60 p-1">
           <TabsTrigger value="enrollment" className="text-xs flex items-center gap-1.5">
@@ -631,12 +647,20 @@ export function PmePackagesView() {
                         selectedPart?.allowReenroll ||
                         selectedPart?.submissions?.some((s) => s.cycle === selectedCycle && s.allowReenroll)
                       );
-                      const isItemLocked = !isSuperadmin && (!isApproved || (hasSub && !isReenroll));
+                      const isItemLocked = isReadOnly || (!isSuperadmin && (!isApproved || (hasSub && !isReenroll)));
 
                       return (
                         <div
                           key={pkg.id}
                           onClick={() => {
+                            if (isReadOnly) {
+                              toast({
+                                title: "Akses Terbatas (Lihat Saja)",
+                                description: "Peran admin2 hanya memiliki akses lihat dan tidak diizinkan mengubah paket.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
                             if (isItemLocked) {
                               if (!isApproved) {
                                 toast({
@@ -703,7 +727,7 @@ export function PmePackagesView() {
                   <span className="text-xs text-muted-foreground">
                     {selectedPackageIds.length} paket dipilih
                   </span>
-                  {(() => {
+                  {!isReadOnly && (() => {
                     const selPart = participants.find((p) => p.id === selectedParticipantId);
                     const isApproved = selPart?.status === "APPROVED";
                     const hasSub = Boolean(
@@ -808,7 +832,9 @@ export function PmePackagesView() {
                             </Button>
                           </td>
                           <td className="p-3 text-center">
-                            {(() => {
+                            {isReadOnly ? (
+                              <span className="text-muted-foreground/40 text-[10px] italic">-</span>
+                            ) : (() => {
                               const enPart = participants.find((p) => p.id === en.participant.id);
                               const hasSub = Boolean(
                                 enPart?.submissions?.some(

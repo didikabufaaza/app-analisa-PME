@@ -59,8 +59,8 @@ export function MasterDataView() {
   const { toast } = useToast();
 
   const isSuperadmin = user?.role === "SUPERADMIN";
-
-  const [loading, setLoading] = useState(true);
+  const isAdmin2 = user?.role === "ADMIN2";
+  const canAccess = isSuperadmin || isAdmin2;
   const [activeTab, setActiveTab] = useState<"INSTRUMENT" | "METHOD" | "REAGENT">("INSTRUMENT");
 
   const [instruments, setInstruments] = useState<MasterItem[]>([]);
@@ -208,15 +208,15 @@ export function MasterDataView() {
     }
   };
 
-  if (!isSuperadmin) {
+  if (!canAccess) {
     return (
       <div className="p-8 max-w-lg mx-auto text-center space-y-4">
         <div className="mx-auto w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500">
           <ShieldAlert className="h-7 w-7" />
         </div>
-        <h2 className="text-lg font-bold text-foreground">Akses Khusus Superadmin</h2>
+        <h2 className="text-lg font-bold text-foreground">Akses Khusus Superadmin & Admin2</h2>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Menu Master Data hanya dapat diakses dan dikelola oleh akun dengan hak akses Superadmin.
+          Menu Master Data hanya dapat diakses oleh akun dengan hak akses Superadmin atau Admin2 (Mode Lihat Saja).
         </p>
       </div>
     );
@@ -251,8 +251,13 @@ export function MasterDataView() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight">Master Data PME</h1>
-                <Badge className="bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30 text-[10px] font-bold">
-                  SUPERADMIN
+                <Badge className={cn(
+                  "border text-[10px] font-bold",
+                  isSuperadmin
+                    ? "bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30"
+                    : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                )}>
+                  {isSuperadmin ? "SUPERADMIN" : "ADMIN2 (LIHAT SAJA)"}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -267,12 +272,27 @@ export function MasterDataView() {
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Segarkan
           </Button>
-          <Button onClick={handleOpenCreate} size="sm" className="bg-purple-700 hover:bg-purple-800 text-white text-xs">
-            <Plus className="mr-1.5 h-4 w-4" />
-            Tambah {getTabTitle()} Baru
-          </Button>
+          {isSuperadmin && (
+            <Button onClick={handleOpenCreate} size="sm" className="bg-purple-700 hover:bg-purple-800 text-white text-xs">
+              <Plus className="mr-1.5 h-4 w-4" />
+              Tambah {getTabTitle()} Baru
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Read-Only Notice for Admin2 */}
+      {isAdmin2 && (
+        <div className="p-3.5 rounded-xl border border-sky-500/40 bg-sky-500/10 flex items-center gap-3 text-sky-950 dark:text-sky-100 text-xs shadow-xs">
+          <Lock className="h-5 w-5 text-sky-600 dark:text-sky-400 shrink-0" />
+          <div>
+            <p className="font-bold">Mode Hanya Lihat (Read-Only) — Akun Admin2</p>
+            <p className="text-muted-foreground mt-0.5">
+              Anda memiliki hak akses untuk melihat database Master Data (Alat, Metode, Reagen), namun tidak diizinkan menambah, mengubah, atau menghapus data.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Info Card Banner */}
       <div className="p-4 rounded-xl bg-purple-500/5 border border-purple-500/20 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
@@ -363,7 +383,7 @@ export function MasterDataView() {
                         <th className="p-3 min-w-[220px]">Nama {getTabTitle()}</th>
                         <th className="p-3 min-w-[180px]">Keterangan</th>
                         <th className="p-3 w-32">Dibuat Pada</th>
-                        <th className="p-3 w-20 text-center">Aksi</th>
+                        <th className="p-3 w-20 text-center">{isSuperadmin ? "Aksi" : "Status"}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -406,26 +426,32 @@ export function MasterDataView() {
                               {new Date(item.createdAt).toLocaleDateString("id-ID")}
                             </td>
                             <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-1">
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  title="Edit Data"
-                                  onClick={() => handleOpenEdit(item)}
-                                  className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </Button>
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  title="Hapus Data"
-                                  onClick={() => setDeleteTarget(item)}
-                                  className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </Button>
-                              </div>
+                              {isSuperadmin ? (
+                                <div className="flex items-center justify-center gap-1">
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    title="Edit Data"
+                                    onClick={() => handleOpenEdit(item)}
+                                    className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                                  >
+                                    <Edit2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    title="Hapus Data"
+                                    onClick={() => setDeleteTarget(item)}
+                                    className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-950/40"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </div>
+                              ) : (
+                                <Badge variant="outline" className="text-[10px] text-emerald-600 dark:text-emerald-400 border-emerald-500/30 bg-emerald-500/10">
+                                  Aktif
+                                </Badge>
+                              )}
                             </td>
                           </tr>
                         ))

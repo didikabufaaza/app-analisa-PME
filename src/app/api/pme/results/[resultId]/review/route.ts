@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth, writeAudit } from "@/lib/api-helpers";
+import { withAuth, writeAudit, checkNotReadOnly } from "@/lib/api-helpers";
 import { enqueueSession } from "@/services/pme/processor";
 
 /**
@@ -10,6 +10,9 @@ import { enqueueSession } from "@/services/pme/processor";
  */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ resultId: string }> }) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
+
     const { resultId } = await params;
     const result = await db.pmeResult.findFirst({
       where: { id: resultId, organizationId: user.organizationId },

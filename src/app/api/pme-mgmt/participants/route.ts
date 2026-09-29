@@ -1,9 +1,9 @@
 import { NextRequest } from "next/server";
-import { withAuth, jsonOk, jsonError, getEffectiveOrgId } from "@/lib/api-helpers";
+import { withAuth, jsonOk, jsonError, getEffectiveOrgId, checkNotReadOnly } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
 
 function canAccessPmeMgmt(user: { role: string; menuAccess?: string | null }) {
-  if (user.role === "SUPERADMIN") return true;
+  if (user.role === "SUPERADMIN" || user.role === "ADMIN2") return true;
   if (user.menuAccess) {
     try {
       const allowed: string[] = JSON.parse(user.menuAccess);
@@ -60,6 +60,9 @@ export async function POST(req: NextRequest) {
     if (!canAccessPmeMgmt(user)) {
       return jsonError("Akses ditolak. Anda tidak memiliki izin Manajemen Data PME.", 403, "FORBIDDEN");
     }
+
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
 
     const orgId = getEffectiveOrgId(user, req) === "ALL" ? user.organizationId : getEffectiveOrgId(user, req);
     const body = await req.json();
@@ -306,6 +309,9 @@ export async function DELETE(req: NextRequest) {
     if (!canAccessPmeMgmt(user)) {
       return jsonError("Akses ditolak.", 403, "FORBIDDEN");
     }
+
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
 
     const id = req.nextUrl.searchParams.get("id");
     if (!id) return jsonError("ID peserta diperlukan.", 400);

@@ -74,6 +74,7 @@ async function optimizeImage(file: File, maxDim = 400): Promise<string> {
 export function KopSuratView() {
   const { toast } = useToast();
   const { user } = useAppStore();
+  const isReadOnly = user?.role === "ADMIN2";
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -130,6 +131,7 @@ export function KopSuratView() {
 
   // Handle Logo Kiri Upload
   const handleLogoKiriChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -160,6 +162,7 @@ export function KopSuratView() {
 
   // Handle Logo Kanan Upload
   const handleLogoKananChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -191,6 +194,7 @@ export function KopSuratView() {
   // Handle Save
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly) return;
     setSaving(true);
     try {
       const payload: KopSuratData = {
@@ -259,6 +263,21 @@ export function KopSuratView() {
         </div>
       </div>
 
+      {/* Banner Khusus Peran ADMIN2 (Lihat Saja) */}
+      {isReadOnly && (
+        <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 text-xs text-sky-800 dark:text-sky-300">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+            <p>
+              <strong>Mode Lihat Saja (Read-Only):</strong> Anda masuk sebagai <strong>ADMIN2</strong>. Anda dapat melihat konfigurasi dan pratinjau Kop Surat instansi, namun tidak dapat mengunggah logo, mengubah teks, atau menyimpannya.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30 shrink-0 text-[10px] font-bold">
+            ADMIN2 (LIHAT SAJA)
+          </Badge>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 items-start">
         {/* FORM INPUT & UPLOAD (Left Column - 6 cols) */}
         <div className="xl:col-span-6 space-y-6">
@@ -284,36 +303,40 @@ export function KopSuratView() {
                         <div className="h-24 w-24 rounded-md border bg-white p-2 flex items-center justify-center shadow-xs">
                           <img src={logoKiri} alt="Logo Kiri" className="h-full w-full object-contain" />
                         </div>
-                        <div className="mt-2.5 flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => logoKiriInputRef.current?.click()}
-                            className="h-7 text-xs px-2"
-                          >
-                            Ganti
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setLogoKiri(null)}
-                            className="h-7 text-xs px-2"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Hapus
-                          </Button>
-                        </div>
+                        {!isReadOnly && (
+                          <div className="mt-2.5 flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => logoKiriInputRef.current?.click()}
+                              className="h-7 text-xs px-2"
+                            >
+                              Ganti
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setLogoKiri(null)}
+                              className="h-7 text-xs px-2"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Hapus
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div
-                        onClick={() => logoKiriInputRef.current?.click()}
-                        className="cursor-pointer flex flex-col items-center py-4 px-2 w-full"
+                        onClick={() => !isReadOnly && logoKiriInputRef.current?.click()}
+                        className={`${isReadOnly ? "cursor-default" : "cursor-pointer"} flex flex-col items-center py-4 px-2 w-full`}
                       >
                         <div className="h-12 w-12 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-700 mb-2">
                           <Upload className="h-5 w-5" />
                         </div>
-                        <span className="text-xs font-medium text-teal-800 dark:text-teal-300">Pilih Berkas Logo Kiri</span>
+                        <span className="text-xs font-medium text-teal-800 dark:text-teal-300">
+                          {isReadOnly ? "Logo Kiri Belum Diunggah" : "Pilih Berkas Logo Kiri"}
+                        </span>
                         <span className="text-[10px] text-muted-foreground mt-0.5">PNG / JPG (Maks 2MB)</span>
                       </div>
                     )}
@@ -334,36 +357,40 @@ export function KopSuratView() {
                         <div className="h-24 w-24 rounded-md border bg-white p-2 flex items-center justify-center shadow-xs">
                           <img src={logoKanan} alt="Logo Kanan" className="h-full w-full object-contain" />
                         </div>
-                        <div className="mt-2.5 flex items-center gap-2">
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            onClick={() => logoKananInputRef.current?.click()}
-                            className="h-7 text-xs px-2"
-                          >
-                            Ganti
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="destructive"
-                            size="sm"
-                            onClick={() => setLogoKanan(null)}
-                            className="h-7 text-xs px-2"
-                          >
-                            <Trash2 className="h-3.5 w-3.5 mr-1" /> Hapus
-                          </Button>
-                        </div>
+                        {!isReadOnly && (
+                          <div className="mt-2.5 flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => logoKananInputRef.current?.click()}
+                              className="h-7 text-xs px-2"
+                            >
+                              Ganti
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setLogoKanan(null)}
+                              className="h-7 text-xs px-2"
+                            >
+                              <Trash2 className="h-3.5 w-3.5 mr-1" /> Hapus
+                            </Button>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div
-                        onClick={() => logoKananInputRef.current?.click()}
-                        className="cursor-pointer flex flex-col items-center py-4 px-2 w-full"
+                        onClick={() => !isReadOnly && logoKananInputRef.current?.click()}
+                        className={`${isReadOnly ? "cursor-default" : "cursor-pointer"} flex flex-col items-center py-4 px-2 w-full`}
                       >
                         <div className="h-12 w-12 rounded-full bg-teal-500/10 flex items-center justify-center text-teal-700 mb-2">
                           <Upload className="h-5 w-5" />
                         </div>
-                        <span className="text-xs font-medium text-teal-800 dark:text-teal-300">Pilih Berkas Logo Kanan</span>
+                        <span className="text-xs font-medium text-teal-800 dark:text-teal-300">
+                          {isReadOnly ? "Logo Kanan Belum Diunggah" : "Pilih Berkas Logo Kanan"}
+                        </span>
                         <span className="text-[10px] text-muted-foreground mt-0.5">PNG / JPG (Maks 2MB)</span>
                       </div>
                     )}
@@ -402,6 +429,7 @@ export function KopSuratView() {
                   <Input
                     id="kolom-pemda"
                     value={pemda}
+                    disabled={isReadOnly}
                     onChange={(e) => setPemda(e.target.value)}
                     placeholder="Contoh: PEMERINTAH PROVINSI JAWA TIMUR / DINAS KESEHATAN"
                     className="text-xs h-9 font-medium"
@@ -422,6 +450,7 @@ export function KopSuratView() {
                   <Input
                     id="kolom-rs"
                     value={namaRumahSakit}
+                    disabled={isReadOnly}
                     onChange={(e) => setNamaRumahSakit(e.target.value)}
                     placeholder="Contoh: RUMAH SAKIT UMUM DAERAH DR. SOETOMO"
                     className="text-xs h-9 font-bold"
@@ -442,6 +471,7 @@ export function KopSuratView() {
                   <Input
                     id="kolom-alamat"
                     value={alamatRumahSakit}
+                    disabled={isReadOnly}
                     onChange={(e) => setAlamatRumahSakit(e.target.value)}
                     placeholder="Contoh: Jl. Mayjen Prof. Dr. Moestopo No. 6-8, Surabaya 60286"
                     className="text-xs h-9"
@@ -462,6 +492,7 @@ export function KopSuratView() {
                   <Input
                     id="kolom-kontak"
                     value={kontakRumahSakit}
+                    disabled={isReadOnly}
                     onChange={(e) => setKontakRumahSakit(e.target.value)}
                     placeholder="Contoh: Telp: (031) 5501078 | Fax: (031) 5501111 | Email: lab@rsud.go.id"
                     className="text-xs h-9"
@@ -472,32 +503,38 @@ export function KopSuratView() {
                 </div>
 
                 {/* Tombol Aksi Simpan */}
-                <div className="pt-3 flex items-center justify-end gap-3 border-t">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => {
-                      setPemda("");
-                      setNamaRumahSakit(orgName || "");
-                      setAlamatRumahSakit("");
-                      setKontakRumahSakit("");
-                    }}
-                    className="text-xs h-9"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
-                    Reset Teks
-                  </Button>
+                {!isReadOnly ? (
+                  <div className="pt-3 flex items-center justify-end gap-3 border-t">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setPemda("");
+                        setNamaRumahSakit(orgName || "");
+                        setAlamatRumahSakit("");
+                        setKontakRumahSakit("");
+                      }}
+                      className="text-xs h-9"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 mr-1 text-muted-foreground" />
+                      Reset Teks
+                    </Button>
 
-                  <Button
-                    type="submit"
-                    disabled={saving}
-                    className="bg-teal-700 hover:bg-teal-800 text-white text-xs h-9 px-4 font-semibold"
-                  >
-                    <Save className="h-3.5 w-3.5 mr-1.5" />
-                    {saving ? "Menyimpan Data..." : "Simpan Kop Surat"}
-                  </Button>
-                </div>
+                    <Button
+                      type="submit"
+                      disabled={saving}
+                      className="bg-teal-700 hover:bg-teal-800 text-white text-xs h-9 px-4 font-semibold"
+                    >
+                      <Save className="h-3.5 w-3.5 mr-1.5" />
+                      {saving ? "Menyimpan Data..." : "Simpan Kop Surat"}
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="pt-3 flex items-center justify-end border-t text-xs text-sky-700 dark:text-sky-300 font-medium">
+                    Mode Lihat Saja (ADMIN2) - Pengaturan KOP Surat Terkunci
+                  </div>
+                )}
               </CardContent>
             </Card>
           </form>

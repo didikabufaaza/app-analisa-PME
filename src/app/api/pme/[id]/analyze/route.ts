@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse, after } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth, writeAudit } from "@/lib/api-helpers";
+import { withAuth, writeAudit, checkNotReadOnly } from "@/lib/api-helpers";
 import { runAnalysisStage, isProcessing } from "@/services/pme/processor";
 import { QuotaExceededError, countMonthlyUsage } from "@/services/ai/extraction-service";
 
 /** POST /api/pme/:id/analyze — run analysis for all pending results of the session (async). */
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
+
     const { id } = await params;
     const session = await db.pmeSession.findFirst({ where: { id, organizationId: user.organizationId } });
     if (!session) return NextResponse.json({ error: "Sesi PME tidak ditemukan." }, { status: 404 });

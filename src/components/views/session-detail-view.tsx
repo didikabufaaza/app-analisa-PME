@@ -537,6 +537,8 @@ export function SessionDetailView() {
   const { toast } = useToast();
   const activeSessionId = useAppStore((s) => s.activeSessionId);
   const navigate = useAppStore((s) => s.navigate);
+  const user = useAppStore((s) => s.user);
+  const isReadOnly = user?.role === "ADMIN2";
 
   const [session, setSession] = useState<PmeSessionDetail | null>(null);
   const [results, setResults] = useState<PmeResultData[]>([]);
@@ -745,6 +747,7 @@ export function SessionDetailView() {
   };
 
   const handleAnalyzeSession = async () => {
+    if (isReadOnly) return;
     if (!session || sessionAnalyzing) return;
     setSessionAnalyzing(true);
     try {
@@ -768,6 +771,7 @@ export function SessionDetailView() {
   };
 
   const handleAnalyzeResult = async (r: PmeResultData) => {
+    if (isReadOnly) return;
     if (analyzingIds.includes(r.id)) return;
     setAnalyzingIds((prev) => [...prev, r.id]);
     try {
@@ -789,6 +793,7 @@ export function SessionDetailView() {
   };
 
   const handleReprocess = async () => {
+    if (isReadOnly) return;
     if (!session || reprocessing) return;
     setReprocessing(true);
     try {
@@ -812,6 +817,7 @@ export function SessionDetailView() {
   };
 
   const openEdit = (r: PmeResultData) => {
+    if (isReadOnly) return;
     setEditResult(r);
     setEditError(null);
     setEditForm({
@@ -827,6 +833,7 @@ export function SessionDetailView() {
   };
 
   const saveEdit = async () => {
+    if (isReadOnly) return;
     if (!editResult || editSaving) return;
     if (!editForm.parameterName.trim()) {
       setEditError("Nama parameter wajib diisi.");
@@ -879,6 +886,7 @@ export function SessionDetailView() {
   };
 
   const openCapa = (r: PmeResultData) => {
+    if (isReadOnly) return;
     setCapaResult(r);
     setCapaError(null);
     const ai: AiAnalysisData | null = r.aiAnalysis;
@@ -895,6 +903,7 @@ export function SessionDetailView() {
   };
 
   const saveCapa = async () => {
+    if (isReadOnly) return;
     if (!capaResult || capaSaving) return;
     if (!capaForm.problem.trim()) {
       setCapaError("Uraian masalah wajib diisi.");
@@ -1005,6 +1014,21 @@ export function SessionDetailView() {
         <ArrowLeft className="h-4 w-4" aria-hidden /> Kembali ke Daftar Sesi
       </Button>
 
+      {/* Banner Khusus Peran ADMIN2 (Lihat Saja) */}
+      {isReadOnly && (
+        <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 text-xs text-sky-800 dark:text-sky-300">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+            <p>
+              <strong>Mode Lihat Saja (Read-Only):</strong> Anda masuk sebagai <strong>ADMIN2</strong>. Anda dapat melihat detail sesi, menelusuri hasil evaluasi parameter, melihat teks sumber PDF, serta mengunduh dokumen laporan, namun tidak dapat mengedit hasil, mereproses, menganalisis, atau membuat CAPA.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30 shrink-0 text-[10px] font-bold">
+            ADMIN2 (LIHAT SAJA)
+          </Badge>
+        </div>
+      )}
+
       {/* Pipeline stepper */}
       <Card>
         <CardContent className="p-4">
@@ -1043,15 +1067,17 @@ export function SessionDetailView() {
               </Badge>
             )}
           </div>
-          <Button
-            size="sm"
-            disabled={reprocessing}
-            onClick={() => void handleReprocess()}
-            className="shrink-0 bg-red-700 text-white hover:bg-red-800"
-          >
-            {reprocessing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
-            Coba Reproses
-          </Button>
+          {!isReadOnly && (
+            <Button
+              size="sm"
+              disabled={reprocessing}
+              onClick={() => void handleReprocess()}
+              className="shrink-0 bg-red-700 text-white hover:bg-red-800"
+            >
+              {reprocessing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <RefreshCw className="h-4 w-4" aria-hidden />}
+              Coba Reproses
+            </Button>
+          )}
         </div>
       )}
 
@@ -1071,13 +1097,15 @@ export function SessionDetailView() {
               </p>
             </div>
           </div>
-          <Button
-            size="sm"
-            onClick={() => navigate("review")}
-            className="shrink-0 bg-violet-700 text-white hover:bg-violet-800"
-          >
-            <ClipboardCheck className="h-4 w-4" aria-hidden /> Buka Review Center
-          </Button>
+          {!isReadOnly && (
+            <Button
+              size="sm"
+              onClick={() => navigate("review")}
+              className="shrink-0 bg-violet-700 text-white hover:bg-violet-800"
+            >
+              <ClipboardCheck className="h-4 w-4" aria-hidden /> Buka Review Center
+            </Button>
+          )}
         </div>
       )}
 
@@ -1194,34 +1222,38 @@ export function SessionDetailView() {
           )}
           Excel Model 2 (EVALUASI PME)
         </Button>
-        <Button
-          size="sm"
-          className="bg-teal-700 text-white hover:bg-teal-800"
-          onClick={() => void handleAnalyzeSession()}
-          disabled={processing || sessionAnalyzing || printingModel1}
-          title={processing ? "Tunggu proses selesai" : "Analisis evaluasi untuk seluruh parameter yang memenuhi syarat"}
-        >
-          {sessionAnalyzing ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <Sparkles className="h-4 w-4" aria-hidden />
-          )}
-          Analisis Evaluasi
-        </Button>
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void handleReprocess()}
-          disabled={processing || reprocessing}
-          title="Jalankan ulang seluruh pipeline pemrosesan"
-        >
-          {reprocessing ? (
-            <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
-          ) : (
-            <RefreshCw className="h-4 w-4" aria-hidden />
-          )}
-          Reproses
-        </Button>
+        {!isReadOnly && (
+          <>
+            <Button
+              size="sm"
+              className="bg-teal-700 text-white hover:bg-teal-800"
+              onClick={() => void handleAnalyzeSession()}
+              disabled={processing || sessionAnalyzing || printingModel1}
+              title={processing ? "Tunggu proses selesai" : "Analisis evaluasi untuk seluruh parameter yang memenuhi syarat"}
+            >
+              {sessionAnalyzing ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <Sparkles className="h-4 w-4" aria-hidden />
+              )}
+              Analisis Evaluasi
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void handleReprocess()}
+              disabled={processing || reprocessing}
+              title="Jalankan ulang seluruh pipeline pemrosesan"
+            >
+              {reprocessing ? (
+                <Loader2 className="h-4 w-4 animate-spin" aria-hidden />
+              ) : (
+                <RefreshCw className="h-4 w-4" aria-hidden />
+              )}
+              Reproses
+            </Button>
+          </>
+        )}
       </div>
 
       {/* Results table */}
@@ -1404,7 +1436,7 @@ export function SessionDetailView() {
                             >
                               <Eye className="h-4 w-4" aria-hidden />
                             </Button>
-                            {!r.aiAnalysis && (
+                            {!r.aiAnalysis && !isReadOnly && (
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -1433,17 +1465,19 @@ export function SessionDetailView() {
                                 <BrainCircuit className="h-4 w-4" aria-hidden />
                               </Button>
                             )}
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-8 w-8 text-muted-foreground hover:text-teal-700"
-                              title="Edit data hasil"
-                              aria-label={`Edit data ${r.parameterName}`}
-                              onClick={() => openEdit(r)}
-                            >
-                              <Pencil className="h-4 w-4" aria-hidden />
-                            </Button>
-                            {r.aiAnalysis && (
+                            {!isReadOnly && (
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-teal-700"
+                                title="Edit data hasil"
+                                aria-label={`Edit data ${r.parameterName}`}
+                                onClick={() => openEdit(r)}
+                              >
+                                <Pencil className="h-4 w-4" aria-hidden />
+                              </Button>
+                            )}
+                            {!isReadOnly && r.aiAnalysis && (
                               <Button
                                 variant="ghost"
                                 size="icon"

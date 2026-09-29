@@ -67,12 +67,12 @@ export async function withSuperAdmin(
 
 /**
  * Returns the effective organizationId for multi-tenancy.
- * - Non-superadmin: strictly locked to their own user.organizationId.
- * - Superadmin: respects x-tenant-id header, query parameter, or view-as cookie.
+ * - Non-superadmin / non-admin2: strictly locked to their own user.organizationId.
+ * - Superadmin & Admin2: respects x-tenant-id header, query parameter, or view-as cookie.
  *   If "ALL", returns "ALL".
  */
 export function getEffectiveOrgId(user: AuthenticatedUser, req: NextRequest): string {
-  if (user.role === "SUPERADMIN") {
+  if (user.role === "SUPERADMIN" || user.role === "ADMIN2") {
     const headerTenant = req.headers.get("x-tenant-id");
     if (headerTenant && headerTenant.trim()) return headerTenant.trim();
 
@@ -86,6 +86,19 @@ export function getEffectiveOrgId(user: AuthenticatedUser, req: NextRequest): st
   }
   return user.organizationId;
 }
+
+/** Check if user is prohibited from mutating data (e.g. ADMIN2 read-only role) */
+export function checkNotReadOnly(user: { role: string }): NextResponse | null {
+  if (user.role === "ADMIN2") {
+    return jsonError(
+      "Peran admin2 hanya memiliki akses lihat (read-only) dan tidak diizinkan menambah, mengubah, atau menghapus data.",
+      403,
+      "FORBIDDEN"
+    );
+  }
+  return null;
+}
+
 
 /**
  * Filter audit log agar hanya mencatat aktivitas penting:

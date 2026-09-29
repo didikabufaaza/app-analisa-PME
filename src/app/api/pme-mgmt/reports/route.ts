@@ -13,11 +13,13 @@ import {
 export async function GET(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
     const isSuperAdmin = user.role === "SUPERADMIN";
+    const isAdmin2 = user.role === "ADMIN2";
+    const canViewAll = isSuperAdmin || isAdmin2;
     const effectiveOrgId = getEffectiveOrgId(user, req);
     const orgFilter = effectiveOrgId === "ALL" ? {} : { organizationId: effectiveOrgId };
 
     let participantLab: any = null;
-    if (!isSuperAdmin) {
+    if (!canViewAll) {
       participantLab = await db.pmeParticipant.findFirst({
         where: { organizationId: user.organizationId },
       });
@@ -34,13 +36,13 @@ export async function GET(req: NextRequest) {
     // 1. Dapatkan daftar seluruh siklus yang ada di pmeSubmission dan pmeParticipant
     const [subCycles, partCycles] = await Promise.all([
       db.pmeSubmission.findMany({
-        where: isSuperAdmin ? orgFilter : { participantId: participantLab.id },
+        where: canViewAll ? orgFilter : { participantId: participantLab.id },
         select: { cycle: true },
         distinct: ["cycle"],
         orderBy: { submittedAt: "desc" },
       }),
       db.pmeParticipant.findMany({
-        where: isSuperAdmin ? orgFilter : { id: participantLab.id },
+        where: canViewAll ? orgFilter : { id: participantLab.id },
         select: { cycle: true },
         distinct: ["cycle"],
         orderBy: { createdAt: "desc" },
@@ -225,7 +227,7 @@ export async function GET(req: NextRequest) {
 
     // 6. Tentukan daftar submissions yang akan ditampilkan pada laporan
     let reportSubmissions = allCycleSubmissions;
-    if (!isSuperAdmin) {
+    if (!canViewAll) {
       // Peserta HANYA melihat submission miliknya yang SUDAH DIPUBLIKASI (isPublished: true)
       reportSubmissions = allCycleSubmissions.filter(
         (sub) => sub.participantId === participantLab.id && sub.isPublished === true
@@ -239,6 +241,8 @@ export async function GET(req: NextRequest) {
           category: packageCategory,
           availableCycles,
           isSuperAdmin: false,
+          isAdmin2: false,
+          isReadOnly: false,
           isParticipant: true,
           participant: participantLab,
           isPublished: false,
@@ -252,7 +256,7 @@ export async function GET(req: NextRequest) {
         });
       }
     } else {
-      // Superadmin filter by targetParticipantId if provided
+      // Superadmin atau Admin2 filter by targetParticipantId if provided
       if (targetParticipantId && targetParticipantId !== "ALL") {
         reportSubmissions = reportSubmissions.filter((s) => s.participantId === targetParticipantId);
       }
@@ -463,7 +467,10 @@ export async function GET(req: NextRequest) {
       category: packageCategory,
       totalSubmissions: reportSubmissions.length,
       isSuperAdmin,
-      isParticipant: !isSuperAdmin,
+      isAdmin2,
+      isReadOnly: isAdmin2,
+      isParticipant: !canViewAll,
+      canSelectParticipant: canViewAll,
       kopSurat,
       signer,
       summary: {

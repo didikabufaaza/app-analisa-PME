@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth, writeAudit, getEffectiveOrgId } from "@/lib/api-helpers";
+import { withAuth, writeAudit, getEffectiveOrgId, checkNotReadOnly } from "@/lib/api-helpers";
 
 /** GET /api/capa — list CAPA actions for the tenant. */
 export async function GET(req: NextRequest) {
@@ -46,6 +46,8 @@ export async function GET(req: NextRequest) {
 /** POST /api/capa — create CAPA (optionally pre-filled from an AI analysis). */
 export async function POST(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
     const body = await req.json().catch(() => ({}));
     const str = (v: unknown, max = 2000) => (v ? String(v).slice(0, max) : null);
 

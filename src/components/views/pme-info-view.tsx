@@ -72,6 +72,8 @@ export function PmeInfoView() {
   const { toast } = useToast();
 
   const isSuperadmin = user?.role === "SUPERADMIN";
+  const isAdmin2 = user?.role === "ADMIN2";
+  const canAccess = isSuperadmin || isAdmin2;
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -279,15 +281,15 @@ export function PmeInfoView() {
     }
   };
 
-  if (!isSuperadmin) {
+  if (!canAccess) {
     return (
       <div className="p-8 max-w-lg mx-auto text-center space-y-4">
         <div className="mx-auto w-14 h-14 rounded-2xl bg-red-500/10 flex items-center justify-center text-red-500">
           <ShieldCheck className="h-7 w-7" />
         </div>
-        <h2 className="text-lg font-bold text-foreground">Akses Khusus Superadmin</h2>
+        <h2 className="text-lg font-bold text-foreground">Akses Khusus Superadmin & Admin2</h2>
         <p className="text-xs text-muted-foreground leading-relaxed">
-          Halaman Pengaturan Siklus & Informasi PME hanya dapat diakses dan diubah oleh akun dengan hak akses Superadmin.
+          Halaman Pengaturan Siklus & Informasi PME hanya dapat diakses oleh akun dengan hak akses Superadmin atau Admin2 (Mode Lihat Saja).
         </p>
       </div>
     );
@@ -305,8 +307,13 @@ export function PmeInfoView() {
             <div>
               <div className="flex items-center gap-2">
                 <h1 className="text-xl font-bold tracking-tight">Pengaturan Siklus & Informasi PME</h1>
-                <Badge className="bg-teal-500/15 text-teal-400 border-teal-500/30 text-[10px] font-bold">
-                  SUPERADMIN
+                <Badge className={cn(
+                  "border text-[10px] font-bold",
+                  isSuperadmin
+                    ? "bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30"
+                    : "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30"
+                )}>
+                  {isSuperadmin ? "SUPERADMIN" : "ADMIN2 (LIHAT SAJA)"}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-0.5">
@@ -323,6 +330,19 @@ export function PmeInfoView() {
           </Button>
         </div>
       </div>
+
+      {/* Read-Only Notice for Admin2 */}
+      {isAdmin2 && (
+        <div className="p-3.5 rounded-xl border border-sky-500/40 bg-sky-500/10 flex items-center gap-3 text-sky-950 dark:text-sky-100 text-xs shadow-xs">
+          <Lock className="h-5 w-5 text-sky-600 dark:text-sky-400 shrink-0" />
+          <div>
+            <p className="font-bold">Mode Hanya Lihat (Read-Only) — Akun Admin2</p>
+            <p className="text-muted-foreground mt-0.5">
+              Anda memiliki hak akses untuk melihat konfigurasi siklus dan informasi PME, namun tidak diizinkan mengubah pengaturan atau memberikan izin dispensasi batas waktu.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Info Card Banner */}
       <div className="p-4 rounded-xl bg-gradient-to-r from-teal-500/10 via-emerald-500/5 to-transparent border border-teal-500/20 flex flex-col md:flex-row md:items-center justify-between gap-3 text-xs">
@@ -835,38 +855,42 @@ export function PmeInfoView() {
                               )}
                             </td>
                             <td className="p-3 text-center">
-                              <div className="flex items-center justify-center gap-1.5">
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  disabled={isToggling}
-                                  onClick={() => handleToggleExpiredAccess(p)}
-                                  className={`h-7 text-[11px] px-2 ${
-                                    p.allowExpiredInput
-                                      ? "border-rose-300 text-rose-700 hover:bg-rose-50"
-                                      : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
-                                  }`}
-                                >
-                                  {isToggling ? (
-                                    <Loader2 className="h-3 w-3 animate-spin mr-1" />
-                                  ) : p.allowExpiredInput ? (
-                                    <Lock className="h-3 w-3 mr-1 text-rose-600" />
-                                  ) : (
-                                    <Unlock className="h-3 w-3 mr-1 text-emerald-600" />
-                                  )}
-                                  {p.allowExpiredInput ? "Cabut Izin" : "Beri Izin"}
-                                </Button>
-                                <Button
-                                  type="button"
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => handleOpenCustomDeadline(p)}
-                                  className="h-7 text-[11px] px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                                >
-                                  <Clock className="h-3 w-3 mr-1" /> Atur Deadline
-                                </Button>
-                              </div>
+                              {isSuperadmin ? (
+                                <div className="flex items-center justify-center gap-1.5">
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={isToggling}
+                                    onClick={() => handleToggleExpiredAccess(p)}
+                                    className={`h-7 text-[11px] px-2 ${
+                                      p.allowExpiredInput
+                                        ? "border-rose-300 text-rose-700 hover:bg-rose-50"
+                                        : "border-emerald-300 text-emerald-700 hover:bg-emerald-50"
+                                    }`}
+                                  >
+                                    {isToggling ? (
+                                      <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                                    ) : p.allowExpiredInput ? (
+                                      <Lock className="h-3 w-3 mr-1 text-rose-600" />
+                                    ) : (
+                                      <Unlock className="h-3 w-3 mr-1 text-emerald-600" />
+                                    )}
+                                    {p.allowExpiredInput ? "Cabut Izin" : "Beri Izin"}
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleOpenCustomDeadline(p)}
+                                    className="h-7 text-[11px] px-2 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                  >
+                                    <Clock className="h-3 w-3 mr-1" /> Atur Deadline
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground italic">Lihat Saja</span>
+                              )}
                             </td>
                           </tr>
                         );
@@ -879,26 +903,28 @@ export function PmeInfoView() {
         </Card>
 
         {/* Action Button */}
-        <div className="flex items-center justify-end gap-3 pt-2">
-          <Button
-            type="submit"
-            disabled={saving}
-            size="lg"
-            className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold shadow-md px-6"
-          >
-            {saving ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Menyimpan Perubahan...
-              </>
-            ) : (
-              <>
-                <Save className="mr-2 h-4 w-4" />
-                Simpan Siklus & Informasi PME
-              </>
-            )}
-          </Button>
-        </div>
+        {isSuperadmin && (
+          <div className="flex items-center justify-end gap-3 pt-2">
+            <Button
+              type="submit"
+              disabled={saving}
+              size="lg"
+              className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold shadow-md px-6"
+            >
+              {saving ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Menyimpan Perubahan...
+                </>
+              ) : (
+                <>
+                  <Save className="mr-2 h-4 w-4" />
+                  Simpan Siklus & Informasi PME
+                </>
+              )}
+            </Button>
+          </div>
+        )}
       </form>
 
       {/* Dialog Modal Atur Batas Waktu Khusus Peserta */}

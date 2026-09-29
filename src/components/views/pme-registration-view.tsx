@@ -78,6 +78,7 @@ export function PmeRegistrationView() {
   const { toast } = useToast();
 
   const isSuperadmin = user?.role === "SUPERADMIN";
+  const isReadOnly = user?.role === "ADMIN2";
 
   const [participants, setParticipants] = useState<ParticipantItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -324,27 +325,42 @@ export function PmeRegistrationView() {
             <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
             Muat Ulang
           </Button>
-          <Button
-            onClick={handleOpenCreate}
-            disabled={!isRegistrationOpen}
-            size="sm"
-            className={cn(
-              "text-xs font-medium transition-all",
-              isRegistrationOpen
-                ? "bg-teal-700 hover:bg-teal-800 text-white shadow-sm"
-                : "bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed border"
-            )}
-            title={!isRegistrationOpen ? "Pendaftaran peserta PME saat ini dinonaktifkan oleh penyelenggara" : "Daftar Peserta Baru"}
-          >
-            {isRegistrationOpen ? (
-              <UserPlus className="mr-1.5 h-4 w-4" />
-            ) : (
-              <Lock className="mr-1.5 h-4 w-4 text-slate-400" />
-            )}
-            Daftar Peserta Baru
-          </Button>
+          {!isReadOnly && (
+            <Button
+              onClick={handleOpenCreate}
+              disabled={!isRegistrationOpen}
+              size="sm"
+              className={cn(
+                "text-xs font-medium transition-all",
+                isRegistrationOpen
+                  ? "bg-teal-700 hover:bg-teal-800 text-white shadow-sm"
+                  : "bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed border"
+              )}
+              title={!isRegistrationOpen ? "Pendaftaran peserta PME saat ini dinonaktifkan oleh penyelenggara" : "Daftar Peserta Baru"}
+            >
+              {isRegistrationOpen ? (
+                <UserPlus className="mr-1.5 h-4 w-4" />
+              ) : (
+                <Lock className="mr-1.5 h-4 w-4 text-slate-400" />
+              )}
+              Daftar Peserta Baru
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Read-Only Notice for Admin2 */}
+      {isReadOnly && (
+        <div className="p-3.5 rounded-xl border border-sky-500/40 bg-sky-500/10 flex items-center gap-3 text-sky-950 dark:text-sky-100 text-xs shadow-xs">
+          <Lock className="h-5 w-5 text-sky-600 dark:text-sky-400 shrink-0" />
+          <div>
+            <p className="font-bold">Mode Hanya Lihat (Read-Only) — Akun Admin2</p>
+            <p className="text-muted-foreground mt-0.5">
+              Anda memiliki hak akses untuk melihat seluruh data pendaftaran laboratorium peserta, namun tidak diizinkan menambah pendaftaran baru, menyetujui, menolak, mengedit, atau menghapus data peserta.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Banner Peringatan Ketika Pendaftaran PME Dinonaktifkan */}
       {!isRegistrationOpen && (
@@ -718,15 +734,17 @@ export function PmeRegistrationView() {
                             )}
 
                             {/* Tombol Edit */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Edit Data Peserta"
-                              onClick={() => handleOpenEdit(item)}
-                              className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
-                            >
-                              <Edit2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {!isReadOnly && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Edit Data Peserta"
+                                onClick={() => handleOpenEdit(item)}
+                                className="h-7 w-7 p-0 text-muted-foreground hover:text-foreground"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
 
                             {/* Tombol Pintas ke Pemilihan Paket (Hanya jika disetujui) */}
                             <Button
@@ -761,15 +779,17 @@ export function PmeRegistrationView() {
                             </Button>
 
                             {/* Tombol Hapus */}
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              title="Hapus Peserta"
-                              onClick={() => setDeleteTarget(item)}
-                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
-                            >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {!isReadOnly && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                title="Hapus Peserta"
+                                onClick={() => setDeleteTarget(item)}
+                                className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </div>
                         </td>
                       </tr>

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth, writeAudit } from "@/lib/api-helpers";
+import { withAuth, writeAudit, checkNotReadOnly } from "@/lib/api-helpers";
 
 /** PATCH /api/capa/:id — update CAPA (status transitions recorded in audit log). */
 export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
+
     const { id } = await params;
     const capa = await db.capaAction.findFirst({ where: { id, organizationId: user.organizationId } });
     if (!capa) return NextResponse.json({ error: "CAPA tidak ditemukan." }, { status: 404 });
@@ -50,6 +53,9 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
 /** DELETE /api/capa/:id — delete CAPA action. */
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
+
     const { id } = await params;
     const capa = await db.capaAction.findFirst({ where: { id, organizationId: user.organizationId } });
     if (!capa) return NextResponse.json({ error: "CAPA tidak ditemukan." }, { status: 404 });

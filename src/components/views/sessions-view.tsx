@@ -157,7 +157,8 @@ export function SessionsView() {
   const { toast } = useToast();
   const navigate = useAppStore((s) => s.navigate);
   const user = useAppStore((s) => s.user);
-  const canDelete = user?.role === "ADMIN" || user?.role === "SUPERADMIN";
+  const isReadOnly = user?.role === "ADMIN2";
+  const canDelete = !isReadOnly && (user?.role === "ADMIN" || user?.role === "SUPERADMIN");
   const isAdmin = canDelete;
 
   /* list state */
@@ -304,6 +305,7 @@ export function SessionsView() {
   /* -------------------------------- row actions -------------------------------- */
 
   const handleReprocess = async (s: PmeSessionListItem) => {
+    if (isReadOnly) return;
     setReprocessingId(s.id);
     try {
       await apiSend(`/api/pme/${s.id}/process`, "POST");
@@ -429,6 +431,21 @@ export function SessionsView() {
         </p>
       </div>
 
+      {/* Banner Khusus Peran ADMIN2 (Lihat Saja) */}
+      {isReadOnly && (
+        <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 text-xs text-sky-800 dark:text-sky-300">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+            <p>
+              <strong>Mode Lihat Saja (Read-Only):</strong> Anda masuk sebagai <strong>ADMIN2</strong>. Anda dapat melihat seluruh sesi analisis PME dan menelusuri detail parameternya, namun tidak dapat mengunggah berkas baru, mereproses, atau menghapus sesi.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30 shrink-0 text-[10px] font-bold">
+            ADMIN2 (LIHAT SAJA)
+          </Badge>
+        </div>
+      )}
+
       {/* Summary chips */}
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         {[
@@ -475,15 +492,17 @@ export function SessionsView() {
           </SelectContent>
         </Select>
 
-        <div className="lg:ml-auto">
-          <Button
-            onClick={() => setUploadOpen(true)}
-            className="w-full bg-teal-700 text-white hover:bg-teal-800 sm:w-auto"
-          >
-            <UploadCloud className="h-4 w-4" aria-hidden />
-            Unggah PDF PME
-          </Button>
-        </div>
+        {!isReadOnly && (
+          <div className="lg:ml-auto">
+            <Button
+              onClick={() => setUploadOpen(true)}
+              className="w-full bg-teal-700 text-white hover:bg-teal-800 sm:w-auto"
+            >
+              <UploadCloud className="h-4 w-4" aria-hidden />
+              Unggah PDF PME
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Table card */}
@@ -617,7 +636,7 @@ export function SessionsView() {
                 </TableHeader>
                 <TableBody>
                   {sessions.map((s) => {
-                    const canReprocess = s.status === "FAILED" || s.status === "COMPLETED";
+                    const canReprocess = !isReadOnly && (s.status === "FAILED" || s.status === "COMPLETED");
                     const isSelected = selectedIds.has(s.id);
                     return (
                       <TableRow

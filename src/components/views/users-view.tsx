@@ -61,6 +61,7 @@ const ALL_MENUS: { key: string; label: string; desc: string; superAdminOnly?: bo
 
 const DEFAULT_MENUS_BY_ROLE: Record<string, string[]> = {
   SUPERADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management", "users"],
+  ADMIN2: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management"],
   ADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management"],
   SUPERVISOR: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
   ANALYST: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
@@ -307,6 +308,7 @@ export function UsersView() {
             >
               <option value="">Semua Peran</option>
               <option value="SUPERADMIN">SUPERADMIN</option>
+              <option value="ADMIN2">ADMIN2 (Lihat Saja)</option>
               <option value="ADMIN">ADMIN</option>
               <option value="SUPERVISOR">SUPERVISOR</option>
               <option value="ANALYST">ANALYST</option>
@@ -363,6 +365,8 @@ export function UsersView() {
                               "text-[10px] font-semibold",
                               u.role === "SUPERADMIN"
                                 ? "bg-purple-500/15 text-purple-800 dark:text-purple-300 border-purple-500/30"
+                                : u.role === "ADMIN2"
+                                ? "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30"
                                 : u.role === "ADMIN"
                                 ? "bg-teal-500/15 text-teal-800 dark:text-teal-300 border-teal-500/30"
                                 : u.role === "SUPERVISOR"
@@ -370,7 +374,7 @@ export function UsersView() {
                                 : "bg-slate-500/15 text-slate-800 dark:text-slate-300 border-slate-500/30"
                             )}
                           >
-                            {u.role}
+                            {u.role === "ADMIN2" ? "ADMIN2 (Lihat Saja)" : u.role}
                           </Badge>
                         </td>
                         <td className="p-3">
@@ -520,6 +524,7 @@ export function UsersView() {
                   <option value="ANALYST">ANALYST (Analis QA)</option>
                   <option value="SUPERVISOR">SUPERVISOR (Penyelia)</option>
                   <option value="ADMIN">ADMIN (Admin Laboratorium)</option>
+                  <option value="ADMIN2">ADMIN2 (Admin Lihat Saja / Read-Only Database)</option>
                   <option value="SUPERADMIN">SUPERADMIN (Super Admin Sistem)</option>
                 </select>
               </div>

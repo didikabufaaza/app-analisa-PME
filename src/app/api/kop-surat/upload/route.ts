@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { withAuth, jsonOk, jsonError, getEffectiveOrgId } from "@/lib/api-helpers";
+import { withAuth, jsonOk, jsonError, getEffectiveOrgId, checkNotReadOnly } from "@/lib/api-helpers";
 import { db } from "@/lib/db";
 import { uploadImageToDrive } from "@/services/storage/google-drive";
 
@@ -10,6 +10,9 @@ import { uploadImageToDrive } from "@/services/storage/google-drive";
  */
 export async function POST(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
+
     let orgId = getEffectiveOrgId(user, req);
     if (orgId === "ALL") {
       orgId = user.organizationId;

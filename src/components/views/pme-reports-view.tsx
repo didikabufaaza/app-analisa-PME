@@ -170,6 +170,7 @@ interface DashboardStatItem {
 export function PmeReportsView() {
   const { user, viewAsTenantId, navigate } = useAppStore();
   const { toast } = useToast();
+  const isReadOnly = user?.role === "ADMIN2";
 
   const printAreaRef = useRef<HTMLDivElement>(null);
 
@@ -1589,6 +1590,10 @@ export function PmeReportsView() {
                   <Badge variant="outline" className="bg-teal-600 text-white border-none text-[10px] font-mono">
                     Superadmin Mode
                   </Badge>
+                ) : isReadOnly ? (
+                  <Badge variant="outline" className="bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30 text-[10px] font-mono font-bold">
+                    ADMIN2 (LIHAT SAJA)
+                  </Badge>
                 ) : (
                   <Badge variant="outline" className="bg-blue-600 text-white border-none text-[10px] font-mono">
                     Laboratorium Peserta
@@ -1598,6 +1603,8 @@ export function PmeReportsView() {
               <p className="text-xs text-muted-foreground">
                 {isSuperAdmin
                   ? "Validasi, koreksi hasil biostatistik ISO 13528, penandatanganan resmi, dan pengiriman laporan ke peserta"
+                  : isReadOnly
+                  ? "Pemeriksaan dan peninjauan laporan evaluasi mutu PME seluruh laboratorium peserta (Akses Lihat Saja)"
                   : "Lembar evaluasi mutu resmi hasil uji PME laboratorium yang diterbitkan oleh Balai Penyelenggara"}
               </p>
             </div>
@@ -1708,6 +1715,21 @@ export function PmeReportsView() {
           )}
         </div>
       </div>
+
+      {/* Banner Khusus Peran ADMIN2 (Lihat Saja) */}
+      {isReadOnly && (
+        <div className="p-3.5 rounded-xl bg-sky-500/10 border border-sky-500/30 flex items-center justify-between gap-3 text-xs text-sky-800 dark:text-sky-300 no-print">
+          <div className="flex items-center gap-2.5">
+            <span className="flex h-2 w-2 rounded-full bg-sky-500 animate-pulse shrink-0" />
+            <p>
+              <strong>Mode Lihat Saja (Read-Only):</strong> Anda masuk sebagai <strong>ADMIN2</strong>. Anda dapat melihat laporan hasil evaluasi biostatistik seluruh laboratorium peserta, mencetak halaman, atau mengunduh PDF resmi, namun tidak dapat melakukan validasi, pengiriman, atau pengaturan KOP surat dan penandatangan.
+            </p>
+          </div>
+          <Badge variant="outline" className="bg-sky-500/20 text-sky-700 dark:text-sky-300 border-sky-500/30 shrink-0 text-[10px] font-bold">
+            ADMIN2 (LIHAT SAJA)
+          </Badge>
+        </div>
+      )}
 
       {/* Status Banner Validasi & Pengiriman ke Peserta */}
       {activeReport && (

@@ -7,6 +7,7 @@ import {
   ChevronDown,
   ClipboardList,
   Loader2,
+  Lock,
   Pencil,
   Plus,
   Trash2,
@@ -15,6 +16,7 @@ import {
 
 import { ApiError, apiGet, apiSend } from "@/lib/api-client";
 import { useToast } from "@/hooks/use-toast";
+import { useAppStore } from "@/lib/store";
 import type { CapaData } from "@/types/pme";
 
 import {
@@ -175,6 +177,8 @@ function DetailField({ label, value }: { label: string; value: string | null | u
 
 export function CapaView() {
   const { toast } = useToast();
+  const user = useAppStore((s) => s.user);
+  const isReadOnly = user?.role === "ADMIN2";
 
   const [capas, setCapas] = useState<CapaData[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -215,6 +219,7 @@ export function CapaView() {
   }, [fetchCapas, statusFilter]);
 
   async function handleCreate() {
+    if (isReadOnly) return;
     if (!createForm.problem.trim()) {
       setFormError("Deskripsi masalah wajib diisi.");
       return;
@@ -235,6 +240,7 @@ export function CapaView() {
   }
 
   async function handleStatusChange(capa: CapaData, next: CapaStatus) {
+    if (isReadOnly) return;
     setBusyId(capa.id);
     try {
       await apiSend(`/api/capa/${capa.id}`, "PATCH", { status: next });
@@ -250,6 +256,7 @@ export function CapaView() {
   }
 
   async function handleSaveEdit() {
+    if (isReadOnly) return;
     if (!editCapa) return;
     if (!editForm.problem.trim()) {
       setFormError("Deskripsi masalah wajib diisi.");
@@ -270,6 +277,7 @@ export function CapaView() {
   }
 
   async function handleDelete() {
+    if (isReadOnly) return;
     if (!confirmDelete) return;
     setDeleting(true);
     try {
@@ -428,12 +436,27 @@ export function CapaView() {
               <SelectItem value="CLOSED">Selesai</SelectItem>
             </SelectContent>
           </Select>
-          <Button className="bg-teal-600 text-white hover:bg-teal-700" onClick={() => { setCreateForm(EMPTY_FORM); setFormError(null); setCreateOpen(true); }}>
-            <Plus className="h-4 w-4" />
-            CAPA Baru
-          </Button>
+          {!isReadOnly && (
+            <Button className="bg-teal-600 text-white hover:bg-teal-700" onClick={() => { setCreateForm(EMPTY_FORM); setFormError(null); setCreateOpen(true); }}>
+              <Plus className="h-4 w-4" />
+              CAPA Baru
+            </Button>
+          )}
         </div>
       </div>
+
+      {/* Read-Only Notice for Admin2 */}
+      {isReadOnly && (
+        <div className="p-3.5 rounded-xl border border-sky-500/40 bg-sky-500/10 flex items-center gap-3 text-sky-950 dark:text-sky-100 text-xs shadow-xs">
+          <Lock className="h-5 w-5 text-sky-600 dark:text-sky-400 shrink-0" />
+          <div>
+            <p className="font-bold">Mode Hanya Lihat (Read-Only) — Akun Admin2</p>
+            <p className="text-muted-foreground mt-0.5">
+              Anda sedang melihat modul CAPA dalam mode baca saja. Tindakan membuat, mengubah status, mengedit, dan menghapus CAPA dinonaktifkan.
+            </p>
+          </div>
+        </div>
+      )}
 
       {error ? (
         <Alert variant="destructive">
@@ -503,16 +526,18 @@ export function CapaView() {
                         Detail
                         <ChevronDown className="h-4 w-4" />
                       </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50"
-                        title="Hapus CAPA"
-                        aria-label="Hapus CAPA"
-                        onClick={() => setConfirmDelete(capa)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {!isReadOnly && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50"
+                          title="Hapus CAPA"
+                          aria-label="Hapus CAPA"
+                          onClick={() => setConfirmDelete(capa)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      )}
                     </div>
                   </div>
 
@@ -637,7 +662,7 @@ export function CapaView() {
           ) : null}
           <DialogFooter className="flex-col gap-2 sm:flex-row sm:justify-between">
             <div className="flex flex-wrap gap-2">
-              {detailCapa && NEXT_STATUS[detailCapa.status] ? (
+              {!isReadOnly && detailCapa && NEXT_STATUS[detailCapa.status] ? (
                 <Button
                   variant="outline"
                   className="border-teal-300 text-teal-700 hover:bg-teal-50 hover:text-teal-800"
@@ -648,14 +673,14 @@ export function CapaView() {
                   Ubah Status: {STATUS_LABEL[NEXT_STATUS[detailCapa.status] as CapaStatus]}
                 </Button>
               ) : null}
-              {detailCapa && detailCapa.status !== "OPEN" ? (
+              {!isReadOnly && detailCapa && detailCapa.status !== "OPEN" ? (
                 <Button variant="ghost" disabled={busyId === detailCapa.id} onClick={() => { if (detailCapa) void handleStatusChange(detailCapa, "OPEN"); }}>
                   Kembalikan ke Terbuka
                 </Button>
               ) : null}
             </div>
             <div className="flex gap-2">
-              {detailCapa ? (
+              {!isReadOnly && detailCapa ? (
                 <Button
                   variant="outline"
                   className="text-red-600 hover:bg-red-50 hover:text-red-700 dark:text-red-400 dark:hover:bg-red-950/50"
@@ -665,7 +690,7 @@ export function CapaView() {
                   Hapus
                 </Button>
               ) : null}
-              {detailCapa ? (
+              {!isReadOnly && detailCapa ? (
                 <Button
                   variant="outline"
                   onClick={() => { setEditCapa(detailCapa); setEditForm(formFromCapa(detailCapa)); setFormError(null); }}

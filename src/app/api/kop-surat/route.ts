@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { db } from "@/lib/db";
-import { withAuth, jsonOk, jsonError, getEffectiveOrgId } from "@/lib/api-helpers";
+import { withAuth, jsonOk, jsonError, getEffectiveOrgId, checkNotReadOnly } from "@/lib/api-helpers";
 
 /**
  * GET /api/kop-surat
@@ -47,6 +47,9 @@ export async function GET(req: NextRequest) {
  */
 export async function POST(req: NextRequest) {
   return withAuth(req, async ({ user }) => {
+    const readOnlyCheck = checkNotReadOnly(user);
+    if (readOnlyCheck) return readOnlyCheck;
+
     let orgId = getEffectiveOrgId(user, req);
     if (orgId === "ALL") {
       orgId = user.organizationId;

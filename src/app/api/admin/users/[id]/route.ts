@@ -33,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: RouteParams) {
     }
     if (body.role !== undefined) {
       const role = String(body.role).toUpperCase();
-      const validRoles = ["SUPERADMIN", "ADMIN", "SUPERVISOR", "ANALYST"];
+      const validRoles = ["SUPERADMIN", "ADMIN2", "ADMIN", "SUPERVISOR", "ANALYST"];
       if (validRoles.includes(role)) dataToUpdate.role = role;
     }
     if (body.organizationId !== undefined) {

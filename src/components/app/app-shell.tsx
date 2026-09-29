@@ -99,9 +99,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     };
   }, [user?.id]);
 
-  // Load tenants list for Superadmin switcher
+  // Load tenants list for Superadmin & Admin2 switcher
   useEffect(() => {
-    if (user?.role === "SUPERADMIN") {
+    if (user?.role === "SUPERADMIN" || user?.role === "ADMIN2") {
       fetch("/api/admin/tenants")
         .then((res) => (res.ok ? res.json() : { tenants: [] }))
         .then((data) => setTenants(data.tenants || []))
@@ -116,7 +116,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   // Filter navigation items by checklist permissions or role
   const filteredNav = NAV.filter((item) => {
     if (item.superAdminOnly && user.role !== "SUPERADMIN") return false;
-    if (user.role === "SUPERADMIN") return true;
+    if (user.role === "SUPERADMIN" || user.role === "ADMIN2") return true;
     if (user.menuAccess && Array.isArray(user.menuAccess) && user.menuAccess.length > 0) {
       return user.menuAccess.includes(item.key);
     }
@@ -125,6 +125,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const isPmeMgmtAllowed =
     user.role === "SUPERADMIN" ||
+    user.role === "ADMIN2" ||
     (user.menuAccess && Array.isArray(user.menuAccess) && (user.menuAccess.includes("pme-management") || user.menuAccess.includes("pme-registration")));
 
   const navList = (
@@ -210,7 +211,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               <span className="truncate">3. Input Hasil PME</span>
             </button>
 
-            {user.role === "SUPERADMIN" && (
+            {(user.role === "SUPERADMIN" || user.role === "ADMIN2") && (
               <button
                 onClick={() => navigate("pme-info")}
                 aria-current={view === "pme-info" ? "page" : undefined}
@@ -223,13 +224,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Megaphone className="h-4.5 w-4.5 shrink-0 text-teal-400" />
                 <span className="flex-1 text-left truncate">4. Informasi & Siklus PME</span>
-                <span className="text-[9.5px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-1 py-0.2 rounded font-mono font-bold">
-                  SUPER
+                <span className={cn(
+                  "text-[9.5px] border px-1 py-0.2 rounded font-mono font-bold",
+                  user.role === "SUPERADMIN"
+                    ? "bg-teal-500/20 text-teal-300 border-teal-500/40"
+                    : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                )}>
+                  {user.role === "SUPERADMIN" ? "SUPER" : "VIEW"}
                 </span>
               </button>
             )}
 
-            {user.role === "SUPERADMIN" && (
+            {(user.role === "SUPERADMIN" || user.role === "ADMIN2") && (
               <button
                 onClick={() => navigate("master-data")}
                 aria-current={view === "master-data" ? "page" : undefined}
@@ -242,14 +248,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               >
                 <Database className="h-4.5 w-4.5 shrink-0 text-purple-400" />
                 <span className="flex-1 text-left truncate">5. Master Data</span>
-                <span className="text-[9.5px] bg-purple-500/20 text-purple-300 border border-purple-500/40 px-1 py-0.2 rounded font-mono font-bold">
-                  SUPER
+                <span className={cn(
+                  "text-[9.5px] border px-1 py-0.2 rounded font-mono font-bold",
+                  user.role === "SUPERADMIN"
+                    ? "bg-purple-500/20 text-purple-300 border-purple-500/40"
+                    : "bg-amber-500/20 text-amber-300 border-amber-500/40"
+                )}>
+                  {user.role === "SUPERADMIN" ? "SUPER" : "VIEW"}
                 </span>
               </button>
             )}
           </div>
 
-          {/* Menu Laporan Hasil PME: Dapat diakses oleh Superadmin & Peserta PME */}
+          {/* Menu Laporan Hasil PME: Dapat diakses oleh Superadmin, Admin2 & Peserta PME */}
           <div className="pt-2 mt-2 border-t border-slate-800/60">
             <button
               onClick={() => navigate("pme-reports")}
@@ -263,11 +274,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             >
               <FileBarChart className="h-5 w-5 shrink-0 text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.3)]" />
               <span className="flex-1 text-left truncate">
-                {user.role === "SUPERADMIN" ? "Laporan Hasil PME" : "Lembar Hasil Evaluasi PME"}
+                {user.role === "SUPERADMIN" || user.role === "ADMIN2" ? "Laporan Hasil PME" : "Lembar Hasil Evaluasi PME"}
               </span>
               {user.role === "SUPERADMIN" ? (
                 <span className="text-[9.5px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
                   SUPER
+                </span>
+              ) : user.role === "ADMIN2" ? (
+                <span className="text-[9.5px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
+                  ADMIN2
                 </span>
               ) : (
                 <span className="text-[9.5px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
@@ -361,17 +376,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <h1 className="truncate text-base font-semibold sm:text-lg">{VIEW_TITLES[view]}</h1>
 
           <div className="ml-auto flex items-center gap-3">
-            {/* Superadmin Tenant Switcher */}
-            {user.role === "SUPERADMIN" && (
-              <div className="flex items-center gap-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 px-2.5 py-1 text-xs text-amber-900 dark:text-amber-200 shadow-sm">
-                <Eye className="h-3.5 w-3.5 text-amber-600 shrink-0" />
+            {/* Tenant Switcher: Superadmin & Admin2 */}
+            {(user.role === "SUPERADMIN" || user.role === "ADMIN2") && (
+              <div
+                className={cn(
+                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs shadow-xs",
+                  user.role === "ADMIN2"
+                    ? "border-sky-500/40 bg-sky-500/10 text-sky-900 dark:text-sky-200"
+                    : "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                )}
+              >
+                <Eye className={cn("h-3.5 w-3.5 shrink-0", user.role === "ADMIN2" ? "text-sky-600 dark:text-sky-400" : "text-amber-600")} />
                 <span className="hidden sm:inline font-semibold">Lihat Sebagai:</span>
                 <select
                   value={viewAsTenantId || "ALL"}
                   onChange={(e) => {
                     setViewAsTenantId(e.target.value);
                   }}
-                  className="bg-transparent font-semibold text-xs focus:outline-none cursor-pointer border-none py-0.5 text-amber-950 dark:text-amber-100 max-w-[180px] sm:max-w-[260px] truncate"
+                  className="bg-transparent font-semibold text-xs focus:outline-none cursor-pointer border-none py-0.5 text-inherit max-w-[180px] sm:max-w-[260px] truncate"
                 >
                   <option value="ALL" className="bg-background text-foreground font-medium">
                     🌐 Semua Organisasi (Global View)
@@ -393,6 +415,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     </optgroup>
                   )}
                 </select>
+                {user.role === "ADMIN2" && (
+                  <span className="hidden md:inline-block ml-1 bg-sky-500/20 text-sky-700 dark:text-sky-300 font-mono text-[9.5px] px-1 py-0.5 rounded font-bold uppercase tracking-wider">
+                    Lihat Saja
+                  </span>
+                )}
               </div>
             )}
 
@@ -411,7 +438,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <p className="text-sm font-medium">{user.name}</p>
                   <p className="text-xs font-normal text-muted-foreground">{user.email}</p>
                   <p className="mt-1 text-[11px] font-semibold text-teal-700 dark:text-teal-400">
-                    {user.role === "SUPERADMIN" ? "SUPER ADMIN" : user.role} · {user.organization.name}
+                    {user.role === "SUPERADMIN" ? "SUPER ADMIN" : user.role === "ADMIN2" ? "ADMIN2 (Lihat Saja)" : user.role} · {user.organization.name}
                   </p>
                 </DropdownMenuLabel>
                 <DropdownMenuSeparator />

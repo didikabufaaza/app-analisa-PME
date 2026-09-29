@@ -62,7 +62,7 @@ export async function POST(req: NextRequest) {
       return jsonError("Password minimal 6 karakter", 400);
     }
 
-    const validRoles = ["SUPERADMIN", "ADMIN", "SUPERVISOR", "ANALYST"];
+    const validRoles = ["SUPERADMIN", "ADMIN2", "ADMIN", "SUPERVISOR", "ANALYST"];
     if (!validRoles.includes(role)) {
       return jsonError("Peran pengguna tidak valid", 400);
     }

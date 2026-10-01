@@ -434,6 +434,7 @@ export async function POST(req: NextRequest) {
             parameterId: safeParameterId,
             parameterName: r.parameterName.trim(),
             unit: r.unit?.trim() || null,
+            sample: r.sample?.trim() || "Sampel 1",
             value: numVal,
             methodCode: r.methodCode?.trim() || null,
             methodName: r.methodName?.trim() || null,

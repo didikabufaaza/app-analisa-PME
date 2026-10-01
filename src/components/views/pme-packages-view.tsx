@@ -630,9 +630,27 @@ export function PmePackagesView() {
 
                 {/* Checklist Paket */}
                 <div className="space-y-2.5">
-                  <Label className="text-xs font-semibold">
-                    Pilih Paket Pemeriksaan yang Diikuti: <span className="text-red-500">*</span>
-                  </Label>
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1.5">
+                    <Label className="text-xs font-semibold">
+                      Pilih Paket Pemeriksaan yang Diikuti: <span className="text-red-500">*</span>
+                    </Label>
+                    <span className="text-[11px] font-medium text-teal-700 dark:text-teal-400 bg-teal-500/10 px-2 py-0.5 rounded-full border border-teal-500/20">
+                      🧪 Semua Paket Menyediakan 2 Botol / 2 Level (Sampel 1 &amp; Sampel 2)
+                    </span>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-teal-50/60 dark:bg-teal-950/20 border border-teal-500/30 flex items-start gap-2.5 text-xs text-teal-950 dark:text-teal-100">
+                    <FlaskConical className="h-4 w-4 text-teal-600 dark:text-teal-400 shrink-0 mt-0.5" />
+                    <div className="space-y-0.5">
+                      <p className="font-semibold text-teal-900 dark:text-teal-200">
+                        Format Pengujian 2 Level / 2 Botol Sampel Kontrol
+                      </p>
+                      <p className="text-[11px] text-muted-foreground leading-relaxed">
+                        Setiap paket yang dipilih otomatis menyediakan dua botol sampel kontrol: <strong>Sampel 1 (Level 1 / Normal)</strong> dan <strong>Sampel 2 (Level 2 / Patologis)</strong>. Laboratorium peserta akan menginput kedua hasil pengujian tersebut di menu <em>Input Hasil PME</em>.
+                      </p>
+                    </div>
+                  </div>
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
                     {packages.map((pkg) => {
                       const isSelected = selectedPackageIds.includes(pkg.id);
@@ -694,7 +712,12 @@ export function PmePackagesView() {
                               </div>
                               <div>
                                 <h4 className="font-semibold text-xs text-foreground">{pkg.name}</h4>
-                                <span className="text-[10px] text-muted-foreground">{pkg.category}</span>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                  <span className="text-[10px] text-muted-foreground">{pkg.category}</span>
+                                  <span className="text-[9px] bg-teal-500/15 text-teal-700 dark:text-teal-300 px-1.5 py-0.2 rounded font-semibold border border-teal-500/25">
+                                    2 Level
+                                  </span>
+                                </div>
                               </div>
                             </div>
                             <Checkbox
@@ -709,6 +732,10 @@ export function PmePackagesView() {
                           <p className="mt-2.5 text-[11px] text-muted-foreground line-clamp-2">
                             {pkg.description || "Evaluasi parameter standar laboratorium klinis."}
                           </p>
+                          <div className="mt-2 text-[10px] text-teal-700 dark:text-teal-300 font-medium flex items-center gap-1">
+                            <span>📦 2 Botol Sampel:</span>
+                            <span className="underline decoration-dotted">Sampel 1 (Level 1) &amp; Sampel 2 (Level 2)</span>
+                          </div>
                           <div className="mt-3 pt-2.5 border-t flex items-center justify-between text-[10px]">
                             <span className="text-teal-700 dark:text-teal-400 font-medium">
                               {pkg.parameters.length} Parameter Uji

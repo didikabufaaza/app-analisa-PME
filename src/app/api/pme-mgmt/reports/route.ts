@@ -171,59 +171,65 @@ export async function GET(req: NextRequest) {
     }
     masterParams.sort((a, b) => a.sortOrder - b.sortOrder);
 
-    // 5. Biostatistical Calculation per Parameter (Global, Method Groups, Instrument Groups)
-    const paramStatsMap = new Map<
-      string,
-      {
-        stats: DescriptiveStats | null;
-        dixon: DixonTestResult;
-        methodStats: Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>;
-        instrumentStats: Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>;
-      }
-    >();
-
-    for (const p of masterParams) {
-      const pNameLower = p.name.toLowerCase().trim();
-
-      const allValues: number[] = [];
-      const methodGroups = new Map<string, number[]>();
-      const instrumentGroups = new Map<string, number[]>();
-
-      for (const sub of allCycleSubmissions) {
-        const res = sub.results.find((r) => r.parameterName.toLowerCase().trim() === pNameLower);
-        if (res && res.value !== null && res.value !== undefined && !isNaN(res.value)) {
-          allValues.push(res.value);
-
-          // Group by method
-          const mCode = res.methodCode?.trim() || p.defaultMethodCode || "STD";
-          if (!methodGroups.has(mCode)) methodGroups.set(mCode, []);
-          methodGroups.get(mCode)!.push(res.value);
-
-          // Group by instrument
-          const iCode = res.instrumentCode?.trim() || p.defaultInstrumentCode || "STD";
-          if (!instrumentGroups.has(iCode)) instrumentGroups.set(iCode, []);
-          instrumentGroups.get(iCode)!.push(res.value);
+    // 5. Biostatistical Calculation per Parameter & Sample (Sampel 1: Level 1 & Sampel 2: Level 2)
+    const computeStatsForSample = (targetSample: "Sampel 1" | "Sampel 2") => {
+      const statsMap = new Map<
+        string,
+        {
+          stats: DescriptiveStats | null;
+          dixon: DixonTestResult;
+          methodStats: Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>;
+          instrumentStats: Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>;
         }
+      >();
+
+      for (const p of masterParams) {
+        const pNameLower = p.name.toLowerCase().trim();
+
+        const allValues: number[] = [];
+        const methodGroups = new Map<string, number[]>();
+        const instrumentGroups = new Map<string, number[]>();
+
+        for (const sub of allCycleSubmissions) {
+          const res = sub.results.find(
+            (r) =>
+              r.parameterName.toLowerCase().trim() === pNameLower &&
+              (targetSample === "Sampel 1" ? (r.sample === "Sampel 1" || !r.sample) : r.sample === "Sampel 2")
+          );
+          if (res && res.value !== null && res.value !== undefined && !isNaN(res.value)) {
+            allValues.push(res.value);
+
+            const mCode = res.methodCode?.trim() || p.defaultMethodCode || "STD";
+            if (!methodGroups.has(mCode)) methodGroups.set(mCode, []);
+            methodGroups.get(mCode)!.push(res.value);
+
+            const iCode = res.instrumentCode?.trim() || p.defaultInstrumentCode || "STD";
+            if (!instrumentGroups.has(iCode)) instrumentGroups.set(iCode, []);
+            instrumentGroups.get(iCode)!.push(res.value);
+          }
+        }
+
+        const stats = calculateDescriptiveStats(allValues);
+        const dixon = runDixonQTest(allValues);
+
+        const methodStats = new Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>();
+        for (const [mCode, vals] of methodGroups.entries()) {
+          methodStats.set(mCode, calculatePeerGroup(vals, 6));
+        }
+
+        const instrumentStats = new Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>();
+        for (const [iCode, vals] of instrumentGroups.entries()) {
+          instrumentStats.set(iCode, calculatePeerGroup(vals, 6));
+        }
+
+        statsMap.set(pNameLower, { stats, dixon, methodStats, instrumentStats });
       }
 
-      // Hitung ISO 13528 statistik deskriptif & Dixon Q-Test
-      const stats = calculateDescriptiveStats(allValues);
-      const dixon = runDixonQTest(allValues);
+      return statsMap;
+    };
 
-      // Hitung per metode
-      const methodStats = new Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>();
-      for (const [mCode, vals] of methodGroups.entries()) {
-        methodStats.set(mCode, calculatePeerGroup(vals, 6));
-      }
-
-      // Hitung per alat
-      const instrumentStats = new Map<string, { n: number; target: number | null; sdpa: number | null; isAnalyzed: boolean }>();
-      for (const [iCode, vals] of instrumentGroups.entries()) {
-        instrumentStats.set(iCode, calculatePeerGroup(vals, 6));
-      }
-
-      paramStatsMap.set(pNameLower, { stats, dixon, methodStats, instrumentStats });
-    }
+    const paramStatsMapSample1 = computeStatsForSample("Sampel 1");
+    const paramStatsMapSample2 = computeStatsForSample("Sampel 2");
 
     // 6. Tentukan daftar submissions yang akan ditampilkan pada laporan
     let reportSubmissions = allCycleSubmissions;
@@ -262,14 +268,19 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    // 7. Generate Individual Participant Reports (Format Kemenkes Labkesmas)
+    // 7. Generate Individual Participant Reports untuk Sampel 1 & Sampel 2 (Format Kemenkes Labkesmas)
     const participantReports = [];
     let totalSatisfactory = 0;
     let totalWarning = 0;
     let totalUnsatisfactory = 0;
     let totalOutliers = 0;
 
-    for (const sub of reportSubmissions) {
+    const generateReportForSample = (
+      sub: typeof allCycleSubmissions[0],
+      targetSample: "Sampel 1" | "Sampel 2",
+      sampleLabel: string,
+      statsMap: typeof paramStatsMapSample1
+    ) => {
       const rows = [];
       let participantWarningCount = 0;
       let participantUnsatisfactoryCount = 0;
@@ -278,9 +289,13 @@ export async function GET(req: NextRequest) {
       for (let i = 0; i < masterParams.length; i++) {
         const p = masterParams[i];
         const pNameLower = p.name.toLowerCase().trim();
-        const pStat = paramStatsMap.get(pNameLower);
+        const pStat = statsMap.get(pNameLower);
 
-        const res = sub.results.find((r) => r.parameterName.toLowerCase().trim() === pNameLower);
+        const res = sub.results.find(
+          (r) =>
+            r.parameterName.toLowerCase().trim() === pNameLower &&
+            (targetSample === "Sampel 1" ? (r.sample === "Sampel 1" || !r.sample) : r.sample === "Sampel 2")
+        );
         const hasResult = res && res.value !== null && res.value !== undefined && !isNaN(res.value);
         const val = hasResult ? res.value! : null;
 
@@ -339,6 +354,8 @@ export async function GET(req: NextRequest) {
             no: i + 1,
             parameterName: p.name,
             unit: p.unit || "",
+            sample: targetSample,
+            sampleLabel,
             methodCode: mCode,
             instrumentCode: iCode,
             reagentName: rName,
@@ -390,6 +407,8 @@ export async function GET(req: NextRequest) {
             no: i + 1,
             parameterName: p.name,
             unit: p.unit || "",
+            sample: targetSample,
+            sampleLabel,
             methodCode: "-",
             instrumentCode: "-",
             reagentName: "-",
@@ -412,16 +431,16 @@ export async function GET(req: NextRequest) {
       const comments: string[] = [];
       if (participantUnsatisfactoryCount > 0) {
         comments.push(
-          `Ditemukan ${participantUnsatisfactoryCount} parameter dengan hasil Tidak Memuaskan (|Z| >= 3.0). Laboratorium wajib segera melakukan tindakan korektif (CAPA), evaluasi kalibrasi alat, dan investigasi mutu.`
+          `Ditemukan ${participantUnsatisfactoryCount} parameter pada ${sampleLabel} dengan hasil Tidak Memuaskan (|Z| >= 3.0). Laboratorium wajib segera melakukan tindakan korektif (CAPA), evaluasi kalibrasi alat, dan investigasi mutu.`
         );
       }
       if (participantWarningCount > 0) {
         comments.push(
-          "Pertahankan hasil pemeriksaan saudara yang Memuaskan dan tingkatkan hasil pemeriksaan yang Peringatan."
+          `Pertahankan hasil pemeriksaan ${sampleLabel} yang Memuaskan dan tingkatkan hasil pemeriksaan yang Peringatan.`
         );
       } else if (participantUnsatisfactoryCount === 0) {
         comments.push(
-          "Seluruh hasil evaluasi mutu berada dalam rentang Memuaskan. Pertahankan konsistensi pengendalian mutu analitik laboratorium."
+          `Seluruh hasil evaluasi mutu pada ${sampleLabel} berada dalam rentang Memuaskan. Pertahankan konsistensi pengendalian mutu analitik laboratorium.`
         );
       }
       if (participantNotAnalyzedInstrumentCount > 0) {
@@ -431,8 +450,10 @@ export async function GET(req: NextRequest) {
         comments.push("Disarankan untuk menggunakan alat yang banyak digunakan di laboratorium lain.");
       }
 
-      participantReports.push({
+      return {
         submissionId: sub.id,
+        sample: targetSample,
+        sampleLabel,
         participant: sub.participant,
         cycle: sub.cycle,
         period: sub.period,
@@ -447,17 +468,25 @@ export async function GET(req: NextRequest) {
         category: packageCategory,
         rows,
         comments,
-      });
+      };
+    };
+
+    for (const sub of reportSubmissions) {
+      participantReports.push(generateReportForSample(sub, "Sampel 1", "Sampel 1 (Level 1)", paramStatsMapSample1));
+      participantReports.push(generateReportForSample(sub, "Sampel 2", "Sampel 2 (Level 2)", paramStatsMapSample2));
     }
 
     // Rekapitulasi Statistik Tabel Deskriptif (Sheet 2 Dashboard View)
     const dashboardStats = masterParams.map((p) => {
-      const pStat = paramStatsMap.get(p.name.toLowerCase().trim());
+      const pStat1 = paramStatsMapSample1.get(p.name.toLowerCase().trim());
+      const pStat2 = paramStatsMapSample2.get(p.name.toLowerCase().trim());
       return {
         parameterName: p.name,
         unit: p.unit,
-        stats: pStat?.stats || null,
-        dixon: pStat?.dixon || null,
+        stats: pStat1?.stats || pStat2?.stats || null,
+        dixon: pStat1?.dixon || pStat2?.dixon || null,
+        statsSample1: pStat1?.stats || null,
+        statsSample2: pStat2?.stats || null,
       };
     });
 

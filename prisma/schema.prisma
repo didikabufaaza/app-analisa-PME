@@ -448,6 +448,7 @@ model PmeSubmissionResult {
   parameter      PmePackageParameter? @relation(fields: [parameterId], references: [id], onDelete: SetNull)
   parameterName  String
   unit           String?
+  sample         String?              @default("Sampel 1") // "Sampel 1" | "Sampel 2"
   value          Float?               // Hasil peserta
   methodCode     String?
   methodName     String?
@@ -458,6 +459,7 @@ model PmeSubmissionResult {
   updatedAt      DateTime             @updatedAt
 
   @@index([submissionId])
+  @@index([submissionId, sample])
 }
 
 model PmeSigner {

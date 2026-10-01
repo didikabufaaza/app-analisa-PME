@@ -54,6 +54,10 @@ import {
   Image as ImageIcon,
   Trash2,
   FileSpreadsheet,
+  ShieldAlert,
+  Target,
+  FileText,
+  CheckCircle,
 } from "lucide-react";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -62,6 +66,8 @@ interface EvaluationRow {
   no: number;
   parameterName: string;
   unit: string;
+  sample?: string;
+  sampleLabel?: string;
   methodCode: string;
   instrumentCode: string;
   reagentName?: string;
@@ -111,6 +117,8 @@ interface SignerData {
 
 interface ParticipantReport {
   submissionId: string;
+  sample?: string;
+  sampleLabel?: string;
   participant: {
     id: string;
     participantCode: string | null;
@@ -188,6 +196,23 @@ export function PmeReportsView() {
   const [summary, setSummary] = useState<any>(null);
   const [dashboardStats, setDashboardStats] = useState<DashboardStatItem[]>([]);
   const [participantReports, setParticipantReports] = useState<ParticipantReport[]>([]);
+  const [selectedSample, setSelectedSample] = useState<string>("Sampel 1"); // "ALL" | "Sampel 1" | "Sampel 2"
+
+  // Kuota Analisis Hasil PME (Dikelola oleh Superadmin pada menu Pengaturan)
+  const [quotaInfo, setQuotaInfo] = useState<{
+    used: number;
+    limit: number;
+    remaining: number;
+    usagePct: number;
+    canAnalyze: boolean;
+  } | null>(null);
+  const [analyzingPme, setAnalyzingPme] = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<any>(null);
+  const [isAnalysisModalOpen, setIsAnalysisModalOpen] = useState(false);
+  const [isQuotaExhaustedModalOpen, setIsQuotaExhaustedModalOpen] = useState(false);
+  const [isAnalysisSetupOpen, setIsAnalysisSetupOpen] = useState(false);
+  const [analysisSampleTarget, setAnalysisSampleTarget] = useState<string>("Sampel 1");
+
   const [kopSurat, setKopSurat] = useState<any>(null);
   const [isSuperAdmin, setIsSuperAdmin] = useState(true);
   const [isParticipant, setIsParticipant] = useState(false);
@@ -199,6 +224,7 @@ export function PmeReportsView() {
   // State Filter & Status Rekapitulasi Laporan Hasil PME
   const [recapPeriod, setRecapPeriod] = useState<string>("ALL");
   const [recapCategory, setRecapCategory] = useState<string>("ALL");
+  const [recapSample, setRecapSample] = useState<string>("ALL");
   const [recapParticipant, setRecapParticipant] = useState<string>("ALL");
   const [recapParameter, setRecapParameter] = useState<string>("ALL");
   const [recapStatus, setRecapStatus] = useState<string>("ALL");
@@ -240,6 +266,94 @@ export function PmeReportsView() {
   // Aksi Penarikan / Pembatalan Laporan (Superadmin)
   const [isRetractModalOpen, setIsRetractModalOpen] = useState(false);
   const [retracting, setRetracting] = useState(false);
+
+  const loadQuota = async () => {
+    try {
+      const res = await fetch("/api/pme-mgmt/reports/analyze", { credentials: "same-origin" });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.quota) {
+          setQuotaInfo(data.quota);
+        }
+      }
+    } catch (err) {
+      console.error("Gagal memuat kuota analisis:", err);
+    }
+  };
+
+  useEffect(() => {
+    loadQuota();
+  }, [viewAsTenantId]);
+
+  const handleOpenPmeAnalysis = () => {
+    if (quotaInfo && quotaInfo.remaining <= 0) {
+      setIsQuotaExhaustedModalOpen(true);
+      return;
+    }
+    if (selectedSample === "Sampel 2") {
+      setAnalysisSampleTarget("Sampel 2");
+    } else {
+      setAnalysisSampleTarget("Sampel 1");
+    }
+    setIsAnalysisSetupOpen(true);
+  };
+
+  const handleRunPmeAnalysis = async (targetSample?: string) => {
+    const sampleToAnalyze = targetSample || analysisSampleTarget;
+    if (quotaInfo && quotaInfo.remaining <= 0) {
+      setIsAnalysisSetupOpen(false);
+      setIsQuotaExhaustedModalOpen(true);
+      return;
+    }
+
+    setAnalyzingPme(true);
+    try {
+      const res = await fetch("/api/pme-mgmt/reports/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          cycle,
+          sample: sampleToAnalyze,
+          participantId: selectedParticipantId !== "ALL" ? selectedParticipantId : undefined,
+        }),
+      });
+
+      const data = await res.json();
+      if (res.ok) {
+        setAnalysisResult(data.analysis);
+        if (data.quota) {
+          setQuotaInfo(data.quota);
+        }
+        setIsAnalysisSetupOpen(false);
+        setIsAnalysisModalOpen(true);
+        toast({
+          title: "Analisis Hasil PME Berhasil",
+          description: data.message || `Analisis mutu ${sampleToAnalyze} berhasil disusun.`,
+        });
+      } else {
+        if (res.status === 429 || data.code === "QUOTA_EXCEEDED") {
+          if (data.quota) setQuotaInfo(data.quota);
+          setIsAnalysisSetupOpen(false);
+          setIsQuotaExhaustedModalOpen(true);
+        } else {
+          toast({
+            title: "Gagal Menjalankan Analisis",
+            description: data.error || "Terjadi kesalahan saat memproses analisis.",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch {
+      toast({
+        title: "Kesalahan Jaringan",
+        description: "Gagal memproses analisis hasil PME.",
+        variant: "destructive",
+      });
+    } finally {
+      setAnalyzingPme(false);
+    }
+  };
 
   const loadReports = async (overrideCycle?: string) => {
     setLoading(true);
@@ -558,6 +672,8 @@ export function PmeReportsView() {
     const list: Array<{
       no: number;
       submissionId: string;
+      sample: string;
+      sampleLabel: string;
       participantId: string;
       participantCode: string;
       labName: string;
@@ -586,6 +702,8 @@ export function PmeReportsView() {
         list.push({
           no: count++,
           submissionId: pr.submissionId,
+          sample: pr.sample || r.sample || "Sampel 1",
+          sampleLabel: pr.sampleLabel || r.sampleLabel || (r.sample === "Sampel 2" ? "Sampel 2 (Level 2)" : "Sampel 1 (Level 1)"),
           participantId: pr.participant.id,
           participantCode: pr.participant.participantCode || "-",
           labName: pr.participant.labName,
@@ -617,6 +735,7 @@ export function PmeReportsView() {
     return flattenedRecapData.filter((item) => {
       if (recapPeriod !== "ALL" && item.period !== recapPeriod) return false;
       if (recapCategory !== "ALL" && item.category !== recapCategory) return false;
+      if (recapSample !== "ALL" && item.sample !== recapSample) return false;
       if (recapParticipant !== "ALL" && item.participantId !== recapParticipant) return false;
       if (recapParameter !== "ALL" && item.parameterName.toLowerCase() !== recapParameter.toLowerCase()) return false;
       if (recapStatus !== "ALL") {
@@ -633,12 +752,13 @@ export function PmeReportsView() {
           item.parameterName.toLowerCase().includes(q) ||
           item.methodCode.toLowerCase().includes(q) ||
           item.instrumentCode.toLowerCase().includes(q) ||
-          item.reagentName.toLowerCase().includes(q);
+          item.reagentName.toLowerCase().includes(q) ||
+          item.sampleLabel.toLowerCase().includes(q);
         if (!match) return false;
       }
       return true;
     });
-  }, [flattenedRecapData, recapPeriod, recapCategory, recapParticipant, recapParameter, recapStatus, recapSearch]);
+  }, [flattenedRecapData, recapPeriod, recapCategory, recapSample, recapParticipant, recapParameter, recapStatus, recapSearch]);
 
   // Pilihan Periode Unik untuk Filter Rekap
   const recapAvailablePeriods = useMemo(() => {
@@ -708,6 +828,7 @@ export function PmeReportsView() {
   const handleResetRecapFilters = () => {
     setRecapPeriod("ALL");
     setRecapCategory("ALL");
+    setRecapSample("ALL");
     setRecapParticipant("ALL");
     setRecapParameter("ALL");
     setRecapStatus("ALL");
@@ -731,25 +852,25 @@ export function PmeReportsView() {
       });
 
       // Title & Header Information
-      ws1.mergeCells("A1:P1");
+      ws1.mergeCells("A1:Q1");
       const titleCell = ws1.getCell("A1");
       titleCell.value = (kopSurat?.pemda || "KEMENTERIAN KESEHATAN REPUBLIK INDONESIA").toUpperCase();
       titleCell.font = { name: "Arial", size: 10, bold: true, color: { argb: "FF334155" } };
       titleCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      ws1.mergeCells("A2:P2");
+      ws1.mergeCells("A2:Q2");
       const instansiCell = ws1.getCell("A2");
       instansiCell.value = (kopSurat?.namaRumahSakit || "BALAI BESAR LABORATORIUM KESEHATAN MASYARAKAT PALEMBANG").toUpperCase();
       instansiCell.font = { name: "Arial", size: 12, bold: true, color: { argb: "FF0F172A" } };
       instansiCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      ws1.mergeCells("A3:P3");
+      ws1.mergeCells("A3:Q3");
       const subTitleCell = ws1.getCell("A3");
       subTitleCell.value = `REKAPITULASI LAPORAN HASIL PROGRAM EVALUASI MUTU EKSTERNAL (PME) - SIKLUS: ${cycle.toUpperCase()}`;
       subTitleCell.font = { name: "Arial", size: 11, bold: true, color: { argb: "FF047857" } };
       subTitleCell.alignment = { horizontal: "center", vertical: "middle" };
 
-      ws1.mergeCells("A4:P4");
+      ws1.mergeCells("A4:Q4");
       const metaCell = ws1.getCell("A4");
       metaCell.value = `Tanggal Ekspor: ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })} | Total Hasil Uji: ${recapStats.totalTests} | Total Lab: ${recapStats.uniqueLabs} | Pass Rate: ${recapStats.passRate}%`;
       metaCell.font = { name: "Arial", size: 9, italic: true, color: { argb: "FF64748B" } };
@@ -763,6 +884,7 @@ export function PmeReportsView() {
         "Nama Laboratorium",
         "Siklus",
         "Periode",
+        "Sampel / Level",
         "Kategori",
         "Parameter",
         "Satuan",
@@ -800,6 +922,7 @@ export function PmeReportsView() {
           item.labName,
           item.cycle,
           item.period,
+          item.sampleLabel || item.sample,
           item.category,
           item.parameterName,
           item.unit,
@@ -823,17 +946,17 @@ export function PmeReportsView() {
             right: { style: "thin", color: { argb: "FFE2E8F0" } },
           };
 
-          if ([1, 2, 4, 5, 8, 12, 14, 15].includes(colNumber)) {
+          if ([1, 2, 4, 5, 6, 9, 13, 15, 16].includes(colNumber)) {
             cell.alignment = { horizontal: "center", vertical: "middle" };
-          } else if ([9, 10, 11].includes(colNumber)) {
+          } else if ([10, 11, 12].includes(colNumber)) {
             cell.alignment = { horizontal: "right", vertical: "middle" };
-          } else if (colNumber === 13) {
+          } else if (colNumber === 14) {
             cell.alignment = { horizontal: "center", vertical: "middle" };
           } else {
             cell.alignment = { horizontal: "left", vertical: "middle" };
           }
 
-          if (idx % 2 === 1 && colNumber !== 13) {
+          if (idx % 2 === 1 && colNumber !== 14) {
             cell.fill = {
               type: "pattern",
               pattern: "solid",
@@ -842,7 +965,7 @@ export function PmeReportsView() {
           }
         });
 
-        const statusCell = row.getCell(13);
+        const statusCell = row.getCell(14);
         if (item.keterangan === "Memuaskan") {
           statusCell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFDCFCE7" } };
           statusCell.font = { name: "Arial", size: 9, bold: true, color: { argb: "FF166534" } };
@@ -861,6 +984,7 @@ export function PmeReportsView() {
         { width: 30 },
         { width: 14 },
         { width: 10 },
+        { width: 18 },
         { width: 16 },
         { width: 22 },
         { width: 12 },
@@ -875,7 +999,7 @@ export function PmeReportsView() {
       ];
 
       const lastRowIndex = ws1.rowCount + 2;
-      const sigCol = 13;
+      const sigCol = 14;
       ws1.getCell(lastRowIndex, sigCol).value = `${signer.tempat || "Palembang"}, ${signer.tanggal || new Date().toLocaleDateString("id-ID")}`;
       ws1.getCell(lastRowIndex, sigCol).font = { name: "Arial", size: 9 };
       ws1.getCell(lastRowIndex + 1, sigCol).value = signer.jabatan || "Penanggung Jawab Mutu";
@@ -1129,6 +1253,7 @@ export function PmeReportsView() {
           "No",
           "Kode Lab",
           "Nama Laboratorium",
+          "Sampel",
           "Kategori",
           "Parameter",
           "Satuan",
@@ -1147,6 +1272,7 @@ export function PmeReportsView() {
         String(i + 1),
         d.participantCode,
         d.labName,
+        d.sampleLabel || d.sample,
         d.category,
         d.parameterName,
         d.unit,
@@ -1181,24 +1307,25 @@ export function PmeReportsView() {
         columnStyles: {
           0: { cellWidth: 7, halign: "center" },
           1: { cellWidth: 14, halign: "center" },
-          2: { cellWidth: 38 },
-          3: { cellWidth: 18 },
-          4: { cellWidth: 26 },
-          5: { cellWidth: 12, halign: "center" },
-          6: { cellWidth: 14, halign: "right" },
-          7: { cellWidth: 14, halign: "right" },
+          2: { cellWidth: 34 },
+          3: { cellWidth: 18, halign: "center" },
+          4: { cellWidth: 16 },
+          5: { cellWidth: 24 },
+          6: { cellWidth: 10, halign: "center" },
+          7: { cellWidth: 13, halign: "right" },
           8: { cellWidth: 13, halign: "right" },
-          9: { cellWidth: 13, halign: "center" },
-          10: { cellWidth: 20, halign: "center" },
-          11: { cellWidth: 26 },
-          12: { cellWidth: 26 },
-          13: { cellWidth: 36 },
+          9: { cellWidth: 12, halign: "right" },
+          10: { cellWidth: 12, halign: "center" },
+          11: { cellWidth: 18, halign: "center" },
+          12: { cellWidth: 24 },
+          13: { cellWidth: 24 },
+          14: { cellWidth: 32 },
         },
         alternateRowStyles: {
           fillColor: [248, 250, 252],
         },
         didParseCell: (data) => {
-          if (data.section === "body" && data.column.index === 10) {
+          if (data.section === "body" && data.column.index === 11) {
             const val = String(data.cell.raw);
             if (val === "Memuaskan") {
               data.cell.styles.textColor = [22, 101, 52];
@@ -1348,7 +1475,7 @@ export function PmeReportsView() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
-      const titleText = `HASIL EVALUASI BIDANG PATOLOGI PARAMETER ${category === "ALL" ? "SEMUA BIDANG" : category.toUpperCase()} ${(report.cycle || cycle).toUpperCase()}`;
+      const titleText = `HASIL EVALUASI BIDANG PATOLOGI PARAMETER ${category === "ALL" ? "SEMUA BIDANG" : category.toUpperCase()} ${(report.cycle || cycle).toUpperCase()}${report.sampleLabel ? ` - ${report.sampleLabel.toUpperCase()}` : ""}`;
       doc.text(titleText, pageW / 2, y, { align: "center" });
 
       // Participant Metadata
@@ -1370,6 +1497,12 @@ export function PmeReportsView() {
       doc.text("Alamat Peserta", margin, y);
       doc.setFont("helvetica", "normal");
       doc.text(`: ${report.participant.address || "Sumatera Selatan"}`, margin + 25, y);
+
+      y += 4.5;
+      doc.setFont("helvetica", "bold");
+      doc.text("Level / Sampel", margin, y);
+      doc.setFont("helvetica", "normal");
+      doc.text(`: ${report.sampleLabel || report.sample || "Sampel 1 (Level 1)"}`, margin + 25, y);
 
       // 2. Table Data Multi-Kelompok Format Kemenkes
       const tableHead = [
@@ -1531,7 +1664,7 @@ export function PmeReportsView() {
       doc.setTextColor(71, 85, 105);
       doc.text(`NIP ${signer.nip || "198408152009041001"}`, sigX, sigY);
 
-      doc.save(`Laporan_PME_${report.participant.labName.replace(/\s+/g, "_")}_${cycle.replace(/\s+/g, "_")}.pdf`);
+      doc.save(`Laporan_PME_${report.participant.labName.replace(/\s+/g, "_")}_${(report.sample || "Sampel_1").replace(/\s+/g, "_")}_${cycle.replace(/\s+/g, "_")}.pdf`);
       toast({ title: "PDF Berhasil Diunduh", description: "Format lembar evaluasi resmi Kemenkes telah tersimpan." });
     } catch (err) {
       toast({ title: "Gagal membuat PDF", description: String(err), variant: "destructive" });
@@ -1540,7 +1673,12 @@ export function PmeReportsView() {
     }
   };
 
-  const activeReport = participantReports.length > 0 ? participantReports[0] : null;
+  const displayedReports = useMemo(() => {
+    if (selectedSample === "ALL") return participantReports;
+    return participantReports.filter((r) => (r.sample || "Sampel 1") === selectedSample);
+  }, [participantReports, selectedSample]);
+
+  const activeReport = displayedReports.length > 0 ? displayedReports[0] : (participantReports.length > 0 ? participantReports[0] : null);
 
   // Filter Baris Hasil Evaluasi Berdasarkan Status, Parameter, dan Kata Kunci Search
   const filterRows = (rows: EvaluationRow[]) => {
@@ -1696,6 +1834,31 @@ export function PmeReportsView() {
               Tarik / Batalkan Laporan
             </Button>
           )}
+
+          {/* Tombol Analisa Hasil PME (Bisa diakses semua akun, dibatasi kuota bulanan oleh Superadmin) */}
+          <Button
+            size="sm"
+            onClick={handleOpenPmeAnalysis}
+            disabled={analyzingPme || loading}
+            className="bg-gradient-to-r from-teal-700 via-teal-800 to-indigo-800 hover:from-teal-800 hover:to-indigo-900 text-white text-xs font-semibold shadow-xs gap-1.5"
+          >
+            {analyzingPme ? (
+              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin text-teal-200" />
+            ) : (
+              <Sparkles className="mr-1.5 h-3.5 w-3.5 text-amber-300" />
+            )}
+            Analisa Hasil PME
+            {quotaInfo && (
+              <Badge
+                variant="outline"
+                className={`ml-1 text-[10px] px-1.5 py-0 font-mono border-white/30 text-white ${
+                  quotaInfo.remaining === 0 ? "bg-red-500/80" : "bg-white/20"
+                }`}
+              >
+                {quotaInfo.remaining}/{quotaInfo.limit}
+              </Badge>
+            )}
+          </Button>
 
           <Button variant="outline" size="sm" onClick={handlePrint} className="text-xs">
             <Printer className="mr-1.5 h-4 w-4 text-teal-700" />
@@ -2058,91 +2221,174 @@ export function PmeReportsView() {
               </div>
             </Card>
           ) : (
-            participantReports.map((report) => {
-              const displayRows = filterRows(report.rows);
-
-              return (
-                <div
-                  key={report.participant.id}
-                  ref={printAreaRef}
-                  className="relative bg-white text-black p-8 rounded-xl shadow-md border print:border-none print:shadow-none print:p-0 print:m-0 overflow-hidden"
-                >
-                  {/* Watermark Diagonal RAHASIA */}
-                  <div className="pointer-events-none absolute inset-0 flex items-center justify-center select-none overflow-hidden">
-                    <span className="text-[130px] font-extrabold text-red-500/10 dark:text-red-500/5 rotate-[-25deg] tracking-widest uppercase">
-                      RAHASIA
-                    </span>
+            <div className="space-y-6">
+              {/* Selector Botol / Level Sampel (Sampel 1 & Sampel 2) */}
+              <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 no-print">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <Layers className="h-4 w-4 text-teal-600" />
+                    Pilih Level / Botol Sampel:
+                  </span>
+                  <div className="inline-flex rounded-lg border p-0.5 bg-background shadow-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSample("Sampel 1")}
+                      className={`px-3 py-1 text-xs rounded-md font-semibold transition-colors flex items-center gap-1.5 ${
+                        selectedSample === "Sampel 1"
+                          ? "bg-teal-700 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-teal-300" />
+                      🧪 Sampel 1 (Level 1 / Normal)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSample("Sampel 2")}
+                      className={`px-3 py-1 text-xs rounded-md font-semibold transition-colors flex items-center gap-1.5 ${
+                        selectedSample === "Sampel 2"
+                          ? "bg-amber-600 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span className="h-2 w-2 rounded-full bg-amber-200" />
+                      🧪 Sampel 2 (Level 2 / Patologis)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedSample("ALL")}
+                      className={`px-3 py-1 text-xs rounded-md font-semibold transition-colors ${
+                        selectedSample === "ALL"
+                          ? "bg-slate-800 text-white shadow-xs"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Semua Level (Sampel 1 & 2)
+                    </button>
                   </div>
+                </div>
 
-                  {/* Header Instansi Penyelenggara (KOP Surat Resmi) */}
-                  <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
-                    {/* Logo Kiri */}
-                    <div className="w-20 h-20 flex items-center justify-center shrink-0">
-                      {kopSurat?.logoKiri ? (
-                        <img
-                          src={kopSurat.logoKiri}
-                          alt="Logo Kiri"
-                          className="max-h-20 max-w-20 object-contain"
-                        />
-                      ) : (
-                        <div className="h-16 w-16 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-700 border border-teal-500/20">
-                          <ShieldCheck className="h-9 w-9 text-teal-700" />
-                        </div>
-                      )}
+                <div className="flex items-center gap-2 text-xs">
+                  <span className="text-muted-foreground">Botol Aktif:</span>
+                  <Badge
+                    variant="outline"
+                    className={`font-semibold text-[11px] ${
+                      selectedSample === "Sampel 2"
+                        ? "bg-amber-100 text-amber-900 border-amber-300"
+                        : selectedSample === "Sampel 1"
+                        ? "bg-teal-100 text-teal-900 border-teal-300"
+                        : "bg-slate-100 text-slate-800 border-slate-300"
+                    }`}
+                  >
+                    {selectedSample === "Sampel 2"
+                      ? "🧪 Sampel 2: Level 2 (Patologis)"
+                      : selectedSample === "Sampel 1"
+                      ? "🧪 Sampel 1: Level 1 (Normal)"
+                      : "Menampilkan Seluruh Level (1 & 2)"}
+                  </Badge>
+                </div>
+              </div>
+
+              {displayedReports.map((report) => {
+                const displayRows = filterRows(report.rows);
+
+                return (
+                  <div
+                    key={`${report.participant.id}-${report.sample || "S1"}`}
+                    ref={printAreaRef}
+                    className="relative bg-white text-black p-8 rounded-xl shadow-md border print:border-none print:shadow-none print:p-0 print:m-0 overflow-hidden"
+                  >
+                    {/* Watermark Diagonal RAHASIA */}
+                    <div className="pointer-events-none absolute inset-0 flex items-center justify-center select-none overflow-hidden">
+                      <span className="text-[130px] font-extrabold text-red-500/10 dark:text-red-500/5 rotate-[-25deg] tracking-widest uppercase">
+                        RAHASIA
+                      </span>
                     </div>
 
-                    {/* Teks Tengah KOP Surat */}
-                    <div className="flex-1 text-center px-4 space-y-0.5">
-                      <h2 className="text-xs sm:text-sm font-bold tracking-wider text-slate-800 uppercase">
-                        {kopSurat?.pemda || "Kementerian Kesehatan Republik Indonesia"}
-                      </h2>
-                      <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 uppercase">
-                        {kopSurat?.namaRumahSakit || "Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)"}
-                      </h1>
-                      <p className="text-[11px] text-slate-600 font-normal leading-tight">
-                        {kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan"}
-                      </p>
-                      <p className="text-[10px] text-slate-600 font-medium">
-                        {kopSurat?.kontakRumahSakit || "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id"}
-                      </p>
+                    {/* Header Instansi Penyelenggara (KOP Surat Resmi) */}
+                    <div className="flex items-center justify-between border-b-2 border-slate-900 pb-3 mb-4">
+                      {/* Logo Kiri */}
+                      <div className="w-20 h-20 flex items-center justify-center shrink-0">
+                        {kopSurat?.logoKiri ? (
+                          <img
+                            src={kopSurat.logoKiri}
+                            alt="Logo Kiri"
+                            className="max-h-20 max-w-20 object-contain"
+                          />
+                        ) : (
+                          <div className="h-16 w-16 rounded-xl bg-teal-500/10 flex items-center justify-center text-teal-700 border border-teal-500/20">
+                            <ShieldCheck className="h-9 w-9 text-teal-700" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Teks Tengah KOP Surat */}
+                      <div className="flex-1 text-center px-4 space-y-0.5">
+                        <h2 className="text-xs sm:text-sm font-bold tracking-wider text-slate-800 uppercase">
+                          {kopSurat?.pemda || "Kementerian Kesehatan Republik Indonesia"}
+                        </h2>
+                        <h1 className="text-sm sm:text-base font-black tracking-tight text-slate-900 uppercase">
+                          {kopSurat?.namaRumahSakit || "Balai Besar Laboratorium Kesehatan Masyarakat (Labkesmas Palembang I)"}
+                        </h1>
+                        <p className="text-[11px] text-slate-600 font-normal leading-tight">
+                          {kopSurat?.alamatRumahSakit || "Jl. Inspektur Yazid No.2, Sekip Jaya, Palembang, Sumatera Selatan"}
+                        </p>
+                        <p className="text-[10px] text-slate-600 font-medium">
+                          {kopSurat?.kontakRumahSakit || "Telp: (0711) 352 683 | Email: bblabkesmaspalembang@kemkes.go.id"}
+                        </p>
+                      </div>
+
+                      {/* Logo Kanan */}
+                      <div className="w-20 h-20 flex items-center justify-center shrink-0">
+                        {kopSurat?.logoKanan ? (
+                          <img
+                            src={kopSurat.logoKanan}
+                            alt="Logo Kanan"
+                            className="max-h-20 max-w-20 object-contain"
+                          />
+                        ) : (
+                          <div className="h-16 w-16 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-dashed border-slate-300">
+                            <Award className="h-8 w-8 text-slate-400" />
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Logo Kanan */}
-                    <div className="w-20 h-20 flex items-center justify-center shrink-0">
-                      {kopSurat?.logoKanan ? (
-                        <img
-                          src={kopSurat.logoKanan}
-                          alt="Logo Kanan"
-                          className="max-h-20 max-w-20 object-contain"
-                        />
-                      ) : (
-                        <div className="h-16 w-16 rounded-xl bg-slate-100 flex items-center justify-center text-slate-400 border border-dashed border-slate-300">
-                          <Award className="h-8 w-8 text-slate-400" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Title & Metadata Peserta */}
-                  <div className="my-5 text-center">
-                    <h3 className="text-sm font-extrabold tracking-wide uppercase text-slate-900">
-                      HASIL EVALUASI BIDANG PATOLOGI PARAMETER {category === "ALL" ? "SEMUA BIDANG" : category.toUpperCase()} {cycle.toUpperCase()}
-                    </h3>
-                  </div>
-
-                  <div className="mb-4 text-xs grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
-                    <div className="space-y-1">
-                      <div className="flex gap-2">
-                        <span className="w-28 font-bold text-gray-700">Kode Peserta:</span>
-                        <span className="font-mono font-bold text-teal-800">
-                          {report.participant.participantCode || "-"}
+                    {/* Title & Metadata Peserta */}
+                    <div className="my-5 text-center">
+                      <h3 className="text-sm font-extrabold tracking-wide uppercase text-slate-900">
+                        HASIL EVALUASI BIDANG PATOLOGI PARAMETER {category === "ALL" ? "SEMUA BIDANG" : category.toUpperCase()} {cycle.toUpperCase()}
+                      </h3>
+                      <div className="mt-1">
+                        <span className={`inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full text-xs font-bold ${
+                          report.sample === "Sampel 2"
+                            ? "bg-amber-100 text-amber-900 border border-amber-300"
+                            : "bg-teal-100 text-teal-900 border border-teal-300"
+                        }`}>
+                          🧪 {report.sampleLabel || (report.sample === "Sampel 2" ? "Sampel 2 (Level 2 / Patologis)" : "Sampel 1 (Level 1 / Normal)")}
                         </span>
                       </div>
-                      <div className="flex gap-2">
-                        <span className="w-28 font-bold text-gray-700">Nama Peserta:</span>
-                        <span className="font-semibold text-slate-900">{report.participant.labName}</span>
-                      </div>
                     </div>
+
+                    <div className="mb-4 text-xs grid grid-cols-1 sm:grid-cols-2 gap-1.5 bg-slate-50 p-3 rounded-lg border border-slate-200">
+                      <div className="space-y-1">
+                        <div className="flex gap-2">
+                          <span className="w-28 font-bold text-gray-700">Kode Peserta:</span>
+                          <span className="font-mono font-bold text-teal-800">
+                            {report.participant.participantCode || "-"}
+                          </span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="w-28 font-bold text-gray-700">Nama Peserta:</span>
+                          <span className="font-semibold text-slate-900">{report.participant.labName}</span>
+                        </div>
+                        <div className="flex gap-2">
+                          <span className="w-28 font-bold text-gray-700">Level / Sampel:</span>
+                          <span className={`font-bold ${report.sample === "Sampel 2" ? "text-amber-800" : "text-teal-800"}`}>
+                            {report.sampleLabel || (report.sample === "Sampel 2" ? "Sampel 2 (Level 2 / Patologis)" : "Sampel 1 (Level 1 / Normal)")}
+                          </span>
+                        </div>
+                      </div>
                     <div className="space-y-1">
                       <div className="flex gap-2">
                         <span className="w-28 font-bold text-gray-700">Alamat Peserta:</span>
@@ -2347,9 +2593,10 @@ export function PmeReportsView() {
                   </div>
                 </div>
               );
-            })
-          )}
-        </TabsContent>
+            })}
+          </div>
+        )}
+      </TabsContent>
 
         {/* TAB 2: TABEL STATISTIK LENGKAP (Bias%, TE, CV, Outlier, Zscore) */}
         <TabsContent value="comprehensive" className="space-y-6 no-print">
@@ -2817,7 +3064,7 @@ export function PmeReportsView() {
                 </div>
               </div>
 
-              {/* Row 2: Laboratorium, Parameter, Pencarian Cepat */}
+              {/* Row 2: Laboratorium, Level Sampel, Parameter, Pencarian Cepat */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 pt-1">
                 {/* Filter Laboratorium */}
                 <div className="space-y-1">
@@ -2838,6 +3085,30 @@ export function PmeReportsView() {
                           {p.name} {p.code && p.code !== "-" ? `(${p.code})` : ""}
                         </SelectItem>
                       ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {/* Filter Level / Botol Sampel */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
+                    <Layers className="h-3 w-3 text-teal-600" />
+                    <span>Level / Sampel</span>
+                  </Label>
+                  <Select value={recapSample} onValueChange={setRecapSample}>
+                    <SelectTrigger className="h-8 text-xs font-medium">
+                      <SelectValue placeholder="Semua Level" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ALL" className="text-xs font-medium">
+                        Semua Level (Sampel 1 & 2)
+                      </SelectItem>
+                      <SelectItem value="Sampel 1" className="text-xs font-medium text-teal-700">
+                        🧪 Sampel 1 (Level 1 / Normal)
+                      </SelectItem>
+                      <SelectItem value="Sampel 2" className="text-xs font-medium text-amber-700">
+                        🧪 Sampel 2 (Level 2 / Patologis)
+                      </SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -2866,16 +3137,16 @@ export function PmeReportsView() {
                 </div>
 
                 {/* Pencarian Cepat Teks */}
-                <div className="space-y-1 lg:col-span-2">
+                <div className="space-y-1">
                   <Label className="text-[11px] font-semibold text-muted-foreground flex items-center gap-1.5">
                     <Search className="h-3 w-3 text-slate-500" />
-                    <span>Pencarian Cepat (Lab, Parameter, Metode, Alat, Reagen)</span>
+                    <span>Pencarian Cepat</span>
                   </Label>
                   <div className="relative">
                     <Input
                       value={recapSearch}
                       onChange={(e) => setRecapSearch(e.target.value)}
-                      placeholder="Ketik kata kunci pencarian..."
+                      placeholder="Cari Lab, Parameter, Alat..."
                       className="h-8 text-xs pl-8 font-medium"
                     />
                     <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
@@ -3013,6 +3284,7 @@ export function PmeReportsView() {
                       <th className="p-2 border border-teal-800 min-w-[150px] text-left">Nama Laboratorium</th>
                       <th className="p-2 border border-teal-800 w-20">Siklus</th>
                       <th className="p-2 border border-teal-800 w-16">Periode</th>
+                      <th className="p-2 border border-teal-800 w-24 text-center">Sampel / Level</th>
                       <th className="p-2 border border-teal-800 w-24 text-left">Kategori</th>
                       <th className="p-2 border border-teal-800 min-w-[130px] text-left">Parameter</th>
                       <th className="p-2 border border-teal-800 w-16">Satuan</th>
@@ -3053,6 +3325,17 @@ export function PmeReportsView() {
                           </td>
                           <td className="p-2 border border-slate-200 text-center font-mono text-slate-700">
                             {d.period}
+                          </td>
+                          <td className="p-2 border border-slate-200 text-center">
+                            <span
+                              className={`inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                d.sample === "Sampel 2"
+                                  ? "bg-amber-100 text-amber-900 border border-amber-300"
+                                  : "bg-teal-100 text-teal-900 border border-teal-300"
+                              }`}
+                            >
+                              {d.sampleLabel || d.sample}
+                            </span>
                           </td>
                           <td className="p-2 border border-slate-200 text-slate-700">
                             {d.category}
@@ -3579,6 +3862,509 @@ export function PmeReportsView() {
               {retracting ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <RotateCcw className="h-4 w-4 mr-1.5" />}
               Tarik Laporan Sekarang
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 1. MODAL PEMILIHAN LEVEL & INISIASI ANALISIS HASIL PME */}
+      <Dialog open={isAnalysisSetupOpen} onOpenChange={setIsAnalysisSetupOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+              <Sparkles className="h-5 w-5 text-teal-600" />
+              <span>Analisa Hasil PME Cerdas (ISO 15189)</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed pt-1">
+              Evaluasi kinerja biostatistik ISO 13528, deteksi pola bias analitik, investigasi akar masalah Fishbone 6M, dan rekomendasi tindakan korektif & preventif (CAPA).
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2 text-xs">
+            {/* Kartu Status Kuota Organisasi */}
+            <div className="p-3.5 rounded-xl border bg-gradient-to-r from-teal-500/10 to-indigo-500/10 border-teal-500/30 space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-teal-600" />
+                  Alokasi Kuota Analisis Bulan Ini
+                </span>
+                <Badge
+                  variant="outline"
+                  className={
+                    quotaInfo && quotaInfo.remaining > 0
+                      ? "bg-teal-600 text-white font-mono font-bold border-none"
+                      : "bg-red-600 text-white font-mono font-bold border-none"
+                  }
+                >
+                  {quotaInfo ? `${quotaInfo.remaining} / ${quotaInfo.limit} Sisa` : "Memuat..."}
+                </Badge>
+              </div>
+
+              {quotaInfo && (
+                <div className="space-y-1">
+                  <div className="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        quotaInfo.usagePct >= 90
+                          ? "bg-red-500"
+                          : quotaInfo.usagePct >= 70
+                          ? "bg-amber-500"
+                          : "bg-teal-600"
+                      }`}
+                      style={{ width: `${quotaInfo.usagePct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-muted-foreground">
+                    <span>Terpakai: {quotaInfo.used} kali ({quotaInfo.usagePct}%)</span>
+                    <span>Tersisa: {quotaInfo.remaining} kali</span>
+                  </div>
+                </div>
+              )}
+
+              <p className="text-[10px] text-muted-foreground italic leading-tight">
+                * Batasan kuota analisis bulanan diberikan dan dikelola oleh Superadmin pada menu <strong>Pengaturan</strong> (tabel Kelola Kuota Organisasi & Laboratorium).
+              </p>
+            </div>
+
+            {/* Pilihan Level Sampel untuk Analisis */}
+            <div className="space-y-2">
+              <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                <Layers className="h-4 w-4 text-teal-600" />
+                Pilih Botol / Level Sampel yang Dianalisa:
+              </Label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => setAnalysisSampleTarget("Sampel 1")}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    analysisSampleTarget === "Sampel 1"
+                      ? "border-teal-600 bg-teal-50/60 dark:bg-teal-950/40 ring-2 ring-teal-600/30"
+                      : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-teal-800 dark:text-teal-300 text-xs">
+                      🧪 Sampel 1
+                    </span>
+                    <Badge variant="outline" className="text-[10px] bg-teal-100 text-teal-800 border-teal-300">
+                      Level 1
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-snug">
+                    Konsentrasi normal / fisiologis. Untuk verifikasi presisi dan evaluasi bias stabilitas analitik baseline.
+                  </p>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setAnalysisSampleTarget("Sampel 2")}
+                  className={`p-3 rounded-xl border text-left transition-all ${
+                    analysisSampleTarget === "Sampel 2"
+                      ? "border-amber-600 bg-amber-50/60 dark:bg-amber-950/40 ring-2 ring-amber-600/30"
+                      : "border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-amber-800 dark:text-amber-300 text-xs">
+                      🧪 Sampel 2
+                    </span>
+                    <Badge variant="outline" className="text-[10px] bg-amber-100 text-amber-800 border-amber-300">
+                      Level 2
+                    </Badge>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 mt-1 leading-snug">
+                    Konsentrasi patologis / abnormal. Untuk menguji sensitivitas analitik pada batas keputusan klinis (cut-off).
+                  </p>
+                </button>
+              </div>
+            </div>
+
+            {/* Target Laboratorium */}
+            <div className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900/60 border text-[11px] space-y-1">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Laboratorium Target:</span>
+                <span className="font-semibold text-foreground">
+                  {selectedParticipantId !== "ALL"
+                    ? activeReport?.participant.labName
+                    : isSuperAdmin
+                    ? activeReport?.participant.labName || "Laboratorium Terpilih"
+                    : "Laboratorium Anda"}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Siklus PME:</span>
+                <span className="font-mono font-semibold text-foreground">{cycle || "-"}</span>
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsAnalysisSetupOpen(false)}
+            >
+              Batal
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              disabled={analyzingPme || (quotaInfo !== null && quotaInfo.remaining <= 0)}
+              onClick={() => handleRunPmeAnalysis(analysisSampleTarget)}
+              className="bg-gradient-to-r from-teal-700 to-indigo-700 hover:from-teal-800 hover:to-indigo-800 text-white font-semibold"
+            >
+              {analyzingPme ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="mr-1.5 h-4 w-4 text-amber-300" />
+              )}
+              Mulai Analisa Sekarang (1 Kuota)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 2. MODAL HASIL ANALISIS MUTU PME LENGKAP (ISO 15189, FISHBONE 6M, CAPA) */}
+      <Dialog open={isAnalysisModalOpen} onOpenChange={setIsAnalysisModalOpen}>
+        <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader className="border-b pb-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="space-y-1">
+                <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
+                  <Sparkles className="h-5 w-5 text-teal-600" />
+                  <span>Laporan Analisis Mutu PME Cerdas & Rekomendasi CAPA</span>
+                </DialogTitle>
+                <DialogDescription className="text-xs">
+                  {analysisResult?.participantName} ({analysisResult?.participantCode}) • Siklus {analysisResult?.cycle} • {analysisResult?.sampleLabel}
+                </DialogDescription>
+              </div>
+
+              {quotaInfo && (
+                <Badge variant="outline" className="font-mono text-xs bg-teal-50 text-teal-800 border-teal-300 dark:bg-teal-950/40 dark:text-teal-300">
+                  Sisa Kuota: {quotaInfo.remaining} / {quotaInfo.limit}
+                </Badge>
+              )}
+            </div>
+          </DialogHeader>
+
+          {analysisResult && (
+            <div className="space-y-5 py-3 text-xs">
+              {/* Top KPI Cards */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                <Card className="p-3 border shadow-xs bg-slate-50 dark:bg-slate-900/60">
+                  <p className="text-[11px] text-muted-foreground font-medium">Parameter Diuji</p>
+                  <h4 className="text-xl font-bold mt-1 text-foreground">{analysisResult.totalParameters}</h4>
+                </Card>
+                <Card className="p-3 border shadow-xs bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-500/20">
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">Memuaskan (|Z| ≤ 2)</p>
+                  <h4 className="text-xl font-bold mt-1 text-emerald-700 dark:text-emerald-400">
+                    {analysisResult.satisfactoryCount}
+                  </h4>
+                </Card>
+                <Card className="p-3 border shadow-xs bg-amber-50/60 dark:bg-amber-950/20 border-amber-500/20">
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Peringatan (2 &lt; |Z| &lt; 3)</p>
+                  <h4 className="text-xl font-bold mt-1 text-amber-700 dark:text-amber-400">
+                    {analysisResult.warningCount}
+                  </h4>
+                </Card>
+                <Card className="p-3 border shadow-xs bg-red-50/60 dark:bg-red-950/20 border-red-500/20">
+                  <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">Tdk Memuaskan (|Z| ≥ 3)</p>
+                  <h4 className="text-xl font-bold mt-1 text-red-700 dark:text-red-400">
+                    {analysisResult.unsatisfactoryCount}
+                  </h4>
+                </Card>
+                <Card className="p-3 border shadow-xs bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-500/20 col-span-2 sm:col-span-1">
+                  <p className="text-[11px] text-indigo-700 dark:text-indigo-400 font-medium">Pass Rate</p>
+                  <h4 className="text-xl font-bold mt-1 text-indigo-700 dark:text-indigo-400">
+                    {analysisResult.passRate}%
+                  </h4>
+                </Card>
+              </div>
+
+              {/* 1. Ringkasan Kinerja Klinis */}
+              <div className="p-4 rounded-xl border bg-card space-y-2">
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Award className="h-4 w-4 text-teal-600" />
+                  <span>Ringkasan Klinis & Kinerja Analitik</span>
+                </h4>
+                <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
+                  {analysisResult.clinicalSummary}
+                </p>
+              </div>
+
+              {/* 2. Observasi Bias Sistematik */}
+              <div className="p-4 rounded-xl border bg-card space-y-2.5">
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Target className="h-4 w-4 text-blue-600" />
+                  <span>Observasi Bias & Deviasi Sistematik per Parameter</span>
+                </h4>
+                <div className="space-y-2">
+                  {analysisResult.biasObservations?.map((obs: string, idx: number) => (
+                    <div
+                      key={idx}
+                      className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border flex items-start gap-2.5"
+                    >
+                      <Info className="h-4 w-4 text-blue-600 shrink-0 mt-0.5" />
+                      <p className="text-slate-800 dark:text-slate-200 leading-relaxed text-[11.5px]">{obs}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* 3. Matriks Fishbone 6M */}
+              <div className="space-y-2.5">
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <Activity className="h-4 w-4 text-indigo-600" />
+                  <span>Matriks Investigasi Akar Masalah 6M (Fishbone Ishikawa)</span>
+                </h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {analysisResult.fishbone?.map((item: any, idx: number) => (
+                    <Card key={idx} className="p-3 border shadow-2xs space-y-2">
+                      <div className="flex items-center justify-between border-b pb-1.5">
+                        <span className="font-bold text-xs text-foreground">{item.category}</span>
+                      </div>
+                      <div className="space-y-1">
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase">Temuan:</p>
+                        <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug">{item.finding}</p>
+                      </div>
+                      <div className="space-y-1 pt-1 border-t">
+                        <p className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase">Rekomendasi Aksi:</p>
+                        <p className="text-[11px] text-slate-800 dark:text-slate-200 leading-snug">{item.action}</p>
+                      </div>
+                    </Card>
+                  ))}
+                </div>
+              </div>
+
+              {/* 4. Rekomendasi Tindakan Korektif & Preventif (CAPA) */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                {/* Corrective Actions */}
+                <div className="p-4 rounded-xl border bg-card space-y-2.5">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-red-700 dark:text-red-400 flex items-center gap-2">
+                    <AlertTriangle className="h-4 w-4" />
+                    <span>Tindakan Korektif Segera (Corrective Actions)</span>
+                  </h4>
+                  <ul className="space-y-1.5 list-disc list-inside text-slate-700 dark:text-slate-300">
+                    {analysisResult.correctiveActions?.map((act: string, idx: number) => (
+                      <li key={idx} className="leading-snug text-[11px]">
+                        {act}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                {/* Preventive Actions */}
+                <div className="p-4 rounded-xl border bg-card space-y-2.5">
+                  <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
+                    <CheckCircle className="h-4 w-4" />
+                    <span>Tindakan Pencegahan Berkelanjutan (Preventive Actions)</span>
+                  </h4>
+                  <ul className="space-y-1.5 list-disc list-inside text-slate-700 dark:text-slate-300">
+                    {analysisResult.preventiveActions?.map((act: string, idx: number) => (
+                      <li key={idx} className="leading-snug text-[11px]">
+                        {act}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              </div>
+
+              {/* 5. Tabel Temuan Evaluasi Biostatistik */}
+              <div className="space-y-2">
+                <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-teal-600" />
+                  <span>Rincian Evaluasi Hasil Pengujian per Parameter</span>
+                </h4>
+                <div className="overflow-x-auto border rounded-lg">
+                  <table className="w-full text-xs">
+                    <thead className="bg-muted/70 text-slate-700 dark:text-slate-300 font-semibold border-b">
+                      <tr>
+                        <th className="p-2 text-center w-8">No</th>
+                        <th className="p-2 text-left">Parameter</th>
+                        <th className="p-2 text-right">Hasil Lab</th>
+                        <th className="p-2 text-right">Target Konsensus</th>
+                        <th className="p-2 text-right">SDPA</th>
+                        <th className="p-2 text-center">Bias %</th>
+                        <th className="p-2 text-center">Z-Score</th>
+                        <th className="p-2 text-center">Status</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/60">
+                      {analysisResult.evaluationFindings?.map((f: any, idx: number) => {
+                        const isAction = f.statusText === "Tidak Memuaskan";
+                        const isWarn = f.statusText === "Peringatan";
+                        return (
+                          <tr
+                            key={idx}
+                            className={`hover:bg-muted/20 ${
+                              isAction ? "bg-red-50/40 dark:bg-red-950/20" : isWarn ? "bg-amber-50/30 dark:bg-amber-950/20" : ""
+                            }`}
+                          >
+                            <td className="p-2 text-center font-mono text-muted-foreground">{idx + 1}</td>
+                            <td className="p-2">
+                              <span className="font-semibold text-foreground">{f.parameterName}</span>
+                              <span className="text-[10px] text-muted-foreground ml-1 font-mono">({f.unit})</span>
+                            </td>
+                            <td className="p-2 text-right font-mono font-bold">{f.value}</td>
+                            <td className="p-2 text-right font-mono">{f.target}</td>
+                            <td className="p-2 text-right font-mono">{f.sdpa}</td>
+                            <td className="p-2 text-center font-mono">
+                              {f.biasPercent !== null ? (
+                                <span className={Math.abs(f.biasPercent) > 10 ? "text-red-600 font-bold" : ""}>
+                                  {f.biasPercent > 0 ? `+${f.biasPercent}%` : `${f.biasPercent}%`}
+                                </span>
+                              ) : (
+                                "-"
+                              )}
+                            </td>
+                            <td className="p-2 text-center font-mono font-bold">
+                              <span className={isAction ? "text-red-700" : isWarn ? "text-amber-700" : "text-emerald-700"}>
+                                {f.zScore > 0 ? `+${f.zScore.toFixed(2)}` : f.zScore.toFixed(2)}
+                              </span>
+                            </td>
+                            <td className="p-2 text-center">
+                              <Badge
+                                variant="outline"
+                                className={
+                                  isAction
+                                    ? "bg-red-100 text-red-800 border-red-300"
+                                    : isWarn
+                                    ? "bg-amber-100 text-amber-800 border-amber-300"
+                                    : "bg-emerald-100 text-emerald-800 border-emerald-300"
+                                }
+                              >
+                                {f.statusText}
+                              </Badge>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="border-t pt-3 flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              {analysisResult?.sample === "Sampel 1" ? (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setAnalysisSampleTarget("Sampel 2");
+                    handleRunPmeAnalysis("Sampel 2");
+                  }}
+                  disabled={analyzingPme || (quotaInfo !== null && quotaInfo.remaining <= 0)}
+                  className="text-xs border-amber-600/40 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5 text-amber-600" />
+                  Analisa Sampel 2 (Level 2)
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setAnalysisSampleTarget("Sampel 1");
+                    handleRunPmeAnalysis("Sampel 1");
+                  }}
+                  disabled={analyzingPme || (quotaInfo !== null && quotaInfo.remaining <= 0)}
+                  className="text-xs border-teal-600/40 text-teal-800 dark:text-teal-300 hover:bg-teal-50"
+                >
+                  <Sparkles className="mr-1.5 h-3.5 w-3.5 text-teal-600" />
+                  Analisa Sampel 1 (Level 1)
+                </Button>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => window.print()}
+                className="text-xs"
+              >
+                <Printer className="mr-1.5 h-3.5 w-3.5" />
+                Cetak Analisa
+              </Button>
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => setIsAnalysisModalOpen(false)}
+                className="bg-slate-800 hover:bg-slate-900 text-white text-xs"
+              >
+                Tutup
+              </Button>
+            </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 3. MODAL PERINGATAN KUOTA HABIS (DIATUR OLEH SUPERADMIN) */}
+      <Dialog open={isQuotaExhaustedModalOpen} onOpenChange={setIsQuotaExhaustedModalOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-base font-bold text-red-600">
+              <ShieldAlert className="h-5 w-5 text-red-600" />
+              <span>Kuota Analisis Hasil PME Telah Habis</span>
+            </DialogTitle>
+            <DialogDescription className="text-xs leading-relaxed pt-1">
+              Laboratorium Anda telah mencapai batasan kuota analisis bulanan yang dialokasikan oleh Superadmin.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="py-3 text-xs space-y-3 bg-red-50/60 dark:bg-red-950/20 p-4 rounded-xl border border-red-200 dark:border-red-800">
+            <div className="flex items-center justify-between border-b border-red-200 dark:border-red-800 pb-2">
+              <span className="font-semibold text-slate-700 dark:text-slate-300">Status Kuota Bulanan:</span>
+              <Badge variant="destructive" className="font-mono font-bold">
+                {quotaInfo?.used ?? 0} / {quotaInfo?.limit ?? 0} (0 Tersisa)
+              </Badge>
+            </div>
+
+            <div className="space-y-1.5 text-slate-700 dark:text-slate-300 leading-relaxed text-[11.5px]">
+              <p>
+                Fitur <strong>Analisa Hasil PME</strong> dapat diakses oleh semua akun pengguna, tetapi dibatasi oleh alokasi kuota bulanan organisasi yang diberikan secara eksklusif oleh akun <strong>Superadmin</strong>.
+              </p>
+              <p>
+                Pengaturan penambahan kuota dilakukan pada menu <strong>Pengaturan</strong> di tabel <strong>"Kelola Kuota Organisasi & Laboratorium (Superadmin)"</strong>.
+              </p>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-white dark:bg-slate-900 border text-[11px] text-muted-foreground flex items-center gap-2">
+              <Info className="h-4 w-4 text-blue-600 shrink-0" />
+              <span>
+                {isSuperAdmin
+                  ? "Sebagai Superadmin, Anda dapat segera menaikkan batas kuota bulanan organisasi ini di menu Pengaturan."
+                  : "Silakan hubungi Superadmin atau penyelenggara PME untuk mengajukan permohonan penambahan kuota analisis laboratorium Anda."}
+              </span>
+            </div>
+          </div>
+
+          <DialogFooter className="pt-2 flex items-center justify-between sm:justify-end gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setIsQuotaExhaustedModalOpen(false)}
+            >
+              Tutup
+            </Button>
+            {isSuperAdmin && (
+              <Button
+                type="button"
+                size="sm"
+                onClick={() => {
+                  setIsQuotaExhaustedModalOpen(false);
+                  navigate("settings");
+                }}
+                className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-semibold"
+              >
+                Buka Menu Pengaturan
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

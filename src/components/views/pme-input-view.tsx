@@ -268,6 +268,8 @@ interface ParameterRow {
   defaultInstrumentCode: string | null;
   sortOrder: number;
   value: string;
+  valueSample1: string; // Nilai Hasil Sampel 1 (Level 1 / Normal)
+  valueSample2: string; // Nilai Hasil Sampel 2 (Level 2 / Patologis)
   methodCode: string;
   instrumentCode: string;
   reagentName: string;
@@ -289,6 +291,7 @@ export function PmeInputView() {
   const [selectedParticipantId, setSelectedParticipantId] = useState<string>("");
   const [selectedCycle, setSelectedCycle] = useState<string>("Siklus 1 2026");
   const [period, setPeriod] = useState<string>("Tahap 2");
+  const [sampleViewFilter, setSampleViewFilter] = useState<"ALL" | "SAMPEL_1" | "SAMPEL_2">("ALL");
 
   const [loading, setLoading] = useState(false);
   const [registeredPackages, setRegisteredPackages] = useState<{ id: string; name: string; category: string }[]>([]);
@@ -483,9 +486,20 @@ export function PmeInputView() {
         }
 
         const rows: ParameterRow[] = (data.parameters || []).map((p: any) => {
-          const matchedResult = existingResults.find(
-            (r: any) => r.parameterName.toLowerCase().trim() === p.name.toLowerCase().trim()
+          const pNameLower = p.name.toLowerCase().trim();
+          const matchedSample1 = existingResults.find(
+            (r: any) =>
+              r.parameterName.toLowerCase().trim() === pNameLower &&
+              (r.sample === "Sampel 1" || !r.sample)
           );
+          const matchedSample2 = existingResults.find(
+            (r: any) =>
+              r.parameterName.toLowerCase().trim() === pNameLower &&
+              r.sample === "Sampel 2"
+          );
+
+          const val1 = matchedSample1 && matchedSample1.value !== null ? String(matchedSample1.value) : "";
+          const val2 = matchedSample2 && matchedSample2.value !== null ? String(matchedSample2.value) : "";
 
           return {
             id: p.id,
@@ -495,10 +509,12 @@ export function PmeInputView() {
             defaultMethodCode: p.defaultMethodCode,
             defaultInstrumentCode: p.defaultInstrumentCode,
             sortOrder: p.sortOrder,
-            value: matchedResult && matchedResult.value !== null ? String(matchedResult.value) : "",
-            methodCode: matchedResult?.methodCode || p.defaultMethodCode || "",
-            instrumentCode: matchedResult?.instrumentCode || p.defaultInstrumentCode || "",
-            reagentName: matchedResult?.reagentName || "",
+            value: val1,
+            valueSample1: val1,
+            valueSample2: val2,
+            methodCode: matchedSample1?.methodCode || matchedSample2?.methodCode || p.defaultMethodCode || "",
+            instrumentCode: matchedSample1?.instrumentCode || matchedSample2?.instrumentCode || p.defaultInstrumentCode || "",
+            reagentName: matchedSample1?.reagentName || matchedSample2?.reagentName || "",
           };
         });
 
@@ -599,11 +615,12 @@ export function PmeInputView() {
       return;
     }
 
-    const filledRows = parameters.filter((p) => p.value.trim() !== "");
-    if (filledRows.length === 0) {
+    const filledRowsSample1 = parameters.filter((p) => (p.valueSample1 || "").trim() !== "");
+    const filledRowsSample2 = parameters.filter((p) => (p.valueSample2 || "").trim() !== "");
+    if (filledRowsSample1.length === 0 && filledRowsSample2.length === 0) {
       toast({
         title: "Hasil Masih Kosong",
-        description: "Silakan isi minimal satu nilai hasil pemeriksaan sebelum mengirim.",
+        description: "Silakan isi minimal satu nilai hasil pemeriksaan (Sampel 1 atau Sampel 2) sebelum mengirim.",
         variant: "destructive",
       });
       return;
@@ -626,7 +643,8 @@ export function PmeInputView() {
 
     const hasAnyContent = parameters.some(
       (p) =>
-        p.value.trim() !== "" ||
+        (p.valueSample1 || "").trim() !== "" ||
+        (p.valueSample2 || "").trim() !== "" ||
         p.methodCode.trim() !== "" ||
         p.instrumentCode.trim() !== "" ||
         p.reagentName.trim() !== ""
@@ -635,7 +653,7 @@ export function PmeInputView() {
     if (!hasAnyContent) {
       toast({
         title: "Belum Ada Data",
-        description: "Silakan isi minimal satu nilai hasil atau pilihan metode/alat/reagen untuk disimpan sebagai draft.",
+        description: "Silakan isi minimal satu nilai hasil (Sampel 1 / Sampel 2) atau pilihan metode/alat/reagen untuk disimpan sebagai draft.",
         variant: "destructive",
       });
       return;
@@ -643,33 +661,52 @@ export function PmeInputView() {
 
     setSavingDraft(true);
     try {
+      const resultsPayload: any[] = [];
+      for (const p of parameters) {
+        const raw1 = (p.valueSample1 || "").trim().replace(/,/g, ".");
+        const parsed1 = parseFloat(raw1);
+        const hasVal1 = !isNaN(parsed1) && raw1 !== "";
+
+        const raw2 = (p.valueSample2 || "").trim().replace(/,/g, ".");
+        const parsed2 = parseFloat(raw2);
+        const hasVal2 = !isNaN(parsed2) && raw2 !== "";
+
+        const hasMeta = Boolean(p.methodCode.trim() || p.instrumentCode.trim() || p.reagentName.trim());
+
+        if (hasVal1 || hasMeta) {
+          resultsPayload.push({
+            parameterId: p.id,
+            parameterName: p.name,
+            unit: p.unit,
+            sample: "Sampel 1",
+            value: hasVal1 ? parsed1 : null,
+            methodCode: p.methodCode,
+            instrumentCode: p.instrumentCode,
+            reagentName: p.reagentName,
+          });
+        }
+
+        if (hasVal2 || hasMeta) {
+          resultsPayload.push({
+            parameterId: p.id,
+            parameterName: p.name,
+            unit: p.unit,
+            sample: "Sampel 2",
+            value: hasVal2 ? parsed2 : null,
+            methodCode: p.methodCode,
+            instrumentCode: p.instrumentCode,
+            reagentName: p.reagentName,
+          });
+        }
+      }
+
       const payload = {
         participantId: selectedParticipantId,
         cycle: selectedCycle.trim(),
         period: period.trim() || undefined,
         action: "SAVE_DRAFT",
         isDraft: true,
-        results: parameters
-          .filter(
-            (p) =>
-              p.value.trim() !== "" ||
-              p.methodCode.trim() !== "" ||
-              p.instrumentCode.trim() !== "" ||
-              p.reagentName.trim() !== ""
-          )
-          .map((p) => {
-            const raw = p.value.trim().replace(/,/g, ".");
-            const parsed = parseFloat(raw);
-            return {
-              parameterId: p.id,
-              parameterName: p.name,
-              unit: p.unit,
-              value: !isNaN(parsed) && raw !== "" ? parsed : null,
-              methodCode: p.methodCode,
-              instrumentCode: p.instrumentCode,
-              reagentName: p.reagentName,
-            };
-          }),
+        results: resultsPayload,
       };
 
       const res = await fetch("/api/pme-mgmt/submissions", {
@@ -815,7 +852,8 @@ export function PmeInputView() {
         idx + 1,
         p.name,
         p.unit || "-",
-        p.value ? p.value : "(Belum diisi)",
+        p.valueSample1 ? p.valueSample1 : "-",
+        p.valueSample2 ? p.valueSample2 : "-",
         p.methodCode || "-",
         p.instrumentCode || "-",
         p.reagentName || "-",
@@ -823,12 +861,12 @@ export function PmeInputView() {
 
       autoTable(doc, {
         startY: y,
-        head: [["No.", "Sasaran / Parameter", "Satuan", "Hasil Uji", "Metode", "Alat", "Nama Reagen"]],
+        head: [["No.", "Sasaran / Parameter", "Satuan", "Hasil Sampel 1 (Lvl 1)", "Hasil Sampel 2 (Lvl 2)", "Metode", "Alat", "Nama Reagen"]],
         body: tableBody,
         theme: "grid",
         margin: { left: margin, right: margin },
         styles: {
-          fontSize: 7.5,
+          fontSize: 7,
           cellPadding: 2,
           textColor: [30, 41, 59],
         },
@@ -839,20 +877,21 @@ export function PmeInputView() {
           halign: "center",
         },
         columnStyles: {
-          0: { halign: "center", cellWidth: 10 },
-          1: { fontStyle: "bold", cellWidth: 45 },
-          2: { halign: "center", cellWidth: 18 },
-          3: { halign: "center", fontStyle: "bold", cellWidth: 24 },
-          4: { halign: "center", cellWidth: 26 },
-          5: { halign: "center", cellWidth: 26 },
-          6: { cellWidth: "auto" },
+          0: { halign: "center", cellWidth: 8 },
+          1: { fontStyle: "bold", cellWidth: 38 },
+          2: { halign: "center", cellWidth: 15 },
+          3: { halign: "center", fontStyle: "bold", cellWidth: 20 },
+          4: { halign: "center", fontStyle: "bold", cellWidth: 20 },
+          5: { halign: "center", cellWidth: 24 },
+          6: { halign: "center", cellWidth: 24 },
+          7: { cellWidth: "auto" },
         },
         didDrawPage: () => {
           doc.setFontSize(7);
           doc.setFont("helvetica", "italic");
           doc.setTextColor(100, 116, 139);
           doc.text(
-            `Dicetak pada: ${new Date().toLocaleString("id-ID")} - SmartPME Lembar Kerja Draft`,
+            `Dicetak pada: ${new Date().toLocaleString("id-ID")} - SmartPME Lembar Kerja Draft (2 Level)`,
             margin,
             doc.internal.pageSize.getHeight() - 6
           );
@@ -879,27 +918,50 @@ export function PmeInputView() {
     setConfirmDialogOpen(false);
     setSubmitting(true);
     try {
+      const resultsPayload: any[] = [];
+      for (const p of parameters) {
+        const raw1 = (p.valueSample1 || "").trim().replace(/,/g, ".");
+        const parsed1 = parseFloat(raw1);
+        const hasVal1 = !isNaN(parsed1) && raw1 !== "";
+
+        const raw2 = (p.valueSample2 || "").trim().replace(/,/g, ".");
+        const parsed2 = parseFloat(raw2);
+        const hasVal2 = !isNaN(parsed2) && raw2 !== "";
+
+        if (hasVal1) {
+          resultsPayload.push({
+            parameterId: p.id,
+            parameterName: p.name,
+            unit: p.unit,
+            sample: "Sampel 1",
+            value: parsed1,
+            methodCode: p.methodCode,
+            instrumentCode: p.instrumentCode,
+            reagentName: p.reagentName,
+          });
+        }
+
+        if (hasVal2) {
+          resultsPayload.push({
+            parameterId: p.id,
+            parameterName: p.name,
+            unit: p.unit,
+            sample: "Sampel 2",
+            value: parsed2,
+            methodCode: p.methodCode,
+            instrumentCode: p.instrumentCode,
+            reagentName: p.reagentName,
+          });
+        }
+      }
+
       const payload = {
         participantId: selectedParticipantId,
         cycle: selectedCycle.trim(),
         period: period.trim() || undefined,
         action: "SUBMIT_FINAL",
         isDraft: false,
-        results: parameters
-          .filter((p) => p.value.trim() !== "")
-          .map((p) => {
-            const raw = p.value.trim().replace(/,/g, ".");
-            const parsed = parseFloat(raw);
-            return {
-              parameterId: p.id,
-              parameterName: p.name,
-              unit: p.unit,
-              value: !isNaN(parsed) && raw !== "" ? parsed : null,
-              methodCode: p.methodCode,
-              instrumentCode: p.instrumentCode,
-              reagentName: p.reagentName,
-            };
-          }),
+        results: resultsPayload,
       };
 
       const res = await fetch("/api/pme-mgmt/submissions", {
@@ -944,7 +1006,9 @@ export function PmeInputView() {
   // Status apakah submission ini terkunci secara umum di database
   const isSubmissionLocked = isSubmittedBefore && isLocked && !allowResubmit;
 
-  const filledCount = parameters.filter((p) => p.value.trim() !== "").length;
+  const filledCount1 = parameters.filter((p) => (p.valueSample1 || "").trim() !== "").length;
+  const filledCount2 = parameters.filter((p) => (p.valueSample2 || "").trim() !== "").length;
+  const filledCount = filledCount1 + filledCount2;
   const selectedParticipant = participants.find((p) => p.id === selectedParticipantId);
 
   return (
@@ -1021,10 +1085,11 @@ export function PmeInputView() {
             <tr className="bg-gray-100 border-b border-gray-400">
               <th className="p-2 border-r border-gray-400 text-center w-8">No</th>
               <th className="p-2 border-r border-gray-400">Sasaran / Parameter</th>
-              <th className="p-2 border-r border-gray-400 text-center w-20">Satuan</th>
-              <th className="p-2 border-r border-gray-400 text-center w-24">Hasil Uji</th>
-              <th className="p-2 border-r border-gray-400 text-center w-28">Metode</th>
-              <th className="p-2 border-r border-gray-400 text-center w-28">Alat</th>
+              <th className="p-2 border-r border-gray-400 text-center w-16">Satuan</th>
+              <th className="p-2 border-r border-gray-400 text-center w-24">Hasil Sampel 1 (Level 1)</th>
+              <th className="p-2 border-r border-gray-400 text-center w-24">Hasil Sampel 2 (Level 2)</th>
+              <th className="p-2 border-r border-gray-400 text-center w-24">Metode</th>
+              <th className="p-2 border-r border-gray-400 text-center w-24">Alat</th>
               <th className="p-2">Nama Reagen</th>
             </tr>
           </thead>
@@ -1035,7 +1100,10 @@ export function PmeInputView() {
                 <td className="p-2 border-r border-gray-300 font-medium">{p.name}</td>
                 <td className="p-2 border-r border-gray-300 text-center">{p.unit || "-"}</td>
                 <td className="p-2 border-r border-gray-300 text-center font-bold font-mono">
-                  {p.value || "(Belum diisi)"}
+                  {p.valueSample1 || "(Belum diisi)"}
+                </td>
+                <td className="p-2 border-r border-gray-300 text-center font-bold font-mono">
+                  {p.valueSample2 || "(Belum diisi)"}
                 </td>
                 <td className="p-2 border-r border-gray-300 text-center">{p.methodCode || "-"}</td>
                 <td className="p-2 border-r border-gray-300 text-center">{p.instrumentCode || "-"}</td>
@@ -1455,16 +1523,67 @@ export function PmeInputView() {
 
             {/* Main Input Table */}
             <Card className="shadow-sm">
-              <CardHeader className="pb-3 border-b flex flex-row items-center justify-between">
+              <CardHeader className="pb-3 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
                 <div>
-                  <CardTitle className="text-sm font-semibold">Tabel Input Hasil Pemeriksaan</CardTitle>
-                  <CardDescription className="text-xs">
-                    Masukkan nilai numerik hasil uji laboratorium, kode metode, kode alat, dan nama reagen (dapat dipilih lewat dropdown atau ketik pencarian)
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-sm font-semibold">Tabel Input Hasil Pemeriksaan (2 Level Paket)</CardTitle>
+                    <Badge variant="outline" className="text-[10px] bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30">
+                      2 Botol Sampel Kontrol
+                    </Badge>
+                  </div>
+                  <CardDescription className="text-xs mt-0.5">
+                    Masukkan nilai numerik hasil pengujian untuk <strong>Sampel 1 (Level 1 / Normal)</strong> dan <strong>Sampel 2 (Level 2 / Patologis)</strong>, serta tentukan metode, alat, dan reagen.
                   </CardDescription>
                 </div>
-                <span className="text-xs font-semibold text-teal-700 dark:text-teal-400 bg-teal-500/10 px-2.5 py-1 rounded-full font-mono">
-                  {filledCount} / {parameters.length} Parameter Terisi
-                </span>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  {/* Toggle Tampilan Kolom Sampel */}
+                  <div className="inline-flex rounded-lg border bg-muted/30 p-0.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setSampleViewFilter("ALL")}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                        sampleViewFilter === "ALL"
+                          ? "bg-background text-foreground shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Semua Sampel (Lvl 1 &amp; 2)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSampleViewFilter("SAMPEL_1")}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                        sampleViewFilter === "SAMPEL_1"
+                          ? "bg-teal-600 text-white shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Sampel 1 (Level 1)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSampleViewFilter("SAMPEL_2")}
+                      className={`px-2.5 py-1 rounded-md text-[11px] font-medium transition-all ${
+                        sampleViewFilter === "SAMPEL_2"
+                          ? "bg-amber-600 text-white shadow-xs font-semibold"
+                          : "text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Sampel 2 (Level 2)
+                    </button>
+                  </div>
+
+                  {/* Badges Progress Pengisian */}
+                  <div className="flex items-center gap-1.5 font-mono text-[11px]">
+                    <span className="text-teal-700 dark:text-teal-300 bg-teal-500/10 px-2 py-0.5 rounded border border-teal-500/20 font-medium" title="Jumlah parameter terisi untuk Sampel 1">
+                      S1: {filledCount1}/{parameters.length}
+                    </span>
+                    <span className="text-amber-700 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/20 font-medium" title="Jumlah parameter terisi untuk Sampel 2">
+                      S2: {filledCount2}/{parameters.length}
+                    </span>
+                  </div>
+                </div>
               </CardHeader>
 
               <CardContent className="p-0">
@@ -1472,15 +1591,41 @@ export function PmeInputView() {
                   <table className="w-full text-left text-xs">
                     <thead className="border-b bg-muted/60 text-muted-foreground font-semibold">
                       <tr>
-                        <th className="p-2.5 w-12 text-center">No.</th>
-                        <th className="p-2.5 min-w-[160px]">Sasaran / Parameter</th>
-                        <th className="p-2.5 w-24">Satuan</th>
-                        <th className="p-2.5 w-36 text-center">
-                          Hasil Uji <span className="text-red-500">*</span>
-                        </th>
-                        <th className="p-2.5 min-w-[190px] text-center">Kode / Nama Metode</th>
-                        <th className="p-2.5 min-w-[190px] text-center">Kode / Nama Alat</th>
-                        <th className="p-2.5 min-w-[200px]">Nama Reagen</th>
+                        <th className="p-2.5 w-10 text-center">No.</th>
+                        <th className="p-2.5 min-w-[150px]">Sasaran / Parameter</th>
+                        <th className="p-2.5 w-20 text-center">Satuan</th>
+
+                        {/* Kolom Sampel 1 */}
+                        {(sampleViewFilter === "ALL" || sampleViewFilter === "SAMPEL_1") && (
+                          <th className="p-2.5 w-36 text-center bg-teal-500/10 text-teal-800 dark:text-teal-200 border-x border-teal-500/20">
+                            <div className="flex flex-col items-center">
+                              <span className="font-bold flex items-center gap-1">
+                                🧪 Hasil Sampel 1
+                              </span>
+                              <span className="text-[10px] font-medium text-teal-600 dark:text-teal-400">
+                                Level 1 (Normal) <span className="text-red-500">*</span>
+                              </span>
+                            </div>
+                          </th>
+                        )}
+
+                        {/* Kolom Sampel 2 */}
+                        {(sampleViewFilter === "ALL" || sampleViewFilter === "SAMPEL_2") && (
+                          <th className="p-2.5 w-36 text-center bg-amber-500/10 text-amber-800 dark:text-amber-200 border-r border-amber-500/20">
+                            <div className="flex flex-col items-center">
+                              <span className="font-bold flex items-center gap-1">
+                                🧪 Hasil Sampel 2
+                              </span>
+                              <span className="text-[10px] font-medium text-amber-600 dark:text-amber-400">
+                                Level 2 (Patologis) <span className="text-red-500">*</span>
+                              </span>
+                            </div>
+                          </th>
+                        )}
+
+                        <th className="p-2.5 min-w-[185px] text-center">Kode / Nama Metode</th>
+                        <th className="p-2.5 min-w-[185px] text-center">Kode / Nama Alat</th>
+                        <th className="p-2.5 min-w-[190px]">Nama Reagen</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y">
@@ -1491,7 +1636,7 @@ export function PmeInputView() {
                             <p className="font-semibold text-foreground">{param.name}</p>
                             <span className="text-[10px] text-muted-foreground">{param.packageName}</span>
                           </td>
-                          <td className="p-2.5 font-mono text-muted-foreground">
+                          <td className="p-2.5 text-center font-mono text-muted-foreground">
                             {param.unit ? (
                               <Badge variant="outline" className="text-[10px] font-mono">
                                 {param.unit}
@@ -1500,21 +1645,46 @@ export function PmeInputView() {
                               "-"
                             )}
                           </td>
-                          {/* Kolom Hasil */}
-                          <td className="p-2 text-center">
-                            <Input
-                              type="text"
-                              placeholder="0.00"
-                              value={param.value}
-                              disabled={isFormLocked}
-                              onChange={(e) => handleRowChange(idx, "value", e.target.value)}
-                              className={`h-8 text-center font-mono font-bold text-xs ${
-                                isFormLocked
-                                  ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
-                                  : "bg-background focus:ring-1 focus:ring-teal-600"
-                              }`}
-                            />
-                          </td>
+
+                          {/* Kolom Hasil Sampel 1 (Level 1) */}
+                          {(sampleViewFilter === "ALL" || sampleViewFilter === "SAMPEL_1") && (
+                            <td className="p-2 text-center bg-teal-500/[0.02]">
+                              <Input
+                                type="text"
+                                placeholder="Nilai Lvl 1"
+                                value={param.valueSample1}
+                                disabled={isFormLocked}
+                                onChange={(e) => {
+                                  handleRowChange(idx, "valueSample1", e.target.value);
+                                  handleRowChange(idx, "value", e.target.value);
+                                }}
+                                className={`h-8 text-center font-mono font-bold text-xs ${
+                                  isFormLocked
+                                    ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
+                                    : "bg-background focus:ring-1 focus:ring-teal-600 border-teal-500/30"
+                                }`}
+                              />
+                            </td>
+                          )}
+
+                          {/* Kolom Hasil Sampel 2 (Level 2) */}
+                          {(sampleViewFilter === "ALL" || sampleViewFilter === "SAMPEL_2") && (
+                            <td className="p-2 text-center bg-amber-500/[0.02]">
+                              <Input
+                                type="text"
+                                placeholder="Nilai Lvl 2"
+                                value={param.valueSample2}
+                                disabled={isFormLocked}
+                                onChange={(e) => handleRowChange(idx, "valueSample2", e.target.value)}
+                                className={`h-8 text-center font-mono font-bold text-xs ${
+                                  isFormLocked
+                                    ? "bg-muted/60 text-muted-foreground cursor-not-allowed border-dashed"
+                                    : "bg-background focus:ring-1 focus:ring-amber-600 border-amber-500/30"
+                                }`}
+                              />
+                            </td>
+                          )}
+
                           {/* Kolom Metode with Single Integrated Combobox Dropdown */}
                           <td className="p-2">
                             <MasterComboboxInput

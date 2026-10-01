@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Eye, EyeOff, Loader2, FlaskConical, ScanLine, BrainCircuit, FileBarChart, ShieldCheck, ArrowRight, Sparkles, Clock, Megaphone } from "lucide-react";
+import { getFirstAllowedView } from "@/lib/permissions";
 import { apiSend, ApiError } from "@/lib/api-client";
 import { useAppStore } from "@/lib/store";
 import type { UserInfo } from "@/types/pme";
@@ -63,7 +64,14 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
     try {
       if (mode === "login") {
         const data = await apiSend<{ user: UserInfo }>("/api/auth/login", "POST", { email, password });
-        setUser(data.user);
+        const targetView = getFirstAllowedView(data.user);
+        useAppStore.setState({
+          user: data.user,
+          view: targetView,
+          activeSessionId: null,
+          viewAsTenantId: "ALL",
+          logoutReason: null,
+        });
         onLogin?.(data.user);
       } else {
         const data = await apiSend<{ ok: boolean; pendingApproval?: boolean; message?: string; user?: UserInfo }>("/api/auth/register", "POST", {
@@ -77,7 +85,14 @@ export function LoginView({ onLogin }: { onLogin?: (user: UserInfo) => void }) {
           setMode("login");
           setPassword("");
         } else if (data.user) {
-          setUser(data.user);
+          const targetView = getFirstAllowedView(data.user);
+          useAppStore.setState({
+            user: data.user,
+            view: targetView,
+            activeSessionId: null,
+            viewAsTenantId: "ALL",
+            logoutReason: null,
+          });
           onLogin?.(data.user);
         }
       }

@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import type { TenantOption } from "@/types/pme";
 import { useIdleLogout } from "@/hooks/use-idle-logout";
+import { isViewAllowed } from "@/lib/permissions";
 
 const NAV: { key: AppView; label: string; icon: typeof LayoutDashboard; superAdminOnly?: boolean }[] = [
   { key: "dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -66,8 +67,27 @@ const VIEW_TITLES: Record<AppView, string> = {
   "master-data": "Master Data PME",
 };
 
+const VIEW_ICONS: Record<AppView, typeof LayoutDashboard> = {
+  dashboard: LayoutDashboard,
+  sessions: FileText,
+  "session-detail": FileText,
+  reports: FileSpreadsheet,
+  review: ClipboardCheck,
+  capa: ListChecks,
+  "kop-surat": Building2,
+  settings: Settings,
+  audit: ScrollText,
+  users: Users,
+  "pme-registration": UserPlus,
+  "pme-packages": PackageCheck,
+  "pme-input": FilePenLine,
+  "pme-reports": FileBarChart,
+  "pme-info": Megaphone,
+  "master-data": Database,
+};
+
 export function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, view, navigate, sidebarOpen, setSidebarOpen, refreshUser, viewAsTenantId, setViewAsTenantId } = useAppStore();
+  const { user, view, navigate, sidebarOpen, setSidebarOpen, refreshUser, viewAsTenantId, setViewAsTenantId, sidebarTheme } = useAppStore();
   const [usage, setUsage] = useState<{ used: number; limit: number } | null>(null);
   const [tenants, setTenants] = useState<TenantOption[]>([]);
 
@@ -114,25 +134,21 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   const usagePct = usage && usage.limit > 0 ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 0;
 
-  // Filter navigation items by checklist permissions or role
-  const filteredNav = NAV.filter((item) => {
-    if (item.superAdminOnly && user.role !== "SUPERADMIN") return false;
-    if (user.role === "SUPERADMIN" || user.role === "ADMIN2") return true;
-    if (user.menuAccess && Array.isArray(user.menuAccess) && user.menuAccess.length > 0) {
-      return user.menuAccess.includes(item.key);
-    }
-    return true;
-  });
+  // Filter navigation items strictly based on role and menu access permissions
+  const filteredNav = NAV.filter((item) => isViewAllowed(item.key, user));
 
   const isPmeMgmtAllowed =
-    user.role === "SUPERADMIN" ||
-    user.role === "ADMIN2" ||
-    (user.menuAccess && Array.isArray(user.menuAccess) && (user.menuAccess.includes("pme-management") || user.menuAccess.includes("pme-registration")));
+    isViewAllowed("pme-registration", user) ||
+    isViewAllowed("pme-packages", user) ||
+    isViewAllowed("pme-input", user) ||
+    isViewAllowed("pme-info", user) ||
+    isViewAllowed("master-data", user) ||
+    isViewAllowed("pme-reports", user);
 
   const navList = (
     <nav
       aria-label="Navigasi utama"
-      className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1 scrollbar-thin scrollbar-thumb-slate-700/60 hover:scrollbar-thumb-teal-500/80 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700/60 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-teal-500/80"
+      className="flex-1 min-h-0 overflow-y-auto px-3 py-2 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-700/60 hover:scrollbar-thumb-teal-500/80 [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-track]:bg-transparent [&::-webkit-scrollbar-thumb]:bg-slate-700/60 [&::-webkit-scrollbar-thumb]:rounded-full hover:[&::-webkit-scrollbar-thumb]:bg-teal-500/80"
     >
       {filteredNav.map((item) => {
         const isActive = view === item.key;
@@ -141,18 +157,26 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             key={item.key}
             onClick={() => navigate(item.key)}
             aria-current={isActive ? "page" : undefined}
+            style={{
+              fontSize: sidebarTheme.fontSize,
+              fontWeight: isActive ? 700 : Number(sidebarTheme.fontWeight) || 600,
+              color: isActive ? sidebarTheme.activeTextColor : sidebarTheme.textColor,
+              backgroundColor: isActive ? sidebarTheme.activeBgColor : undefined,
+              borderLeftColor: isActive ? sidebarTheme.activeTextColor : "transparent",
+            }}
             className={cn(
-              "group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 text-[14.5px] font-medium transition-all duration-200",
+              "group flex w-full items-center gap-3 rounded-xl px-3.5 py-2.5 transition-all duration-200 border-l-[3.5px]",
               isActive
-                ? "bg-gradient-to-r from-teal-500/25 via-teal-500/15 to-transparent text-teal-300 font-bold border-l-[3.5px] border-teal-400 shadow-xs"
-                : "text-slate-400 hover:text-slate-100 hover:bg-slate-800/60"
+                ? "shadow-sm backdrop-blur-xs"
+                : "hover:bg-white/5 hover:text-white"
             )}
           >
             <item.icon
-              className={cn(
-                "h-5 w-5 shrink-0 transition-colors",
-                isActive ? "text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.4)]" : "text-slate-400 group-hover:text-slate-200"
-              )}
+              className="h-5 w-5 shrink-0 transition-colors"
+              style={{
+                color: isActive ? sidebarTheme.activeTextColor : undefined,
+                filter: isActive ? `drop-shadow(0 0 6px ${sidebarTheme.activeTextColor}66)` : undefined,
+              }}
             />
             <span className="truncate">{item.label}</span>
           </button>
@@ -170,57 +194,91 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </div>
 
           <div className="space-y-1 pl-1">
-            <button
-              onClick={() => navigate("pme-registration")}
-              aria-current={view === "pme-registration" ? "page" : undefined}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
-                view === "pme-registration"
-                  ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-              )}
-            >
-              <UserPlus className="h-4.5 w-4.5 shrink-0 text-teal-400" />
-              <span className="truncate">1. Pendaftaran PME</span>
-            </button>
+            {isViewAllowed("pme-registration", user) && (
+              <button
+                onClick={() => navigate("pme-registration")}
+                aria-current={view === "pme-registration" ? "page" : undefined}
+                style={{
+                  fontSize: sidebarTheme.fontSize,
+                  fontWeight: view === "pme-registration" ? 700 : Number(sidebarTheme.fontWeight) || 600,
+                  color: view === "pme-registration" ? sidebarTheme.activeTextColor : sidebarTheme.textColor,
+                  backgroundColor: view === "pme-registration" ? sidebarTheme.activeBgColor : undefined,
+                  borderLeftColor: view === "pme-registration" ? sidebarTheme.activeTextColor : "transparent",
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 transition-all duration-200 border-l-2",
+                  view === "pme-registration"
+                    ? "shadow-xs"
+                    : "hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <UserPlus className="h-4.5 w-4.5 shrink-0 text-teal-400" />
+                <span className="truncate">1. Pendaftaran PME</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => navigate("pme-packages")}
-              aria-current={view === "pme-packages" ? "page" : undefined}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
-                view === "pme-packages"
-                  ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-              )}
-            >
-              <PackageCheck className="h-4.5 w-4.5 shrink-0 text-blue-400" />
-              <span className="truncate">2. Pemilihan Paket PME</span>
-            </button>
+            {isViewAllowed("pme-packages", user) && (
+              <button
+                onClick={() => navigate("pme-packages")}
+                aria-current={view === "pme-packages" ? "page" : undefined}
+                style={{
+                  fontSize: sidebarTheme.fontSize,
+                  fontWeight: view === "pme-packages" ? 700 : Number(sidebarTheme.fontWeight) || 600,
+                  color: view === "pme-packages" ? sidebarTheme.activeTextColor : sidebarTheme.textColor,
+                  backgroundColor: view === "pme-packages" ? sidebarTheme.activeBgColor : undefined,
+                  borderLeftColor: view === "pme-packages" ? sidebarTheme.activeTextColor : "transparent",
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 transition-all duration-200 border-l-2",
+                  view === "pme-packages"
+                    ? "shadow-xs"
+                    : "hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <PackageCheck className="h-4.5 w-4.5 shrink-0 text-blue-400" />
+                <span className="truncate">2. Pemilihan Paket PME</span>
+              </button>
+            )}
 
-            <button
-              onClick={() => navigate("pme-input")}
-              aria-current={view === "pme-input" ? "page" : undefined}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
-                view === "pme-input"
-                  ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
-                  : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
-              )}
-            >
-              <FilePenLine className="h-4.5 w-4.5 shrink-0 text-amber-400" />
-              <span className="truncate">3. Input Hasil PME</span>
-            </button>
+            {isViewAllowed("pme-input", user) && (
+              <button
+                onClick={() => navigate("pme-input")}
+                aria-current={view === "pme-input" ? "page" : undefined}
+                style={{
+                  fontSize: sidebarTheme.fontSize,
+                  fontWeight: view === "pme-input" ? 700 : Number(sidebarTheme.fontWeight) || 600,
+                  color: view === "pme-input" ? sidebarTheme.activeTextColor : sidebarTheme.textColor,
+                  backgroundColor: view === "pme-input" ? sidebarTheme.activeBgColor : undefined,
+                  borderLeftColor: view === "pme-input" ? sidebarTheme.activeTextColor : "transparent",
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 transition-all duration-200 border-l-2",
+                  view === "pme-input"
+                    ? "shadow-xs"
+                    : "hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <FilePenLine className="h-4.5 w-4.5 shrink-0 text-amber-400" />
+                <span className="truncate">3. Input Hasil PME</span>
+              </button>
+            )}
 
-            {(user.role === "SUPERADMIN" || user.role === "ADMIN2") && (
+            {isViewAllowed("pme-info", user) && (
               <button
                 onClick={() => navigate("pme-info")}
                 aria-current={view === "pme-info" ? "page" : undefined}
+                style={{
+                  fontSize: sidebarTheme.fontSize,
+                  fontWeight: view === "pme-info" ? 700 : Number(sidebarTheme.fontWeight) || 600,
+                  color: view === "pme-info" ? sidebarTheme.activeTextColor : sidebarTheme.textColor,
+                  backgroundColor: view === "pme-info" ? sidebarTheme.activeBgColor : undefined,
+                  borderLeftColor: view === "pme-info" ? sidebarTheme.activeTextColor : "transparent",
+                }}
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 transition-all duration-200 border-l-2",
                   view === "pme-info"
-                    ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    ? "shadow-xs"
+                    : "hover:bg-white/5 hover:text-white"
                 )}
               >
                 <Megaphone className="h-4.5 w-4.5 shrink-0 text-teal-400" />
@@ -236,15 +294,22 @@ export function AppShell({ children }: { children: React.ReactNode }) {
               </button>
             )}
 
-            {(user.role === "SUPERADMIN" || user.role === "ADMIN2") && (
+            {isViewAllowed("master-data", user) && (
               <button
                 onClick={() => navigate("master-data")}
                 aria-current={view === "master-data" ? "page" : undefined}
+                style={{
+                  fontSize: sidebarTheme.fontSize,
+                  fontWeight: view === "master-data" ? 700 : Number(sidebarTheme.fontWeight) || 600,
+                  color: view === "master-data" ? sidebarTheme.activeTextColor : sidebarTheme.textColor,
+                  backgroundColor: view === "master-data" ? sidebarTheme.activeBgColor : undefined,
+                  borderLeftColor: view === "master-data" ? sidebarTheme.activeTextColor : "transparent",
+                }}
                 className={cn(
-                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[13.5px] font-medium transition-all duration-200",
+                  "flex w-full items-center gap-2.5 rounded-lg px-3 py-2 transition-all duration-200 border-l-2",
                   view === "master-data"
-                    ? "bg-teal-500/20 text-teal-200 font-semibold border-l-2 border-teal-400 shadow-xs"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/50"
+                    ? "shadow-xs"
+                    : "hover:bg-white/5 hover:text-white"
                 )}
               >
                 <Database className="h-4.5 w-4.5 shrink-0 text-purple-400" />
@@ -261,37 +326,46 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             )}
           </div>
 
-          {/* Menu Laporan Hasil PME: Dapat diakses oleh Superadmin, Admin2 & Peserta PME */}
-          <div className="pt-2 mt-2 border-t border-slate-800/60">
-            <button
-              onClick={() => navigate("pme-reports")}
-              aria-current={view === "pme-reports" ? "page" : undefined}
-              className={cn(
-                "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 text-[14px] font-semibold transition-all duration-200",
-                view === "pme-reports"
-                  ? "bg-gradient-to-r from-teal-500/25 via-teal-500/15 to-transparent text-teal-300 border-l-[3.5px] border-teal-400 shadow-xs font-bold"
-                  : "text-teal-400/90 hover:bg-slate-800/60 hover:text-teal-200"
-              )}
-            >
-              <FileBarChart className="h-5 w-5 shrink-0 text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.3)]" />
-              <span className="flex-1 text-left truncate">
-                {user.role === "SUPERADMIN" || user.role === "ADMIN2" ? "Laporan Hasil PME" : "Lembar Hasil Evaluasi PME"}
-              </span>
-              {user.role === "SUPERADMIN" ? (
-                <span className="text-[9.5px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
-                  SUPER
+          {/* Menu Laporan Hasil PME */}
+          {isViewAllowed("pme-reports", user) && (
+            <div className="pt-2 mt-2 border-t border-slate-800/60">
+              <button
+                onClick={() => navigate("pme-reports")}
+                aria-current={view === "pme-reports" ? "page" : undefined}
+                style={{
+                  fontSize: sidebarTheme.fontSize,
+                  fontWeight: view === "pme-reports" ? 700 : Number(sidebarTheme.fontWeight) || 600,
+                  color: view === "pme-reports" ? sidebarTheme.activeTextColor : sidebarTheme.textColor,
+                  backgroundColor: view === "pme-reports" ? sidebarTheme.activeBgColor : undefined,
+                  borderLeftColor: view === "pme-reports" ? sidebarTheme.activeTextColor : "transparent",
+                }}
+                className={cn(
+                  "flex w-full items-center gap-2.5 rounded-xl px-3 py-2.5 transition-all duration-200 border-l-[3.5px]",
+                  view === "pme-reports"
+                    ? "shadow-xs"
+                    : "hover:bg-white/5 hover:text-white"
+                )}
+              >
+                <FileBarChart className="h-5 w-5 shrink-0 text-teal-400 drop-shadow-[0_0_8px_rgba(20,184,166,0.3)]" />
+                <span className="flex-1 text-left truncate">
+                  {user.role === "SUPERADMIN" || user.role === "ADMIN2" ? "Laporan Hasil PME" : "Lembar Hasil Evaluasi PME"}
                 </span>
-              ) : user.role === "ADMIN2" ? (
-                <span className="text-[9.5px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
-                  ADMIN2
-                </span>
-              ) : (
-                <span className="text-[9.5px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
-                  RESMI
-                </span>
-              )}
-            </button>
-          </div>
+                {user.role === "SUPERADMIN" ? (
+                  <span className="text-[9.5px] bg-teal-500/20 text-teal-300 border border-teal-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
+                    SUPER
+                  </span>
+                ) : user.role === "ADMIN2" ? (
+                  <span className="text-[9.5px] bg-amber-500/20 text-amber-300 border border-amber-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
+                    ADMIN2
+                  </span>
+                ) : (
+                  <span className="text-[9.5px] bg-blue-500/20 text-blue-300 border border-blue-500/40 px-1.5 py-0.5 rounded font-mono font-bold tracking-wider">
+                    RESMI
+                  </span>
+                )}
+              </button>
+            </div>
+          )}
         </div>
       )}
     </nav>
@@ -348,7 +422,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   return (
     <div className="flex min-h-screen bg-background">
       {/* Desktop sidebar */}
-      <aside className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col bg-[#0B131B] text-slate-200 border-r border-slate-800/80 shadow-2xl lg:flex">
+      <aside
+        style={{ backgroundColor: sidebarTheme?.bgColor || "#0B131B" }}
+        className="sticky top-0 hidden h-screen w-64 shrink-0 flex-col text-slate-200 border-r border-slate-800/80 shadow-2xl lg:flex transition-colors duration-200"
+      >
         {brand}
         {navList}
         {usageCard}
@@ -357,15 +434,19 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       {/* Main column */}
       <div className="flex min-w-0 flex-1 flex-col min-h-screen">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background/85 px-4 backdrop-blur sm:px-6">
-          {/* Mobile menu */}
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-3.5 border-b border-slate-700/50 bg-gradient-to-r from-slate-950 via-slate-900 to-teal-950/95 text-white backdrop-blur-xl px-4 sm:px-6 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.4)] transition-all">
+          {/* Mobile menu trigger */}
           <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
             <SheetTrigger asChild>
-              <Button variant="ghost" size="icon" className="lg:hidden" aria-label="Buka menu navigasi">
+              <Button variant="ghost" size="icon" className="lg:hidden text-white hover:bg-white/10" aria-label="Buka menu navigasi">
                 <Menu className="h-5 w-5" />
               </Button>
             </SheetTrigger>
-            <SheetContent side="left" className="w-68 p-0 flex flex-col bg-[#0B131B] text-slate-200 border-r border-slate-800">
+            <SheetContent
+              side="left"
+              className="w-68 p-0 flex flex-col text-slate-200 border-r border-slate-800"
+              style={{ backgroundColor: sidebarTheme?.bgColor || "#0B131B" }}
+            >
               <SheetTitle className="sr-only">Menu navigasi</SheetTitle>
               {brand}
               {navList}
@@ -374,50 +455,77 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
 
-          <h1 className="truncate text-base font-bold sm:text-lg">
-            {view === "pme-reports"
-              ? `Laporan Hasil PME (${
-                  viewAsTenantId && viewAsTenantId !== "ALL"
-                    ? tenants.find((t) => t.id === viewAsTenantId)?.name || user?.organization?.name || "Superadmin"
-                    : user?.organization?.name || (user?.role === "SUPERADMIN" ? "Superadmin" : user?.name || "Laboratorium")
-                })`
-              : VIEW_TITLES[view]}
-          </h1>
+          {/* Active View Icon Badge */}
+          {VIEW_ICONS[view] && (() => {
+            const Icon = VIEW_ICONS[view];
+            return (
+              <div className="hidden sm:flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-teal-500/25 to-emerald-500/20 text-teal-300 ring-1 ring-teal-400/35 shadow-[0_0_12px_rgba(20,184,166,0.25)]">
+                <Icon className="h-5 w-5" />
+              </div>
+            );
+          })()}
+
+          {/* Dynamic View Title & Context */}
+          <div className="flex flex-col justify-center min-w-0">
+            <div className="flex items-center gap-2">
+              <h1 className="truncate text-base font-extrabold sm:text-lg text-white tracking-tight drop-shadow-xs">
+                {view === "pme-reports"
+                  ? `Laporan Hasil PME (${
+                      viewAsTenantId && viewAsTenantId !== "ALL"
+                        ? tenants.find((t) => t.id === viewAsTenantId)?.name || user?.organization?.name || "Superadmin"
+                        : user?.organization?.name || (user?.role === "SUPERADMIN" ? "Superadmin" : user?.name || "Laboratorium")
+                    })`
+                  : VIEW_TITLES[view]}
+              </h1>
+              {user.role === "SUPERADMIN" ? (
+                <span className="hidden md:inline-flex items-center gap-1 rounded-full bg-teal-500/20 px-2 py-0.5 text-[10px] font-bold text-teal-300 ring-1 ring-teal-400/40 uppercase tracking-wider">
+                  <Sparkles className="h-2.5 w-2.5" /> Superadmin
+                </span>
+              ) : (
+                <span className="hidden md:inline-flex items-center gap-1 rounded-full bg-slate-800/80 px-2 py-0.5 text-[10px] font-semibold text-slate-300 ring-1 ring-slate-700/60 truncate max-w-[180px]">
+                  <Building2 className="h-2.5 w-2.5 text-teal-400" /> {user.organization.name}
+                </span>
+              )}
+            </div>
+            <p className="text-[11px] text-teal-400/80 font-medium hidden sm:block truncate">
+              Sistem Evaluasi Z-Score & Penjaminan Mutu Eksternal Laboratorium
+            </p>
+          </div>
 
           <div className="ml-auto flex items-center gap-3">
             {/* Tenant Switcher: Superadmin & Admin2 */}
             {(user.role === "SUPERADMIN" || user.role === "ADMIN2") && (
               <div
                 className={cn(
-                  "flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-xs shadow-xs",
+                  "flex items-center gap-2 rounded-xl border px-3 py-1.5 text-xs shadow-inner backdrop-blur-md transition-all",
                   user.role === "ADMIN2"
-                    ? "border-sky-500/40 bg-sky-500/10 text-sky-900 dark:text-sky-200"
-                    : "border-amber-500/30 bg-amber-500/10 text-amber-900 dark:text-amber-200"
+                    ? "border-sky-500/40 bg-sky-950/40 text-sky-200"
+                    : "border-teal-500/40 bg-slate-900/80 text-teal-200 ring-1 ring-teal-500/20"
                 )}
               >
-                <Eye className={cn("h-3.5 w-3.5 shrink-0", user.role === "ADMIN2" ? "text-sky-600 dark:text-sky-400" : "text-amber-600")} />
-                <span className="hidden sm:inline font-semibold">Lihat Sebagai:</span>
+                <Eye className={cn("h-4 w-4 shrink-0", user.role === "ADMIN2" ? "text-sky-400" : "text-teal-400")} />
+                <span className="hidden lg:inline font-bold text-slate-300">Lihat Sebagai:</span>
                 <select
                   value={viewAsTenantId || "ALL"}
                   onChange={(e) => {
                     setViewAsTenantId(e.target.value);
                   }}
-                  className="bg-transparent font-semibold text-xs focus:outline-none cursor-pointer border-none py-0.5 text-inherit max-w-[180px] sm:max-w-[260px] truncate"
+                  className="bg-transparent font-bold text-xs focus:outline-none cursor-pointer border-none py-0.5 text-teal-300 max-w-[150px] sm:max-w-[220px] truncate"
                 >
-                  <option value="ALL" className="bg-background text-foreground font-medium">
+                  <option value="ALL" className="bg-slate-900 text-slate-100 font-semibold">
                     🌐 Semua Organisasi (Global View)
                   </option>
-                  <optgroup label="Database Akun Sendiri" className="bg-background text-foreground font-semibold">
-                    <option value={user.organization.id} className="font-medium">
+                  <optgroup label="Database Akun Sendiri" className="bg-slate-900 text-teal-300 font-bold">
+                    <option value={user.organization.id} className="bg-slate-900 text-slate-100 font-medium">
                       🏢 {user.organization.name} (Organisasi Saya)
                     </option>
                   </optgroup>
                   {tenants.filter((t) => t.id !== user.organization.id).length > 0 && (
-                    <optgroup label="Organisasi Lain" className="bg-background text-foreground font-semibold">
+                    <optgroup label="Organisasi Lain" className="bg-slate-900 text-teal-300 font-bold">
                       {tenants
                         .filter((t) => t.id !== user.organization.id)
                         .map((t) => (
-                          <option key={t.id} value={t.id} className="font-normal">
+                          <option key={t.id} value={t.id} className="bg-slate-900 text-slate-100 font-normal">
                             {t.name}
                           </option>
                         ))}
@@ -425,7 +533,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   )}
                 </select>
                 {user.role === "ADMIN2" && (
-                  <span className="hidden md:inline-block ml-1 bg-sky-500/20 text-sky-700 dark:text-sky-300 font-mono text-[9.5px] px-1 py-0.5 rounded font-bold uppercase tracking-wider">
+                  <span className="hidden md:inline-block ml-1 bg-sky-500/20 text-sky-300 font-mono text-[9.5px] px-1 py-0.5 rounded font-bold uppercase tracking-wider">
                     Lihat Saja
                   </span>
                 )}
@@ -434,12 +542,12 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <button className="flex items-center gap-2 rounded-full border py-1 pl-1 pr-2.5 text-sm transition-colors hover:bg-muted">
-                  <span className="flex h-7 w-7 items-center justify-center rounded-full bg-teal-700 text-xs font-bold text-white">
+                <button className="flex items-center gap-2.5 rounded-full border border-teal-500/30 bg-slate-900/80 hover:bg-slate-800/90 py-1 pl-1 pr-3 text-sm text-slate-100 transition-all shadow-xs ring-1 ring-teal-500/20 hover:ring-teal-400/40 cursor-pointer">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 text-xs font-black text-white shadow-[0_0_10px_rgba(20,184,166,0.4)]">
                     {user.name.slice(0, 2).toUpperCase()}
                   </span>
-                  <span className="hidden max-w-[140px] truncate sm:inline">{user.name}</span>
-                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="hidden max-w-[130px] truncate sm:inline font-semibold">{user.name}</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
                 </button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-60">

@@ -21,6 +21,36 @@ export type AppView =
   | "pme-info"
   | "master-data";
 
+export interface SidebarTheme {
+  bgColor: string;          // e.g. "#0B131B"
+  fontSize: string;         // e.g. "14.5px"
+  fontWeight: string;       // e.g. "600"
+  textColor: string;        // e.g. "#94A3B8"
+  activeTextColor: string;  // e.g. "#2DD4BF"
+  activeBgColor: string;    // e.g. "rgba(20, 184, 166, 0.22)"
+}
+
+export const DEFAULT_SIDEBAR_THEME: SidebarTheme = {
+  bgColor: "#0B131B",
+  fontSize: "14.5px",
+  fontWeight: "600",
+  textColor: "#94A3B8",
+  activeTextColor: "#2DD4BF",
+  activeBgColor: "rgba(20, 184, 166, 0.22)",
+};
+
+function getInitialSidebarTheme(): SidebarTheme {
+  if (typeof window === "undefined") return DEFAULT_SIDEBAR_THEME;
+  try {
+    const raw = localStorage.getItem("smartpme_sidebar_theme");
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      return { ...DEFAULT_SIDEBAR_THEME, ...parsed };
+    }
+  } catch {}
+  return DEFAULT_SIDEBAR_THEME;
+}
+
 interface AppState {
   user: UserInfo | null;
   authLoading: boolean;
@@ -29,12 +59,15 @@ interface AppState {
   sidebarOpen: boolean;
   viewAsTenantId: string | null;
   logoutReason: string | null;
+  sidebarTheme: SidebarTheme;
   setUser: (user: UserInfo | null) => void;
   setAuthLoading: (loading: boolean) => void;
   setLogoutReason: (reason: string | null) => void;
   navigate: (view: AppView, sessionId?: string | null) => void;
   setSidebarOpen: (open: boolean) => void;
   setViewAsTenantId: (tenantId: string | null) => void;
+  setSidebarTheme: (theme: Partial<SidebarTheme>) => void;
+  resetSidebarTheme: () => void;
   refreshUser: () => Promise<void>;
   logout: (reason?: string | null) => Promise<void>;
 }
@@ -53,6 +86,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   sidebarOpen: false,
   viewAsTenantId: getInitialTenantCookie() || "ALL",
   logoutReason: null,
+  sidebarTheme: getInitialSidebarTheme(),
   setUser: (user) => set({ user }),
   setAuthLoading: (authLoading) => set({ authLoading }),
   setLogoutReason: (logoutReason) => set({ logoutReason }),
@@ -71,6 +105,23 @@ export const useAppStore = create<AppState>((set, get) => ({
       view: currentView === "session-detail" ? "sessions" : currentView,
     });
   },
+  setSidebarTheme: (updated) => {
+    const next = { ...get().sidebarTheme, ...updated };
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("smartpme_sidebar_theme", JSON.stringify(next));
+      } catch {}
+    }
+    set({ sidebarTheme: next });
+  },
+  resetSidebarTheme: () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("smartpme_sidebar_theme");
+      } catch {}
+    }
+    set({ sidebarTheme: DEFAULT_SIDEBAR_THEME });
+  },
   refreshUser: async () => {
     try {
       const res = await fetch("/api/auth/me", { credentials: "same-origin" });
@@ -85,8 +136,11 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
   logout: async (reason = null) => {
-    if (typeof document !== "undefined") {
-      document.cookie = `didikpme_view_as_tenant=; path=/; max-age=0; SameSite=Lax`;
+    if (typeof window !== "undefined") {
+      try {
+        sessionStorage.clear();
+        document.cookie = `didikpme_view_as_tenant=; path=/; max-age=0; SameSite=Lax`;
+      } catch {}
     }
     await fetch("/api/auth/logout", { method: "POST", credentials: "same-origin" }).catch(() => undefined);
     set({

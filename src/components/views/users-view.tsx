@@ -48,23 +48,24 @@ import {
 const ALL_MENUS: { key: string; label: string; desc: string; superAdminOnly?: boolean }[] = [
   { key: "dashboard", label: "Dashboard", desc: "Ringkasan KPI & grafik distribusi Z-score" },
   { key: "sessions", label: "Sesi PME", desc: "Daftar berkas PME, upload PDF, dan detail hasil" },
+  { key: "pme-management", label: "Manajemen Data PME", desc: "Pendaftaran peserta, pemilihan paket, dan input hasil PME" },
+  { key: "pme-reports", label: "Laporan Hasil PME", desc: "Lembar evaluasi mutu PME resmi & analisis akar masalah" },
   { key: "reports", label: "Laporan Lengkap", desc: "Tabel rekapitulasi mutu dan ekspor PDF/Excel Model 1 & 2" },
   { key: "review", label: "Review Center", desc: "Verifikasi manual parameter dengan status review" },
   { key: "capa", label: "CAPA", desc: "Pengelolaan tiket tindakan perbaikan & pencegahan" },
   { key: "kop-surat", label: "Kop Surat", desc: "Konfigurasi kop surat resmi, logo kanan/kiri, dan identitas RS/Lab" },
   { key: "settings", label: "Pengaturan", desc: "Konfigurasi batas aturan Z-score dan kapasitas sistem" },
   { key: "audit", label: "Log Audit", desc: "Rekaman jejak aktivitas seluruh pengguna" },
-  { key: "pme-management", label: "Manajemen Data PME", desc: "Pendaftaran peserta, pemilihan paket, dan input hasil PME" },
   { key: "pme-resubmit", label: "Izin Edit Ulang Hasil PME", desc: "Memberikan akses membuka kunci tombol kirim & mengedit kembali hasil PME yang telah dikirim" },
   { key: "users", label: "Pengaturan User", desc: "Manajemen akun pengguna dan hak akses (Superadmin)", superAdminOnly: true },
 ];
 
 const DEFAULT_MENUS_BY_ROLE: Record<string, string[]> = {
-  SUPERADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management", "users"],
-  ADMIN2: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management"],
-  ADMIN: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management"],
-  SUPERVISOR: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
-  ANALYST: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat"],
+  SUPERADMIN: ["dashboard", "sessions", "pme-management", "pme-reports", "reports", "review", "capa", "kop-surat", "settings", "audit", "users"],
+  ADMIN2: ["dashboard", "sessions", "pme-management", "pme-reports", "reports", "review", "capa", "kop-surat", "settings", "audit"],
+  ADMIN: ["pme-management", "pme-reports", "reports"],
+  SUPERVISOR: ["pme-management", "pme-reports"],
+  ANALYST: ["pme-management", "pme-reports"],
 };
 
 export function UsersView() {
@@ -141,7 +142,7 @@ export function UsersView() {
     setFormRole(u.role);
     setFormOrgId(u.organizationId);
     setFormIsActive(u.isActive);
-    setFormMenuAccess(u.menuAccess?.length ? u.menuAccess : DEFAULT_MENUS_BY_ROLE[u.role] || []);
+    setFormMenuAccess(Array.isArray(u.menuAccess) ? u.menuAccess : DEFAULT_MENUS_BY_ROLE[u.role] || []);
     setDialogOpen(true);
   };
 

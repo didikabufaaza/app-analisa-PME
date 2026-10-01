@@ -11,15 +11,19 @@ import {
   Gauge,
   KeyRound,
   Loader2,
+  Palette,
+  Paintbrush,
   RefreshCw,
+  RotateCcw,
   Save,
   Server,
   SlidersHorizontal,
   Timer,
+  Type,
 } from "lucide-react";
 
 import { ApiError, apiGet, apiSend } from "@/lib/api-client";
-import { useAppStore } from "@/lib/store";
+import { useAppStore, DEFAULT_SIDEBAR_THEME, type SidebarTheme } from "@/lib/store";
 import { useToast } from "@/hooks/use-toast";
 import type { AiConfigData, AiUsageData, ZscoreRuleData } from "@/types/pme";
 
@@ -106,6 +110,48 @@ export function SettingsView() {
   const [editLimit, setEditLimit] = useState("");
   const [editPlan, setEditPlan] = useState("PRO");
   const [savingQuota, setSavingQuota] = useState(false);
+
+  // ===== Section 5: Sidebar Styling Customization (SUPERADMIN only) =====
+  const sidebarTheme = useAppStore((s) => s.sidebarTheme);
+  const setSidebarTheme = useAppStore((s) => s.setSidebarTheme);
+  const resetSidebarTheme = useAppStore((s) => s.resetSidebarTheme);
+
+  const [themeEdit, setThemeEdit] = useState<SidebarTheme>(sidebarTheme || DEFAULT_SIDEBAR_THEME);
+  const [savingTheme, setSavingTheme] = useState(false);
+
+  useEffect(() => {
+    if (sidebarTheme) {
+      setThemeEdit(sidebarTheme);
+    }
+  }, [sidebarTheme]);
+
+  const handleSaveSidebarTheme = () => {
+    setSavingTheme(true);
+    try {
+      setSidebarTheme(themeEdit);
+      toast({
+        title: "Pengaturan Sidebar Berhasil Disimpan",
+        description: "Warna, tipografi, dan gaya sidebar telah diperbarui secara permanen.",
+      });
+    } catch {
+      toast({
+        title: "Gagal Menyimpan",
+        description: "Terjadi kesalahan saat menyimpan pengaturan sidebar.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingTheme(false);
+    }
+  };
+
+  const handleResetSidebarTheme = () => {
+    resetSidebarTheme();
+    setThemeEdit(DEFAULT_SIDEBAR_THEME);
+    toast({
+      title: "Sidebar Direset ke Default",
+      description: "Desain dan tipografi sidebar telah dikembalikan ke standar awal sistem.",
+    });
+  };
 
   const fetchTenants = useCallback(async () => {
     if (user?.role !== "SUPERADMIN") return;
@@ -830,6 +876,417 @@ export function SettingsView() {
                   )}
                 </TableBody>
               </Table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== Section 5: Kustomisasi Desain & Tipografi Sidebar (SUPERADMIN only) ===== */}
+      {isSuper && (
+        <Card className="border-teal-500/30 shadow-md">
+          <CardHeader className="bg-gradient-to-r from-teal-950/20 via-background to-background border-b pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div className="space-y-1">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Palette className="h-5 w-5 text-teal-600 dark:text-teal-400" />
+                  5. Kustomisasi Desain & Tipografi Sidebar (Khusus Superadmin)
+                </CardTitle>
+                <CardDescription className="text-xs">
+                  Atur warna latar belakang, warna teks menu, warna menu aktif, ukuran font, dan ketebalan font menu sidebar secara real-time.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-teal-600 hover:bg-teal-700 text-white font-bold text-[11px] px-2.5 py-1">
+                  Superadmin Only
+                </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={handleResetSidebarTheme}
+                  className="text-xs h-8 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5 cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5 text-muted-foreground" />
+                  Reset ke Default
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={handleSaveSidebarTheme}
+                  disabled={savingTheme}
+                  className="text-xs h-8 bg-teal-600 hover:bg-teal-700 text-white font-semibold gap-1.5 shadow-sm cursor-pointer"
+                >
+                  {savingTheme ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  Simpan Pengaturan Sidebar
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-6">
+            <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+              {/* Controls Column */}
+              <div className="lg:col-span-7 space-y-5">
+                {/* 1. Warna Latar Sidebar */}
+                <div className="space-y-2.5 p-3.5 rounded-xl border bg-card/60">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-xs font-bold text-foreground flex items-center gap-2">
+                      <Paintbrush className="h-4 w-4 text-teal-600" />
+                      Warna Latar Belakang Sidebar (Background Color)
+                    </Label>
+                    <span className="font-mono text-xs font-semibold text-muted-foreground uppercase">{themeEdit.bgColor}</span>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="color"
+                      value={themeEdit.bgColor.startsWith("#") ? themeEdit.bgColor : "#0B131B"}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setThemeEdit((prev) => ({ ...prev, bgColor: val }));
+                        setSidebarTheme({ bgColor: val });
+                      }}
+                      className="h-10 w-14 cursor-pointer rounded-lg border border-input p-1 bg-background"
+                      title="Pilih warna latar sidebar"
+                    />
+                    <Input
+                      type="text"
+                      value={themeEdit.bgColor}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setThemeEdit((prev) => ({ ...prev, bgColor: val }));
+                        setSidebarTheme({ bgColor: val });
+                      }}
+                      placeholder="#0B131B"
+                      className="font-mono text-xs max-w-[140px] uppercase font-semibold"
+                    />
+                  </div>
+                  {/* Presets */}
+                  <div className="pt-1.5 flex flex-wrap items-center gap-1.5">
+                    <span className="text-[11px] text-muted-foreground mr-1 font-medium">Preset Cepat:</span>
+                    {[
+                      { name: "Default Slate", hex: "#0B131B" },
+                      { name: "Midnight Obsidian", hex: "#090D16" },
+                      { name: "Dark Emerald", hex: "#061a14" },
+                      { name: "Charcoal Dark", hex: "#111827" },
+                      { name: "Navy Blue", hex: "#0f172a" },
+                      { name: "Deep Teal", hex: "#042f2e" },
+                      { name: "Deep Indigo", hex: "#1e1338" },
+                    ].map((p) => (
+                      <button
+                        key={p.hex}
+                        type="button"
+                        onClick={() => {
+                          setThemeEdit((prev) => ({ ...prev, bgColor: p.hex }));
+                          setSidebarTheme({ bgColor: p.hex });
+                        }}
+                        className={cn(
+                          "flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium border transition-all cursor-pointer",
+                          themeEdit.bgColor.toLowerCase() === p.hex.toLowerCase()
+                            ? "border-teal-500 bg-teal-500/15 text-teal-700 dark:text-teal-300 font-bold"
+                            : "border-border hover:bg-muted"
+                        )}
+                      >
+                        <span className="h-3 w-3 rounded-full border border-black/20" style={{ backgroundColor: p.hex }} />
+                        {p.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* 2. Warna Font Menu Sidebar (Normal & Aktif) */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Warna Font Normal */}
+                  <div className="space-y-2 p-3.5 rounded-xl border bg-card/60">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <Type className="h-4 w-4 text-teal-600" />
+                        Warna Font Menu (Normal)
+                      </Label>
+                      <span className="font-mono text-[11px] font-semibold text-muted-foreground uppercase">{themeEdit.textColor}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={themeEdit.textColor.startsWith("#") ? themeEdit.textColor : "#94A3B8"}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setThemeEdit((prev) => ({ ...prev, textColor: val }));
+                          setSidebarTheme({ textColor: val });
+                        }}
+                        className="h-9 w-12 cursor-pointer rounded border border-input p-0.5 bg-background"
+                      />
+                      <Input
+                        type="text"
+                        value={themeEdit.textColor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setThemeEdit((prev) => ({ ...prev, textColor: val }));
+                          setSidebarTheme({ textColor: val });
+                        }}
+                        className="font-mono text-xs uppercase font-semibold h-9"
+                      />
+                    </div>
+                    {/* Presets */}
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {[
+                        { name: "Slate Muted", hex: "#94A3B8" },
+                        { name: "White", hex: "#F8FAFC" },
+                        { name: "Silver", hex: "#CBD5E1" },
+                        { name: "Light Emerald", hex: "#A7F3D0" },
+                        { name: "Warm Gold", hex: "#FEF08A" },
+                      ].map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => {
+                            setThemeEdit((prev) => ({ ...prev, textColor: p.hex }));
+                            setSidebarTheme({ textColor: p.hex });
+                          }}
+                          className={cn(
+                            "px-2 py-0.5 rounded text-[10.5px] border transition-all cursor-pointer",
+                            themeEdit.textColor.toLowerCase() === p.hex.toLowerCase()
+                              ? "border-teal-500 bg-teal-500/15 text-teal-700 dark:text-teal-300 font-bold"
+                              : "border-border hover:bg-muted"
+                          )}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Warna Font Menu Aktif */}
+                  <div className="space-y-2 p-3.5 rounded-xl border bg-card/60">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-foreground flex items-center gap-1.5">
+                        <CheckCircle2 className="h-4 w-4 text-teal-600" />
+                        Warna Font Menu (Aktif)
+                      </Label>
+                      <span className="font-mono text-[11px] font-semibold text-muted-foreground uppercase">{themeEdit.activeTextColor}</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="color"
+                        value={themeEdit.activeTextColor.startsWith("#") ? themeEdit.activeTextColor : "#2DD4BF"}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setThemeEdit((prev) => ({ ...prev, activeTextColor: val }));
+                          setSidebarTheme({ activeTextColor: val });
+                        }}
+                        className="h-9 w-12 cursor-pointer rounded border border-input p-0.5 bg-background"
+                      />
+                      <Input
+                        type="text"
+                        value={themeEdit.activeTextColor}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setThemeEdit((prev) => ({ ...prev, activeTextColor: val }));
+                          setSidebarTheme({ activeTextColor: val });
+                        }}
+                        className="font-mono text-xs uppercase font-semibold h-9"
+                      />
+                    </div>
+                    {/* Presets */}
+                    <div className="flex flex-wrap gap-1 pt-1">
+                      {[
+                        { name: "Teal Mint", hex: "#2DD4BF" },
+                        { name: "Emerald", hex: "#34D399" },
+                        { name: "Cyan", hex: "#38BDF8" },
+                        { name: "Amber Gold", hex: "#FCD34D" },
+                        { name: "Bright White", hex: "#FFFFFF" },
+                      ].map((p) => (
+                        <button
+                          key={p.hex}
+                          type="button"
+                          onClick={() => {
+                            setThemeEdit((prev) => ({ ...prev, activeTextColor: p.hex }));
+                            setSidebarTheme({ activeTextColor: p.hex });
+                          }}
+                          className={cn(
+                            "px-2 py-0.5 rounded text-[10.5px] border transition-all cursor-pointer",
+                            themeEdit.activeTextColor.toLowerCase() === p.hex.toLowerCase()
+                              ? "border-teal-500 bg-teal-500/15 text-teal-700 dark:text-teal-300 font-bold"
+                              : "border-border hover:bg-muted"
+                          )}
+                        >
+                          {p.name}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* 3. Ukuran & Ketebalan Font */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  {/* Ukuran Font Sidebar */}
+                  <div className="space-y-2 p-3.5 rounded-xl border bg-card/60">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-foreground">
+                        Ukuran Font Sidebar (Font Size)
+                      </Label>
+                      <Badge variant="outline" className="font-mono text-[11px] font-bold text-teal-600 dark:text-teal-400">
+                        {themeEdit.fontSize}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5 pt-1">
+                      {[
+                        { label: "12.5px", desc: "Kecil" },
+                        { label: "13.5px", desc: "Sedang" },
+                        { label: "14.5px", desc: "Standar" },
+                        { label: "15.5px", desc: "Besar" },
+                        { label: "16.5px", desc: "Ekstra" },
+                        { label: "17.5px", desc: "Super" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.label}
+                          type="button"
+                          onClick={() => {
+                            setThemeEdit((prev) => ({ ...prev, fontSize: opt.label }));
+                            setSidebarTheme({ fontSize: opt.label });
+                          }}
+                          className={cn(
+                            "px-2 py-1.5 rounded-lg border text-center transition-all cursor-pointer",
+                            themeEdit.fontSize === opt.label
+                              ? "border-teal-500 bg-teal-500/15 text-teal-700 dark:text-teal-300 font-bold shadow-xs"
+                              : "border-border hover:bg-muted text-foreground"
+                          )}
+                        >
+                          <p className="text-xs font-bold">{opt.label}</p>
+                          <p className="text-[9.5px] text-muted-foreground">{opt.desc}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Ketebalan Font Sidebar */}
+                  <div className="space-y-2 p-3.5 rounded-xl border bg-card/60">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-xs font-bold text-foreground">
+                        Ketebalan Font (Font Weight)
+                      </Label>
+                      <Badge variant="outline" className="font-mono text-[11px] font-bold text-teal-600 dark:text-teal-400">
+                        {themeEdit.fontWeight}
+                      </Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 pt-1">
+                      {[
+                        { value: "400", label: "400 - Regular" },
+                        { value: "500", label: "500 - Medium" },
+                        { value: "600", label: "600 - Semibold" },
+                        { value: "700", label: "700 - Bold" },
+                        { value: "800", label: "800 - Extra Bold" },
+                        { value: "900", label: "900 - Black" },
+                      ].map((opt) => (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => {
+                            setThemeEdit((prev) => ({ ...prev, fontWeight: opt.value }));
+                            setSidebarTheme({ fontWeight: opt.value });
+                          }}
+                          className={cn(
+                            "px-2.5 py-1.5 rounded-lg border text-left transition-all cursor-pointer",
+                            themeEdit.fontWeight === opt.value
+                              ? "border-teal-500 bg-teal-500/15 text-teal-700 dark:text-teal-300 font-bold shadow-xs"
+                              : "border-border hover:bg-muted text-foreground"
+                          )}
+                        >
+                          <p className="text-xs" style={{ fontWeight: Number(opt.value) }}>{opt.label}</p>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Live Preview Column */}
+              <div className="lg:col-span-5 flex flex-col">
+                <Label className="text-xs font-bold text-foreground mb-2 flex items-center gap-1.5">
+                  <Gauge className="h-4 w-4 text-teal-600" />
+                  Live Preview Tampilan Sidebar
+                </Label>
+                <div
+                  className="flex-1 rounded-2xl border border-slate-800 p-4 shadow-xl flex flex-col justify-between transition-colors duration-200 min-h-[300px]"
+                  style={{ backgroundColor: themeEdit.bgColor }}
+                >
+                  <div className="space-y-3">
+                    {/* Mini Brand */}
+                    <div className="flex items-center gap-2.5 pb-3 border-b border-white/10">
+                      <div className="h-8 w-8 rounded-lg bg-teal-500/20 p-1 flex items-center justify-center ring-1 ring-teal-400/30">
+                        <img src="/icon.png" alt="Logo" className="h-full w-full object-contain" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-extrabold text-white tracking-tight">di-dismartPME</p>
+                        <p className="text-[10px] text-teal-400 font-medium">Evaluasi Z-Score & PME</p>
+                      </div>
+                    </div>
+
+                    {/* Sample Nav Items */}
+                    <div className="space-y-1.5 pt-1">
+                      {/* Active Item */}
+                      <div
+                        style={{
+                          fontSize: themeEdit.fontSize,
+                          fontWeight: 700,
+                          color: themeEdit.activeTextColor,
+                          backgroundColor: themeEdit.activeBgColor || "rgba(20, 184, 166, 0.22)",
+                          borderLeft: `3.5px solid ${themeEdit.activeTextColor}`,
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg shadow-xs"
+                      >
+                        <Building2 className="h-4 w-4 shrink-0" style={{ color: themeEdit.activeTextColor }} />
+                        <span className="truncate">Sesi PME (Aktif)</span>
+                      </div>
+
+                      {/* Normal Items */}
+                      <div
+                        style={{
+                          fontSize: themeEdit.fontSize,
+                          fontWeight: Number(themeEdit.fontWeight) || 500,
+                          color: themeEdit.textColor,
+                          borderLeft: "3.5px solid transparent",
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5"
+                      >
+                        <Bot className="h-4 w-4 shrink-0" />
+                        <span className="truncate">Laporan Evaluasi</span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: themeEdit.fontSize,
+                          fontWeight: Number(themeEdit.fontWeight) || 500,
+                          color: themeEdit.textColor,
+                          borderLeft: "3.5px solid transparent",
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5"
+                      >
+                        <SlidersHorizontal className="h-4 w-4 shrink-0" />
+                        <span className="truncate">Input Hasil PME</span>
+                      </div>
+
+                      <div
+                        style={{
+                          fontSize: themeEdit.fontSize,
+                          fontWeight: Number(themeEdit.fontWeight) || 500,
+                          color: themeEdit.textColor,
+                          borderLeft: "3.5px solid transparent",
+                        }}
+                        className="flex items-center gap-2.5 px-3 py-2 rounded-lg hover:bg-white/5"
+                      >
+                        <Save className="h-4 w-4 shrink-0" />
+                        <span className="truncate">Pengaturan Sistem</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Mini Footer Preview */}
+                  <div className="pt-3 mt-4 border-t border-white/10 text-center">
+                    <p className="text-[10px] text-slate-400 font-mono">
+                      Ukuran: {themeEdit.fontSize} · Berat: {themeEdit.fontWeight} · BG: {themeEdit.bgColor}
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </CardContent>
         </Card>

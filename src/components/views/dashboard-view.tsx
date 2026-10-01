@@ -196,11 +196,11 @@ function KpiCard({ label, value, sub, icon: Icon, tone }: KpiCardProps) {
         <span className={cn("flex h-9 w-9 items-center justify-center rounded-lg", t.iconBg)}>
           <Icon className={cn("h-[18px] w-[18px]", t.iconText)} aria-hidden="true" />
         </span>
-        <p className="mt-3 text-2xl font-bold tracking-tight tabular-nums">
+        <p className="mt-3 text-2xl font-extrabold tracking-tight tabular-nums">
           {value.toLocaleString("id-ID")}
         </p>
-        <p className="text-xs font-medium">{label}</p>
-        <p className="mt-1 text-[11px] text-muted-foreground">{sub}</p>
+        <p className="text-xs sm:text-sm font-bold text-foreground">{label}</p>
+        <p className="mt-1 text-xs text-muted-foreground font-medium">{sub}</p>
       </CardContent>
     </Card>
   );
@@ -220,8 +220,8 @@ function ChartCard({ title, description, action, className, children }: ChartCar
       <CardHeader>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <CardTitle className="text-base">{title}</CardTitle>
-            {description ? <CardDescription className="mt-1 text-xs">{description}</CardDescription> : null}
+            <CardTitle className="text-base sm:text-lg font-bold">{title}</CardTitle>
+            {description ? <CardDescription className="mt-1 text-xs sm:text-sm font-medium">{description}</CardDescription> : null}
           </div>
           {action ?? null}
         </div>
@@ -466,6 +466,7 @@ function PmeAnnouncementBanner({ config }: { config: PmeAnnouncementInfo | null 
 export function DashboardView() {
   const navigate = useAppStore((s) => s.navigate);
   const user = useAppStore((s) => s.user);
+  const tenantDisplayName = user?.organization?.name || user?.name || "Laboratorium PME";
   const [data, setData] = useState<DashboardData | null>(null);
   const [pmeConfig, setPmeConfig] = useState<PmeAnnouncementInfo | null>(null);
   const [loading, setLoading] = useState(true);
@@ -534,24 +535,48 @@ export function DashboardView() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-4 sm:space-y-6">
-      {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight sm:text-xl">Ringkasan Kinerja PME</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Pantau hasil uji profisiensi, distribusi Z-score, dan akurasi evaluasi secara menyeluruh.
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {updatedAt ? (
-            <span className="hidden text-[11px] text-muted-foreground md:inline">
-              Diperbarui {format(updatedAt, "HH.mm", { locale: localeId })}
-            </span>
-          ) : null}
-          <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading} className="gap-2">
-            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} aria-hidden="true" />
-            Segarkan
-          </Button>
+      {/* Hero Header Modern Gradient & Dynamic Tenant Name */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-teal-950 to-slate-900 text-white p-5 sm:p-7 shadow-xl border border-teal-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-emerald-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-teal-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-emerald-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <Activity className="h-7 w-7 text-emerald-300" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                  Ringkasan Kinerja PME <span className="text-emerald-300 font-bold">({tenantDisplayName})</span>
+                </h1>
+                <Badge variant="outline" className="bg-emerald-500/20 text-emerald-200 border-emerald-400/40 text-[11px] font-bold">
+                  {user?.role === "SUPERADMIN" ? "Portal Superadmin" : "Dashboard Laboratorium"}
+                </Badge>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                Pantau hasil uji profisiensi, distribusi Z-score ISO 13528, dan akurasi evaluasi secara menyeluruh.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
+            {updatedAt ? (
+              <span className="hidden text-xs font-semibold text-emerald-200/90 md:inline bg-black/30 px-3 py-1.5 rounded-lg border border-white/10 shadow-xs">
+                Diperbarui {format(updatedAt, "HH.mm", { locale: localeId })}
+              </span>
+            ) : null}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void load()}
+              disabled={loading}
+              className="gap-2 border-emerald-400/40 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm backdrop-blur-md transition-all shadow-xs"
+            >
+              <RefreshCw className={cn("h-4 w-4 text-emerald-300", loading && "animate-spin")} aria-hidden="true" />
+              Segarkan
+            </Button>
+          </div>
         </div>
       </div>
 

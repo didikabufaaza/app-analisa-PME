@@ -134,7 +134,7 @@ export async function GET(req: NextRequest) {
       { name: "Perlu Review", value: counts.reviewRequired, key: "REVIEW" },
     ].filter((s) => s.value > 0);
 
-    let superadminStats = null;
+    let superadminStats: any = null;
     if (user.role === "SUPERADMIN") {
       const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000);
       const [onlineCount, totalUsers, sessionsWithUploaders, extractionLogs, uploadAudits] = await Promise.all([

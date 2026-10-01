@@ -391,16 +391,19 @@ export function PmePackagesView() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-teal-500/10 text-teal-700 dark:text-teal-400">
-              <PackageCheck className="h-6 w-6" />
+      {/* Header Banner Modern Gradient */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-900 via-purple-950 to-slate-900 text-white p-6 sm:p-7 shadow-xl border border-indigo-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-indigo-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <PackageCheck className="h-7 w-7 text-indigo-300" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Pemilihan Paket PME</h1>
-              <p className="text-xs text-muted-foreground">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Pemilihan Paket PME</h1>
+              <p className="text-xs sm:text-sm text-indigo-100/80 mt-1 max-w-2xl font-medium">
                 Pilih paket pemeriksaan yang diikuti laboratorium peserta atau kelola master paket (Superadmin)
               </p>
             </div>
@@ -424,16 +427,16 @@ export function PmePackagesView() {
       )}
 
       <Tabs defaultValue="enrollment" className="space-y-5">
-        <TabsList className="bg-muted/60 p-1">
-          <TabsTrigger value="enrollment" className="text-xs flex items-center gap-1.5">
-            <PackageCheck className="h-3.5 w-3.5" />
+        <TabsList className="bg-muted/60 p-1 h-auto">
+          <TabsTrigger value="enrollment" className="text-xs sm:text-sm font-bold py-2 px-3.5 flex items-center gap-2">
+            <PackageCheck className="h-4 w-4" />
             <span>Pemilihan Paket Peserta</span>
           </TabsTrigger>
-          <TabsTrigger value="catalog" className="text-xs flex items-center gap-1.5">
-            <Layers className="h-3.5 w-3.5" />
+          <TabsTrigger value="catalog" className="text-xs sm:text-sm font-bold py-2 px-3.5 flex items-center gap-2">
+            <Layers className="h-4 w-4" />
             <span>Katalog Master Paket & Parameter</span>
             {isSuperadmin && (
-              <span className="ml-1 text-[9px] bg-teal-600 text-white px-1.5 py-0.2 rounded font-mono">
+              <span className="ml-1 text-[10px] bg-teal-600 text-white px-2 py-0.5 rounded font-mono font-bold">
                 Superadmin
               </span>
             )}

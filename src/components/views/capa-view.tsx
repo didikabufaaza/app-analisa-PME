@@ -178,6 +178,7 @@ function DetailField({ label, value }: { label: string; value: string | null | u
 export function CapaView() {
   const { toast } = useToast();
   const user = useAppStore((s) => s.user);
+  const tenantDisplayName = user?.organization?.name || user?.name || "Laboratorium PME";
   const isReadOnly = user?.role === "ADMIN2";
 
   const [capas, setCapas] = useState<CapaData[] | null>(null);
@@ -410,38 +411,60 @@ export function CapaView() {
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-semibold tracking-tight">Tindakan Korektif &amp; Preventif (CAPA)</h2>
-          <p className="text-sm text-muted-foreground">
-            Kelola tindakan perbaikan atas hasil PME yang tidak memuaskan.
-            {overdueCount > 0 ? (
-              <span className="ml-1 inline-flex items-center gap-1 font-medium text-red-600">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                {overdueCount} melewati tenggat
-              </span>
-            ) : null}
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
-            <SelectTrigger className="w-[170px]" aria-label="Filter status CAPA">
-              <SelectValue placeholder="Semua status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">Semua Status</SelectItem>
-              <SelectItem value="OPEN">Terbuka</SelectItem>
-              <SelectItem value="IN_PROGRESS">Berjalan</SelectItem>
-              <SelectItem value="CLOSED">Selesai</SelectItem>
-            </SelectContent>
-          </Select>
-          {!isReadOnly && (
-            <Button className="bg-teal-600 text-white hover:bg-teal-700" onClick={() => { setCreateForm(EMPTY_FORM); setFormError(null); setCreateOpen(true); }}>
-              <Plus className="h-4 w-4" />
-              CAPA Baru
-            </Button>
-          )}
+      {/* Hero Header Modern Gradient & Dynamic Tenant Name */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-amber-950 via-slate-900 to-rose-950 text-white p-5 sm:p-7 shadow-xl border border-amber-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-amber-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-rose-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-amber-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <ClipboardList className="h-7 w-7 text-amber-300" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                  Tindakan Korektif &amp; Preventif (CAPA) <span className="text-amber-300 font-bold">({tenantDisplayName})</span>
+                </h1>
+                {overdueCount > 0 ? (
+                  <Badge variant="destructive" className="font-bold text-xs bg-red-600/90 gap-1 border-red-400">
+                    <AlertTriangle className="h-3.5 w-3.5" />
+                    {overdueCount} Melewati Tenggat
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="bg-amber-500/20 text-amber-200 border-amber-400/40 text-[11px] font-bold">
+                    ISO 15189 Quality Control
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                Kelola tiket tindakan perbaikan sistemik dan pencegahan berkelanjutan atas hasil evaluasi PME.
+              </p>
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2.5 self-start md:self-auto shrink-0">
+            <Select value={statusFilter} onValueChange={(v) => setStatusFilter(v)}>
+              <SelectTrigger className="w-[180px] h-9 sm:h-10 text-xs sm:text-sm font-bold bg-white/10 text-white border-amber-400/40 backdrop-blur-md" aria-label="Filter status CAPA">
+                <SelectValue placeholder="Semua status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="ALL" className="font-semibold text-xs sm:text-sm">Semua Status</SelectItem>
+                <SelectItem value="OPEN" className="font-semibold text-xs sm:text-sm">Terbuka</SelectItem>
+                <SelectItem value="IN_PROGRESS" className="font-semibold text-xs sm:text-sm">Berjalan</SelectItem>
+                <SelectItem value="CLOSED" className="font-semibold text-xs sm:text-sm">Selesai</SelectItem>
+              </SelectContent>
+            </Select>
+            {!isReadOnly && (
+              <Button
+                className="h-9 sm:h-10 text-xs sm:text-sm font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-md transition-all gap-2"
+                onClick={() => { setCreateForm(EMPTY_FORM); setFormError(null); setCreateOpen(true); }}
+              >
+                <Plus className="h-4 w-4" />
+                CAPA Baru
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

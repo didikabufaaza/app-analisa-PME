@@ -111,7 +111,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const createdRegistrations = [];
+    const createdRegistrations: any[] = [];
 
     for (const pkgId of packageIds) {
       // Cek apakah sudah terdaftar untuk siklus ini

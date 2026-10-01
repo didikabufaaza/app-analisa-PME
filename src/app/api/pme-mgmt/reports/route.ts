@@ -269,7 +269,7 @@ export async function GET(req: NextRequest) {
     }
 
     // 7. Generate Individual Participant Reports untuk Sampel 1 & Sampel 2 (Format Kemenkes Labkesmas)
-    const participantReports = [];
+    const participantReports: any[] = [];
     let totalSatisfactory = 0;
     let totalWarning = 0;
     let totalUnsatisfactory = 0;
@@ -281,7 +281,7 @@ export async function GET(req: NextRequest) {
       sampleLabel: string,
       statsMap: typeof paramStatsMapSample1
     ) => {
-      const rows = [];
+      const rows: any[] = [];
       let participantWarningCount = 0;
       let participantUnsatisfactoryCount = 0;
       let participantNotAnalyzedInstrumentCount = 0;
@@ -325,14 +325,14 @@ export async function GET(req: NextRequest) {
 
           // Evaluasi Kelompok Metode (Minimal 6 peserta)
           const mPeer = pStat.methodStats.get(mCode);
-          let methodEval = null;
+          let methodEval: any = null;
           if (mPeer && mPeer.isAnalyzed && mPeer.target !== null && mPeer.sdpa !== null) {
             methodEval = evaluateParticipantResult(val!, mPeer.target, mPeer.sdpa);
           }
 
           // Evaluasi Kelompok Alat (Minimal 6 peserta)
           const iPeer = pStat.instrumentStats.get(iCode);
-          let instrumentEval = null;
+          let instrumentEval: any = null;
           if (iPeer && iPeer.isAnalyzed && iPeer.target !== null && iPeer.sdpa !== null) {
             instrumentEval = evaluateParticipantResult(val!, iPeer.target, iPeer.sdpa);
           } else {

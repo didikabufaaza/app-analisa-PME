@@ -39,6 +39,7 @@ import {
   X,
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
+import { cn } from "@/lib/utils";
 
 interface PmeConfigData {
   activeCycle: string;
@@ -297,37 +298,46 @@ export function PmeInfoView() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-teal-500/10 text-teal-700 dark:text-teal-400">
-              <Megaphone className="h-6 w-6" />
+      {/* Header Banner Modern Gradient */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-900 via-emerald-950 to-slate-900 text-white p-6 sm:p-7 shadow-xl border border-teal-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-teal-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-emerald-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-teal-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <Megaphone className="h-7 w-7 text-teal-300" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight">Pengaturan Siklus & Informasi PME</h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Pengaturan Siklus & Informasi PME</h1>
                 <Badge className={cn(
-                  "border text-[10px] font-bold",
+                  "border text-xs font-bold font-mono px-2.5 py-0.5",
                   isSuperadmin
-                    ? "bg-teal-500/15 text-teal-700 dark:text-teal-400 border-teal-500/30"
-                    : "bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30"
+                    ? "bg-teal-500/30 text-teal-200 border-teal-400/40"
+                    : "bg-amber-500/30 text-amber-200 border-amber-400/40"
                 )}>
                   {isSuperadmin ? "SUPERADMIN" : "ADMIN2 (LIHAT SAJA)"}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs sm:text-sm text-teal-100/80 mt-1 max-w-2xl font-medium">
                 Atur siklus PME & periode aktif (otomatis terkunci di form peserta) serta publikasikan pengumuman resmi ke Dashboard peserta.
               </p>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchConfig} disabled={loading} className="text-xs">
-            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Segarkan
-          </Button>
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={fetchConfig}
+              disabled={loading}
+              className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs sm:text-sm font-bold shadow-xs"
+            >
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Segarkan
+            </Button>
+          </div>
         </div>
       </div>
 

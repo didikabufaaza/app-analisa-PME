@@ -305,47 +305,57 @@ export function PmeRegistrationView() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-teal-500/10 text-teal-700 dark:text-teal-400">
-              <UserPlus className="h-6 w-6" />
+      {/* Header Banner Modern Gradient */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-950 via-sky-950 to-slate-900 text-white p-6 sm:p-7 shadow-xl border border-sky-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-sky-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-sky-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <UserPlus className="h-7 w-7 text-sky-300" />
             </div>
             <div>
-              <h1 className="text-xl font-bold tracking-tight">Pendaftaran Peserta PME</h1>
-              <p className="text-xs text-muted-foreground">
+              <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Pendaftaran Peserta PME</h1>
+              <p className="text-xs sm:text-sm text-sky-100/80 mt-1 max-w-2xl font-medium">
                 Pendaftaran data identitas laboratorium peserta Program Pemantapan Mutu Eksternal
               </p>
             </div>
           </div>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={fetchParticipants} disabled={loading} className="text-xs">
-            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Muat Ulang
-          </Button>
-          {!isReadOnly && (
+
+          <div className="flex items-center gap-2.5 shrink-0">
             <Button
-              onClick={handleOpenCreate}
-              disabled={!isRegistrationOpen}
+              variant="outline"
               size="sm"
-              className={cn(
-                "text-xs font-medium transition-all",
-                isRegistrationOpen
-                  ? "bg-teal-700 hover:bg-teal-800 text-white shadow-sm"
-                  : "bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed border"
-              )}
-              title={!isRegistrationOpen ? "Pendaftaran peserta PME saat ini dinonaktifkan oleh penyelenggara" : "Daftar Peserta Baru"}
+              onClick={fetchParticipants}
+              disabled={loading}
+              className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs sm:text-sm font-bold shadow-xs"
             >
-              {isRegistrationOpen ? (
-                <UserPlus className="mr-1.5 h-4 w-4" />
-              ) : (
-                <Lock className="mr-1.5 h-4 w-4 text-slate-400" />
-              )}
-              Daftar Peserta Baru
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Muat Ulang
             </Button>
-          )}
+            {!isReadOnly && (
+              <Button
+                onClick={handleOpenCreate}
+                disabled={!isRegistrationOpen}
+                size="sm"
+                className={cn(
+                  "text-xs sm:text-sm font-bold transition-all shadow-md",
+                  isRegistrationOpen
+                    ? "bg-sky-600 hover:bg-sky-500 text-white shadow-sm"
+                    : "bg-slate-200 text-slate-400 dark:bg-slate-800 dark:text-slate-500 cursor-not-allowed border"
+                )}
+                title={!isRegistrationOpen ? "Pendaftaran peserta PME saat ini dinonaktifkan oleh penyelenggara" : "Daftar Peserta Baru"}
+              >
+                {isRegistrationOpen ? (
+                  <UserPlus className="mr-1.5 h-4 w-4" />
+                ) : (
+                  <Lock className="mr-1.5 h-4 w-4 text-slate-400" />
+                )}
+                Daftar Peserta Baru
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

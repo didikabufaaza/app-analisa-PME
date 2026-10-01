@@ -61,8 +61,9 @@ const VIEW_TITLES: Record<AppView, string> = {
   "pme-registration": "Pendaftaran Peserta PME",
   "pme-packages": "Pemilihan Paket PME",
   "pme-input": "Input Hasil PME Peserta",
-  "pme-reports": "Laporan Hasil PME (Superadmin)",
-  "pme-info": "Pengaturan Siklus & Informasi PME (Superadmin)",
+  "pme-reports": "Laporan Hasil PME",
+  "pme-info": "Pengaturan Siklus & Informasi PME",
+  "master-data": "Master Data PME",
 };
 
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -373,7 +374,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </SheetContent>
           </Sheet>
 
-          <h1 className="truncate text-base font-semibold sm:text-lg">{VIEW_TITLES[view]}</h1>
+          <h1 className="truncate text-base font-bold sm:text-lg">
+            {view === "pme-reports"
+              ? `Laporan Hasil PME (${
+                  viewAsTenantId && viewAsTenantId !== "ALL"
+                    ? tenants.find((t) => t.id === viewAsTenantId)?.name || user?.organization?.name || "Superadmin"
+                    : user?.organization?.name || (user?.role === "SUPERADMIN" ? "Superadmin" : user?.name || "Laboratorium")
+                })`
+              : VIEW_TITLES[view]}
+          </h1>
 
           <div className="ml-auto flex items-center gap-3">
             {/* Tenant Switcher: Superadmin & Admin2 */}

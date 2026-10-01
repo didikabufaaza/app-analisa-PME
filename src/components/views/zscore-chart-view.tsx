@@ -718,9 +718,9 @@ export function ZScoreChartView({ items, summary, filterMeta }: ZScoreChartViewP
   };
 
   // Custom Dot for Main Z-Score Line
-  const renderCustomDot = (props: { cx?: number; cy?: number; payload?: ChartDataItem }) => {
+  const renderCustomDot = (props: any): any => {
     const { cx, cy, payload } = props;
-    if (cx === undefined || cy === undefined || !payload || payload.zScore === null) return null;
+    if (cx === undefined || cy === undefined || !payload || payload.zScore === null) return <g />;
 
     const z = payload.zScore;
     const absZ = Math.abs(z);

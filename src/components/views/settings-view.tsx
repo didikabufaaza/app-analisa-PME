@@ -94,6 +94,7 @@ function StatusDot({ ok }: { ok: boolean }) {
 export function SettingsView() {
   const { toast } = useToast();
   const user = useAppStore((s) => s.user);
+  const tenantDisplayName = user?.organization?.name || user?.name || "Laboratorium PME";
   const isSuper = user?.role === "SUPERADMIN";
   const isAdmin = user?.role === "ADMIN" || isSuper;
 
@@ -294,19 +295,41 @@ export function SettingsView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h2 className="text-xl font-semibold tracking-tight">Pengaturan</h2>
-        <p className="text-sm text-muted-foreground">Aturan penilaian Z-score, konfigurasi engine evaluasi, dan pemakaian kapasitas.</p>
+      {/* Hero Header Modern Gradient & Dynamic Tenant Name */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-purple-950 text-white p-5 sm:p-7 shadow-xl border border-indigo-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-indigo-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <SlidersHorizontal className="h-7 w-7 text-indigo-300" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                  Pengaturan Sistem &amp; Evaluasi <span className="text-indigo-300 font-bold">({tenantDisplayName})</span>
+                </h1>
+                <Badge variant="outline" className="bg-indigo-500/20 text-indigo-200 border-indigo-400/40 text-[11px] font-bold">
+                  {user?.role === "SUPERADMIN" ? "Superadmin" : user?.role || "Pengguna"}
+                </Badge>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                Aturan penilaian Z-score ISO 13528, konfigurasi engine evaluasi, dan pemantauan kuota kapasitas laboratorium.
+              </p>
+            </div>
+          </div>
+        </div>
       </div>
 
       {/* ===== Section 1: Aturan Z-Score ===== */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <SlidersHorizontal className="h-5 w-5 text-teal-600" />
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-bold">
+            <SlidersHorizontal className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
             Aturan Z-Score
           </CardTitle>
-          <CardDescription>
+          <CardDescription className="text-xs sm:text-sm font-medium">
             Batas klasifikasi status hasil: |Z| ≤ Memuaskan; antara Memuaskan dan Warning = Perhatian; ≥ Warning = Tidak Memuaskan.
           </CardDescription>
         </CardHeader>
@@ -457,11 +480,11 @@ export function SettingsView() {
         ) : aiConfig ? (
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Bot className="h-5 w-5 text-teal-600" />
+              <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-bold">
+                <Bot className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                 Konfigurasi Engine Analisis
               </CardTitle>
-              <CardDescription>Status engine pemrosesan yang digunakan untuk ekstraksi dan evaluasi.</CardDescription>
+              <CardDescription className="text-xs sm:text-sm font-medium">Status engine pemrosesan yang digunakan untuk ekstraksi dan evaluasi.</CardDescription>
             </CardHeader>
             <CardContent className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -558,11 +581,11 @@ export function SettingsView() {
       {/* ===== Section 3: Kuota & Penggunaan Pemrosesan ===== */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Gauge className="h-5 w-5 text-teal-600" />
+          <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-bold">
+            <Gauge className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
             Kapasitas Pemrosesan Bulanan
           </CardTitle>
-          <CardDescription>Pemakaian kapasitas pemrosesan bulan ini untuk seluruh operasi ekstraksi dan evaluasi.</CardDescription>
+          <CardDescription className="text-xs sm:text-sm font-medium">Pemakaian kapasitas pemrosesan bulan ini untuk seluruh operasi ekstraksi dan evaluasi.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-5">
           {usageError ? (
@@ -716,22 +739,22 @@ export function SettingsView() {
           <CardHeader>
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
               <div>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Building2 className="h-5 w-5 text-teal-600" />
+                <CardTitle className="flex items-center gap-2 text-base sm:text-lg font-bold">
+                  <Building2 className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
                   Kelola Kuota Organisasi & Laboratorium (Superadmin)
                 </CardTitle>
-                <CardDescription className="text-xs mt-1">
+                <CardDescription className="text-xs sm:text-sm font-medium mt-1">
                   Atur alokasi kapasitas pemrosesan bulanan dan tipe paket untuk setiap laboratorium atau organisasi pengguna.
                 </CardDescription>
               </div>
               <Button
                 variant="outline"
                 size="sm"
-                className="h-8 text-xs gap-1.5 self-start sm:self-auto"
+                className="h-9 sm:h-10 text-xs sm:text-sm font-bold gap-2 self-start sm:self-auto border-indigo-400/40"
                 onClick={() => void fetchTenants()}
                 disabled={tenantsLoading}
               >
-                <RefreshCw className={cn("h-3.5 w-3.5", tenantsLoading && "animate-spin")} />
+                <RefreshCw className={cn("h-4 w-4 text-indigo-500", tenantsLoading && "animate-spin")} />
                 Segarkan Data
               </Button>
             </div>
@@ -739,13 +762,13 @@ export function SettingsView() {
           <CardContent>
             <div className="overflow-hidden rounded-md border">
               <Table>
-                <TableHeader className="bg-muted/60">
+                <TableHeader className="bg-muted/80">
                   <TableRow>
-                    <TableHead>Nama Laboratorium / Organisasi</TableHead>
-                    <TableHead>Paket (Plan)</TableHead>
-                    <TableHead>Kapasitas Bulanan</TableHead>
-                    <TableHead>Pengguna Terdaftar</TableHead>
-                    <TableHead className="text-center">Aksi</TableHead>
+                    <TableHead className="font-bold text-xs sm:text-sm text-foreground">Nama Laboratorium / Organisasi</TableHead>
+                    <TableHead className="font-bold text-xs sm:text-sm text-foreground">Paket (Plan)</TableHead>
+                    <TableHead className="font-bold text-xs sm:text-sm text-foreground">Kapasitas Bulanan</TableHead>
+                    <TableHead className="font-bold text-xs sm:text-sm text-foreground">Pengguna Terdaftar</TableHead>
+                    <TableHead className="text-center font-bold text-xs sm:text-sm text-foreground">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

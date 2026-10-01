@@ -69,6 +69,7 @@ const DEFAULT_MENUS_BY_ROLE: Record<string, string[]> = {
 
 export function UsersView() {
   const { user } = useAppStore();
+  const tenantDisplayName = user?.organization?.name || user?.name || "Laboratorium PME";
   const { toast } = useToast();
 
   const [usersList, setUsersList] = useState<ManagedUser[]>([]);
@@ -273,38 +274,59 @@ export function UsersView() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold tracking-tight">Manajemen Pengguna & Hak Akses Menu</h2>
-          <p className="text-sm text-muted-foreground">
-            Kelola seluruh akun laboratorium, tambah pengguna baru, atur organisasi/tenant, dan tentukan checklist hak akses menu aplikasi.
-          </p>
+      {/* Hero Header Modern Gradient & Dynamic Tenant Name */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-950 via-blue-950 to-slate-900 text-white p-5 sm:p-7 shadow-xl border border-indigo-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-indigo-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-blue-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-indigo-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <Users className="h-7 w-7 text-indigo-300" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                  Manajemen Pengguna &amp; Hak Akses <span className="text-indigo-300 font-bold">({tenantDisplayName})</span>
+                </h1>
+                <Badge variant="outline" className="bg-indigo-500/20 text-indigo-200 border-indigo-400/40 text-[11px] font-bold">
+                  Superadmin Hub
+                </Badge>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                Kelola seluruh akun laboratorium, tambah pengguna baru, atur organisasi/tenant, dan tentukan checklist hak akses menu aplikasi.
+              </p>
+            </div>
+          </div>
+
+          <Button
+            onClick={openCreateDialog}
+            className="self-start md:self-auto bg-indigo-600 hover:bg-indigo-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all gap-2"
+          >
+            <UserPlus className="h-4 w-4" /> Tambah Pengguna Baru
+          </Button>
         </div>
-        <Button onClick={openCreateDialog} className="bg-teal-700 hover:bg-teal-800 text-white">
-          <UserPlus className="mr-2 h-4 w-4" /> Tambah Pengguna Baru
-        </Button>
       </div>
 
-      {/* Toolbar */}
-      <Card className="p-4">
+      {/* Toolbar Filter */}
+      <Card className="p-4 shadow-sm border border-slate-200/80 dark:border-slate-800">
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative flex-1 max-w-sm">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               placeholder="Cari nama, email, atau organisasi..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="pl-9 h-9 text-xs"
+              className="pl-9 h-9 sm:h-10 text-xs sm:text-sm font-semibold"
             />
           </div>
 
-          <div className="flex items-center gap-2">
-            <label className="text-xs text-muted-foreground">Filter Peran:</label>
+          <div className="flex items-center gap-2.5">
+            <label className="text-xs sm:text-sm font-bold text-foreground shrink-0">Filter Peran:</label>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="h-9 rounded-md border bg-background px-3 text-xs focus:outline-none focus:ring-1 focus:ring-teal-600"
+              className="h-9 sm:h-10 rounded-md border bg-background px-3 text-xs sm:text-sm font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-600"
             >
               <option value="">Semua Peran</option>
               <option value="SUPERADMIN">SUPERADMIN</option>
@@ -320,8 +342,8 @@ export function UsersView() {
       {/* Users Table */}
       <Card>
         <CardHeader className="pb-3">
-          <CardTitle className="text-base">Daftar Akun Pengguna ({filteredUsers.length})</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-base sm:text-lg font-bold">Daftar Akun Pengguna ({filteredUsers.length})</CardTitle>
+          <CardDescription className="text-xs sm:text-sm font-medium">
             Menampilkan pengguna dari seluruh tenant terdaftar. Hak akses menu ditampilkan sebagai lencana.
           </CardDescription>
         </CardHeader>
@@ -333,20 +355,20 @@ export function UsersView() {
               <Skeleton className="h-12 w-full" />
             </div>
           ) : filteredUsers.length === 0 ? (
-            <div className="py-12 text-center text-muted-foreground">
+            <div className="py-12 text-center text-muted-foreground font-medium">
               Tidak ada akun pengguna yang sesuai dengan filter.
             </div>
           ) : (
             <div className="max-h-[38rem] overflow-x-auto overflow-y-auto rounded-lg border">
-              <table className="w-full text-left text-xs">
-                <thead className="sticky top-0 z-10 border-b bg-muted/70 backdrop-blur">
+              <table className="w-full text-left text-xs sm:text-sm">
+                <thead className="sticky top-0 z-10 border-b bg-muted/80 backdrop-blur">
                   <tr>
-                    <th className="p-3 font-semibold text-muted-foreground">Nama Pengguna</th>
-                    <th className="p-3 font-semibold text-muted-foreground">Peran</th>
-                    <th className="p-3 font-semibold text-muted-foreground">Organisasi / Tenant</th>
-                    <th className="p-3 font-semibold text-muted-foreground min-w-[220px]">Checklist Akses Menu</th>
-                    <th className="p-3 font-semibold text-muted-foreground w-24 text-center">Status</th>
-                    <th className="p-3 font-semibold text-muted-foreground w-28 text-center">Aksi</th>
+                    <th className="p-3 font-bold text-foreground">Nama Pengguna</th>
+                    <th className="p-3 font-bold text-foreground">Peran</th>
+                    <th className="p-3 font-bold text-foreground">Organisasi / Tenant</th>
+                    <th className="p-3 font-bold text-foreground min-w-[220px]">Checklist Akses Menu</th>
+                    <th className="p-3 font-bold text-foreground w-24 text-center">Status</th>
+                    <th className="p-3 font-bold text-foreground w-28 text-center">Aksi</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">

@@ -157,6 +157,7 @@ export function SessionsView() {
   const { toast } = useToast();
   const navigate = useAppStore((s) => s.navigate);
   const user = useAppStore((s) => s.user);
+  const tenantDisplayName = user?.organization?.name || user?.name || "Laboratorium PME";
   const isReadOnly = user?.role === "ADMIN2";
   const canDelete = !isReadOnly && (user?.role === "ADMIN" || user?.role === "SUPERADMIN");
   const isAdmin = canDelete;
@@ -423,12 +424,40 @@ export function SessionsView() {
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-5">
-      {/* Page intro */}
-      <div>
-        <h2 className="text-lg font-bold tracking-tight">Sesi Analisis PME</h2>
-        <p className="text-sm text-muted-foreground">
-          Unggah laporan Proficiency Testing, pantau proses evaluasi, dan telusuri hasil Z-score per parameter.
-        </p>
+      {/* Hero Header Modern Gradient & Dynamic Tenant Name */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-cyan-950 via-sky-950 to-slate-900 text-white p-5 sm:p-7 shadow-xl border border-cyan-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-cyan-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="flex items-start sm:items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-cyan-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <UploadCloud className="h-7 w-7 text-cyan-300" />
+            </div>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
+                  Sesi Analisis PME <span className="text-cyan-300 font-bold">({tenantDisplayName})</span>
+                </h1>
+                <Badge variant="outline" className="bg-cyan-500/20 text-cyan-200 border-cyan-400/40 text-[11px] font-bold">
+                  {user?.role === "SUPERADMIN" ? "Superadmin" : "Laboratorium"}
+                </Badge>
+              </div>
+              <p className="text-xs sm:text-sm text-slate-300 font-medium">
+                Unggah laporan Proficiency Testing, pantau proses evaluasi, dan telusuri hasil Z-score ISO 13528 per parameter.
+              </p>
+            </div>
+          </div>
+
+          {!isReadOnly && (
+            <Button
+              onClick={() => { setFile(null); setUploadError(null); setUploadOpen(true); }}
+              className="self-start md:self-auto bg-cyan-600 hover:bg-cyan-700 text-white font-bold text-xs sm:text-sm shadow-md transition-all gap-2"
+            >
+              <FileUp className="h-4 w-4" /> Unggah Berkas PME
+            </Button>
+          )}
+        </div>
       </div>
 
       {/* Banner Khusus Peran ADMIN2 (Lihat Saja) */}
@@ -456,11 +485,11 @@ export function SessionsView() {
           { label: "Gagal", value: counts.failed, dot: "bg-red-500" },
         ].map((c) => (
           <div key={c.label} className="rounded-lg border bg-card p-3">
-            <div className="flex items-center gap-1.5 text-[11px] font-medium text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-muted-foreground">
               <span className={cn("h-2 w-2 rounded-full", c.dot)} aria-hidden />
               {c.label}
             </div>
-            <p className="mt-0.5 text-xl font-bold tabular-nums">{c.value}</p>
+            <p className="mt-0.5 text-xl font-extrabold tabular-nums">{c.value}</p>
           </div>
         ))}
       </div>
@@ -473,19 +502,19 @@ export function SessionsView() {
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Cari provider, program, siklus, lab…"
-            className="pl-9"
+            className="pl-9 h-9 sm:h-10 text-xs sm:text-sm font-semibold"
             aria-label="Cari sesi PME"
           />
         </form>
 
         <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-full sm:w-[210px]" aria-label="Filter status sesi">
+          <SelectTrigger className="w-full sm:w-[210px] h-9 sm:h-10 text-xs sm:text-sm font-semibold" aria-label="Filter status sesi">
             <SelectValue placeholder="Semua status" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="ALL">Semua Status</SelectItem>
+            <SelectItem value="ALL" className="font-semibold text-xs sm:text-sm">Semua Status</SelectItem>
             {STATUSES.map((st) => (
-              <SelectItem key={st} value={st}>
+              <SelectItem key={st} value={st} className="font-semibold text-xs sm:text-sm">
                 {STATUS_LABEL[st]}
               </SelectItem>
             ))}
@@ -496,9 +525,9 @@ export function SessionsView() {
           <div className="lg:ml-auto">
             <Button
               onClick={() => setUploadOpen(true)}
-              className="w-full bg-teal-700 text-white hover:bg-teal-800 sm:w-auto"
+              className="w-full bg-cyan-700 text-white hover:bg-cyan-800 sm:w-auto h-9 sm:h-10 text-xs sm:text-sm font-bold shadow-xs"
             >
-              <UploadCloud className="h-4 w-4" aria-hidden />
+              <UploadCloud className="h-4 w-4 mr-2" aria-hidden />
               Unggah PDF PME
             </Button>
           </div>
@@ -509,8 +538,8 @@ export function SessionsView() {
       <Card className="overflow-hidden">
         <CardHeader className="flex flex-row flex-wrap items-center justify-between gap-2 border-b py-4">
           <div>
-            <CardTitle className="text-base">Daftar Sesi PME</CardTitle>
-            <CardDescription>
+            <CardTitle className="text-base sm:text-lg font-bold">Daftar Sesi PME</CardTitle>
+            <CardDescription className="text-xs sm:text-sm font-medium">
               {loading && sessions.length === 0
                 ? "Memuat daftar sesi…"
                 : `${sessions.length} sesi ditampilkan${hasActiveFilter ? " (terfilter)" : ""}`}
@@ -623,15 +652,15 @@ export function SessionsView() {
                         />
                       </TableHead>
                     )}
-                    <TableHead className={canDelete ? "pl-2" : "pl-4"}>Berkas</TableHead>
-                    <TableHead>Provider</TableHead>
-                    <TableHead className="hidden xl:table-cell">Program</TableHead>
-                    <TableHead className="hidden lg:table-cell">Siklus / Periode</TableHead>
-                    <TableHead className="hidden md:table-cell">Laboratorium</TableHead>
-                    <TableHead>Parameter</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="hidden md:table-cell">Tanggal</TableHead>
-                    <TableHead className="pr-4 text-right">Aksi</TableHead>
+                    <TableHead className={cn("font-bold text-xs sm:text-sm text-foreground", canDelete ? "pl-2" : "pl-4")}>Berkas</TableHead>
+                    <TableHead className="font-bold text-xs sm:text-sm text-foreground">Provider</TableHead>
+                    <TableHead className="hidden xl:table-cell font-bold text-xs sm:text-sm text-foreground">Program</TableHead>
+                    <TableHead className="hidden lg:table-cell font-bold text-xs sm:text-sm text-foreground">Siklus / Periode</TableHead>
+                    <TableHead className="hidden md:table-cell font-bold text-xs sm:text-sm text-foreground">Laboratorium</TableHead>
+                    <TableHead className="font-bold text-xs sm:text-sm text-foreground">Parameter</TableHead>
+                    <TableHead className="font-bold text-xs sm:text-sm text-foreground">Status</TableHead>
+                    <TableHead className="hidden md:table-cell font-bold text-xs sm:text-sm text-foreground">Tanggal</TableHead>
+                    <TableHead className="pr-4 text-right font-bold text-xs sm:text-sm text-foreground">Aksi</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>

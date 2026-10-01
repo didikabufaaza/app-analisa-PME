@@ -44,6 +44,7 @@ import {
   Sparkles,
   Lock,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface MasterItem {
   id: string;
@@ -62,6 +63,7 @@ export function MasterDataView() {
   const isAdmin2 = user?.role === "ADMIN2";
   const canAccess = isSuperadmin || isAdmin2;
   const [activeTab, setActiveTab] = useState<"INSTRUMENT" | "METHOD" | "REAGENT">("INSTRUMENT");
+  const [loading, setLoading] = useState(false);
 
   const [instruments, setInstruments] = useState<MasterItem[]>([]);
   const [methods, setMethods] = useState<MasterItem[]>([]);
@@ -241,43 +243,56 @@ export function MasterDataView() {
 
   return (
     <div className="p-6 space-y-6 max-w-7xl mx-auto">
-      {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
-        <div>
-          <div className="flex items-center gap-2.5">
-            <div className="p-2.5 rounded-xl bg-purple-500/10 text-purple-600 dark:text-purple-400">
-              <Database className="h-6 w-6" />
+      {/* Header Banner Modern Gradient */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-purple-950 to-indigo-950 text-white p-6 sm:p-7 shadow-xl border border-purple-500/30 backdrop-blur-md">
+        <div className="absolute -right-16 -top-16 w-64 h-64 bg-purple-500/20 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
+
+        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+          <div className="flex items-center gap-3.5">
+            <div className="p-3 rounded-2xl bg-white/10 text-purple-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+              <Database className="h-7 w-7 text-purple-300" />
             </div>
             <div>
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl font-bold tracking-tight">Master Data PME</h1>
+              <div className="flex items-center gap-2.5">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Master Data PME</h1>
                 <Badge className={cn(
-                  "border text-[10px] font-bold",
+                  "border text-xs font-bold font-mono px-2.5 py-0.5",
                   isSuperadmin
-                    ? "bg-purple-500/15 text-purple-600 dark:text-purple-300 border-purple-500/30"
-                    : "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                    ? "bg-purple-500/30 text-purple-200 border-purple-400/40"
+                    : "bg-amber-500/30 text-amber-200 border-amber-400/40"
                 )}>
                   {isSuperadmin ? "SUPERADMIN" : "ADMIN2 (LIHAT SAJA)"}
                 </Badge>
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-xs sm:text-sm text-purple-100/80 mt-1 max-w-2xl font-medium">
                 Kelola master Alat, Metode, dan Reagen PME. Data ini otomatis muncul sebagai pilihan dropdown dan pencarian di formulir Input Hasil PME peserta.
               </p>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={loadData} disabled={loading} className="text-xs">
-            <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-            Segarkan
-          </Button>
-          {isSuperadmin && (
-            <Button onClick={handleOpenCreate} size="sm" className="bg-purple-700 hover:bg-purple-800 text-white text-xs">
-              <Plus className="mr-1.5 h-4 w-4" />
-              Tambah {getTabTitle()} Baru
+          <div className="flex items-center gap-2.5 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={loadData}
+              disabled={loading}
+              className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs sm:text-sm font-bold shadow-xs"
+            >
+              <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+              Segarkan
             </Button>
-          )}
+            {isSuperadmin && (
+              <Button
+                onClick={handleOpenCreate}
+                size="sm"
+                className="bg-purple-600 hover:bg-purple-500 text-white text-xs sm:text-sm font-bold shadow-md"
+              >
+                <Plus className="mr-1.5 h-4 w-4" />
+                Tambah {getTabTitle()} Baru
+              </Button>
+            )}
+          </div>
         </div>
       </div>
 

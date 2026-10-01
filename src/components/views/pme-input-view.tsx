@@ -1120,37 +1120,46 @@ export function PmeInputView() {
 
       {/* Screen Interactive Container (Hidden during window.print) */}
       <div className="space-y-6 print:hidden">
-        {/* Header Banner */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-5">
-          <div>
-            <div className="flex items-center gap-2.5">
-              <div className="p-2 rounded-xl bg-teal-500/10 text-teal-700 dark:text-teal-400">
-                <FilePenLine className="h-6 w-6" />
+        {/* Header Banner Modern Gradient */}
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-teal-900 via-cyan-950 to-slate-900 text-white p-6 sm:p-7 shadow-xl border border-teal-500/30 backdrop-blur-md">
+          <div className="absolute -right-16 -top-16 w-64 h-64 bg-teal-500/20 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute right-1/3 -bottom-16 w-64 h-64 bg-cyan-500/15 rounded-full blur-3xl pointer-events-none" />
+
+          <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 rounded-2xl bg-white/10 text-teal-300 border border-white/15 shadow-inner backdrop-blur-md shrink-0">
+                <FilePenLine className="h-7 w-7 text-teal-300" />
               </div>
               <div>
-                <h1 className="text-xl font-bold tracking-tight">Input Hasil PME Peserta</h1>
-                <p className="text-xs text-muted-foreground">
+                <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white">Input Hasil PME Peserta</h1>
+                <p className="text-xs sm:text-sm text-teal-100/80 mt-1 max-w-2xl font-medium">
                   Pengisian hasil pengujian peserta (Hasil, Metode, Alat, dan Reagen) otomatis disesuaikan dengan paket yang dipilih
                 </p>
               </div>
             </div>
-          </div>
 
-          <div className="flex items-center gap-2">
-            {(isSuperadmin || isReadOnly) && (
+            <div className="flex items-center gap-2.5 shrink-0">
+              {(isSuperadmin || isReadOnly) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => navigate("pme-reports")}
+                  className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs sm:text-sm font-bold shadow-xs"
+                >
+                  Lihat Laporan Hasil PME
+                </Button>
+              )}
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => navigate("pme-reports")}
-                className="text-xs border-teal-600/40 text-teal-800 dark:text-teal-300"
+                onClick={loadParticipantParams}
+                disabled={loading}
+                className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs sm:text-sm font-bold shadow-xs"
               >
-                Lihat Laporan Hasil PME
+                <RefreshCw className={`mr-1.5 h-4 w-4 ${loading ? "animate-spin" : ""}`} />
+                Segarkan
               </Button>
-            )}
-            <Button variant="outline" size="sm" onClick={loadParticipantParams} disabled={loading} className="text-xs">
-              <RefreshCw className={`mr-1.5 h-3.5 w-3.5 ${loading ? "animate-spin" : ""}`} />
-              Segarkan
-            </Button>
+            </div>
           </div>
         </div>
 
@@ -1188,17 +1197,17 @@ export function PmeInputView() {
           <CardContent className="p-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
               <div className="space-y-1.5">
-                <Label className="text-xs font-semibold flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5 text-teal-600" />
+                <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
+                  <Building2 className="h-4 w-4 text-teal-600" />
                   <span>Pilih Laboratorium Peserta</span>
                 </Label>
                 <Select value={selectedParticipantId} onValueChange={handleSelectParticipant}>
-                  <SelectTrigger className="h-9 text-xs">
+                  <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm font-semibold">
                     <SelectValue placeholder="Pilih Laboratorium..." />
                   </SelectTrigger>
                   <SelectContent>
                     {participants.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                      <SelectItem key={p.id} value={p.id} className="text-xs sm:text-sm font-semibold">
                         {p.participantCode ? `[${p.participantCode}] ` : ""}
                         {p.labName} {p.status === "APPROVED" ? "✓ (Disetujui)" : p.status === "PENDING" ? "⏳ (Menunggu Persetujuan)" : "✗ (Ditolak)"}
                       </SelectItem>
@@ -1209,11 +1218,11 @@ export function PmeInputView() {
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold flex items-center gap-1.5">
-                    <Calendar className="h-3.5 w-3.5 text-blue-600" />
+                  <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
+                    <Calendar className="h-4 w-4 text-blue-600" />
                     <span>Siklus PME</span>
                   </Label>
-                  <span className="text-[10px] text-teal-600 dark:text-teal-400 font-medium bg-teal-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <span className="text-xs text-teal-600 dark:text-teal-400 font-bold bg-teal-500/10 px-2 py-0.5 rounded flex items-center gap-1">
                     <Lock className="h-3 w-3" /> Otomatis
                   </span>
                 </div>
@@ -1223,14 +1232,14 @@ export function PmeInputView() {
                   disabled
                   tabIndex={-1}
                   placeholder="Contoh: Siklus 1 2026"
-                  className="h-9 text-xs font-semibold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
+                  className="h-9 sm:h-10 text-xs sm:text-sm font-bold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
                 />
               </div>
 
               <div className="space-y-1.5">
                 <div className="flex items-center justify-between">
-                  <Label className="text-xs font-semibold">Periode / Tahap</Label>
-                  <span className="text-[10px] text-blue-600 dark:text-blue-400 font-medium bg-blue-500/10 px-1.5 py-0.5 rounded flex items-center gap-1">
+                  <Label className="text-xs sm:text-sm font-bold text-foreground">Periode / Tahap</Label>
+                  <span className="text-xs text-blue-600 dark:text-blue-400 font-bold bg-blue-500/10 px-2 py-0.5 rounded flex items-center gap-1">
                     <Lock className="h-3 w-3" /> Otomatis
                   </span>
                 </div>
@@ -1240,7 +1249,7 @@ export function PmeInputView() {
                   disabled
                   tabIndex={-1}
                   placeholder="Contoh: Tahap 1"
-                  className="h-9 text-xs font-semibold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
+                  className="h-9 sm:h-10 text-xs sm:text-sm font-bold bg-muted/60 text-foreground cursor-not-allowed border-dashed"
                 />
               </div>
             </div>

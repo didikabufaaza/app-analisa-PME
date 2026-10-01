@@ -69,7 +69,7 @@ export async function POST(req: NextRequest) {
     const sampleLabel = targetSample === "Sampel 2" ? "Sampel 2 (Level 2 / Patologis)" : "Sampel 1 (Level 1 / Normal)";
 
     // Cari laboratorium peserta
-    let targetParticipant = null;
+    let targetParticipant: any = null;
     if (participantId && (user.role === "SUPERADMIN" || user.role === "ADMIN2")) {
       targetParticipant = await db.pmeParticipant.findUnique({ where: { id: participantId } });
     } else {

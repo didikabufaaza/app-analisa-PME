@@ -29,7 +29,7 @@ export async function GET(req: NextRequest) {
       orgId = user?.organizationId;
     }
 
-    let config = null;
+    let config: any = null;
     if (orgId) {
       config = await db.pmeCycleConfig.findUnique({
         where: { organizationId: orgId },

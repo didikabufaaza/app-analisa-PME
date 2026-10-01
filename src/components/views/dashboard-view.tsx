@@ -466,6 +466,7 @@ function PmeAnnouncementBanner({ config }: { config: PmeAnnouncementInfo | null 
 export function DashboardView() {
   const navigate = useAppStore((s) => s.navigate);
   const user = useAppStore((s) => s.user);
+  const language = useAppStore((s) => s.language) || "id";
   const tenantDisplayName = user?.organization?.name || user?.name || "Laboratorium PME";
   const [data, setData] = useState<DashboardData | null>(null);
   const [pmeConfig, setPmeConfig] = useState<PmeAnnouncementInfo | null>(null);
@@ -548,14 +549,19 @@ export function DashboardView() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2">
                 <h1 className="text-xl sm:text-2xl font-extrabold tracking-tight text-white">
-                  Ringkasan Kinerja PME <span className="text-emerald-300 font-bold">({tenantDisplayName})</span>
+                  {language === "en" ? "EQA Performance Summary" : "Ringkasan Kinerja PME"}{" "}
+                  <span className="text-emerald-300 font-bold">({tenantDisplayName})</span>
                 </h1>
                 <Badge variant="outline" className="bg-emerald-500/20 text-emerald-200 border-emerald-400/40 text-[11px] font-bold">
-                  {user?.role === "SUPERADMIN" ? "Portal Superadmin" : "Dashboard Laboratorium"}
+                  {user?.role === "SUPERADMIN"
+                    ? (language === "en" ? "Superadmin Portal" : "Portal Superadmin")
+                    : (language === "en" ? "Laboratory Dashboard" : "Dashboard Laboratorium")}
                 </Badge>
               </div>
               <p className="text-xs sm:text-sm text-slate-300 font-medium">
-                Pantau hasil uji profisiensi, distribusi Z-score ISO 13528, dan akurasi evaluasi secara menyeluruh.
+                {language === "en"
+                  ? "Monitor proficiency testing results, ISO 13528 Z-score distributions, and overall laboratory analytical accuracy."
+                  : "Pantau hasil uji profisiensi, distribusi Z-score ISO 13528, dan akurasi evaluasi secara menyeluruh."}
               </p>
             </div>
           </div>
@@ -563,7 +569,7 @@ export function DashboardView() {
           <div className="flex items-center gap-2.5 self-start md:self-auto shrink-0">
             {updatedAt ? (
               <span className="hidden text-xs font-semibold text-emerald-200/90 md:inline bg-black/30 px-3 py-1.5 rounded-lg border border-white/10 shadow-xs">
-                Diperbarui {format(updatedAt, "HH.mm", { locale: localeId })}
+                {language === "en" ? "Updated" : "Diperbarui"} {format(updatedAt, "HH:mm")}
               </span>
             ) : null}
             <Button
@@ -574,7 +580,7 @@ export function DashboardView() {
               className="gap-2 border-emerald-400/40 bg-white/10 hover:bg-white/20 text-white font-bold text-xs sm:text-sm backdrop-blur-md transition-all shadow-xs"
             >
               <RefreshCw className={cn("h-4 w-4 text-emerald-300", loading && "animate-spin")} aria-hidden="true" />
-              Segarkan
+              {language === "en" ? "Refresh" : "Segarkan"}
             </Button>
           </div>
         </div>
@@ -677,27 +683,66 @@ export function DashboardView() {
       {/* KPI row */}
       <section aria-label="Statistik utama">
         <div className="grid grid-cols-2 gap-4 sm:gap-6 md:grid-cols-3 xl:grid-cols-6">
-          <KpiCard label="Total PME" value={counts.totalPme} sub="sesi uji profisiensi" icon={FileText} tone="teal" />
-          <KpiCard label="Total Parameter" value={counts.totalParameter} sub="parameter dianalisis" icon={ListChecks} tone="violet" />
-          <KpiCard label="Memuaskan" value={counts.satisfactory} sub="|Z| ≤ 2,0" icon={CheckCircle2} tone="emerald" />
-          <KpiCard label="Waspada" value={counts.warning} sub="2,0 < |Z| < 3,0" icon={AlertTriangle} tone="amber" />
-          <KpiCard label="Tidak Memuaskan" value={counts.unsatisfactory} sub="|Z| ≥ 3,0" icon={XCircle} tone="red" />
-          <KpiCard label="Perlu Review" value={counts.reviewRequired} sub="verifikasi manual diperlukan" icon={ClipboardCheck} tone="slate" />
+          <KpiCard
+            label={language === "en" ? "Total EQA" : "Total PME"}
+            value={counts.totalPme}
+            sub={language === "en" ? "proficiency test sessions" : "sesi uji profisiensi"}
+            icon={FileText}
+            tone="teal"
+          />
+          <KpiCard
+            label={language === "en" ? "Total Parameters" : "Total Parameter"}
+            value={counts.totalParameter}
+            sub={language === "en" ? "parameters analyzed" : "parameter dianalisis"}
+            icon={ListChecks}
+            tone="violet"
+          />
+          <KpiCard
+            label={language === "en" ? "Satisfactory" : "Memuaskan"}
+            value={counts.satisfactory}
+            sub="|Z| ≤ 2.0"
+            icon={CheckCircle2}
+            tone="emerald"
+          />
+          <KpiCard
+            label={language === "en" ? "Warning" : "Waspada"}
+            value={counts.warning}
+            sub="2.0 < |Z| < 3.0"
+            icon={AlertTriangle}
+            tone="amber"
+          />
+          <KpiCard
+            label={language === "en" ? "Unsatisfactory" : "Tidak Memuaskan"}
+            value={counts.unsatisfactory}
+            sub="|Z| ≥ 3.0"
+            icon={XCircle}
+            tone="red"
+          />
+          <KpiCard
+            label={language === "en" ? "Review Required" : "Perlu Review"}
+            value={counts.reviewRequired}
+            sub={language === "en" ? "manual verification needed" : "verifikasi manual diperlukan"}
+            icon={ClipboardCheck}
+            tone="slate"
+          />
         </div>
       </section>
 
       {/* Charts grid */}
       <section aria-label="Grafik analisis" className="grid grid-cols-1 gap-4 sm:gap-6 lg:grid-cols-2">
         {/* Distribusi Z-Score */}
-        <ChartCard title="Distribusi Z-Score" description="Sebaran nilai Z-score seluruh parameter">
+        <ChartCard
+          title={language === "en" ? "Z-Score Distribution" : "Distribusi Z-Score"}
+          description={language === "en" ? "Spread of Z-score values across all parameters" : "Sebaran nilai Z-score seluruh parameter"}
+        >
           <div className="h-64 sm:h-72" role="img" aria-label="Grafik batang distribusi Z-score">
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={zDist} margin={{ top: 20, right: 8, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={GRID_STROKE} />
                 <XAxis dataKey="label" tick={AXIS_TICK} tickLine={false} axisLine={AXIS_LINE} interval={0} />
                 <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={30} allowDecimals={false} />
-                <Tooltip cursor={CURSOR} content={<ChartTooltip valueLabel="Jumlah parameter" />} />
-                <Bar dataKey="count" name="Jumlah parameter" maxBarSize={48} radius={[4, 4, 0, 0]}
+                <Tooltip cursor={CURSOR} content={<ChartTooltip valueLabel={language === "en" ? "Parameters count" : "Jumlah parameter"} />} />
+                <Bar dataKey="count" name={language === "en" ? "Parameters count" : "Jumlah parameter"} maxBarSize={48} radius={[4, 4, 0, 0]}
                   label={{ position: "top", fontSize: 11, fill: COLORS.slate }}>
                   {zDist.map((b, i) => (
                     <Cell key={b.range} fill={Z_DIST_COLORS[i] ?? COLORS.emerald} />
@@ -709,7 +754,10 @@ export function DashboardView() {
         </ChartCard>
 
         {/* Status Parameter (donut) */}
-        <ChartCard title="Status Parameter" description="Komposisi status akhir parameter">
+        <ChartCard
+          title={language === "en" ? "Parameter Status" : "Status Parameter"}
+          description={language === "en" ? "Breakdown of final parameter evaluation" : "Komposisi status akhir parameter"}
+        >
           {statusData.length === 0 ? (
             <ChartEmpty message="Belum ada parameter untuk ditampilkan." />
           ) : (

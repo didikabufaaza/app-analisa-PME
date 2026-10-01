@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef, useMemo } from "react";
 import { useAppStore } from "@/lib/store";
+import { formatAnalysisForLanguage, translateEvaluationStatus, DICTIONARY } from "@/lib/i18n";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -176,7 +177,7 @@ interface DashboardStatItem {
 }
 
 export function PmeReportsView() {
-  const { user, viewAsTenantId, navigate } = useAppStore();
+  const { user, viewAsTenantId, navigate, language = "id" } = useAppStore();
   const { toast } = useToast();
   const isReadOnly = user?.role === "ADMIN2";
 
@@ -1698,17 +1699,26 @@ export function PmeReportsView() {
     return user?.name || "Laboratorium Peserta";
   }, [viewAsTenantId, participantReports, activeReport, user, isSuperAdmin]);
 
+  // Localized Analysis Result for instant, zero-quota bilingual switching
+  const displayAnalysis = useMemo(() => {
+    return formatAnalysisForLanguage(analysisResult, language);
+  }, [analysisResult, language]);
+
   // Generate PDF Laporan Hasil Analisis (Format Model 1 Resmi Kemenkes Lengkap Fishbone 6M)
   const handleDownloadAnalysisPdf = (dataInput?: any) => {
-    const data = dataInput || analysisResult;
-    if (!data) {
+    const rawData = dataInput || analysisResult;
+    if (!rawData) {
       toast({
-        title: "Data Analisis Belum Tersedia",
-        description: "Silakan klik tombol 'Analisa Hasil PME' terlebih dahulu untuk menjalankan analisis mutu dan evaluasi ISO 15189.",
+        title: language === "en" ? "Analysis Data Not Available" : "Data Analisis Belum Tersedia",
+        description: language === "en"
+          ? "Please click 'Analyze EQA Results' first to generate ISO 15189 quality evaluation."
+          : "Silakan klik tombol 'Analisa Hasil PME' terlebih dahulu untuk menjalankan analisis mutu dan evaluasi ISO 15189.",
         variant: "destructive",
       });
       return;
     }
+
+    const data = formatAnalysisForLanguage(rawData, language);
 
     try {
       setIsExportingPdf(true);
@@ -1725,7 +1735,7 @@ export function PmeReportsView() {
         ? (activeReport?.participant?.participantCode || data.participantCode || "-")
         : (data.participantCode || "-");
       const targetAddress = activeReport?.participant?.address || "Sumatera Selatan";
-      const sampleTitle = (data.sampleLabel || selectedSample || "Sampel 1").toUpperCase();
+      const sampleTitle = (data.sampleLabel || selectedSample || (language === "en" ? "Sample 1" : "Sampel 1")).toUpperCase();
 
       const drawKopSuratAndHeader = () => {
         let y = 10;
@@ -1795,7 +1805,7 @@ export function PmeReportsView() {
           // @ts-ignore
           doc.setGState(new (doc as any).GState({ opacity: 0.08 }));
         }
-        doc.text("RAHASIA", pageW / 2, pageH / 2, {
+        doc.text(language === "en" ? "CONFIDENTIAL" : "RAHASIA", pageW / 2, pageH / 2, {
           align: "center",
           angle: 30,
         });
@@ -1811,7 +1821,9 @@ export function PmeReportsView() {
       doc.setFontSize(11);
       doc.setTextColor(15, 23, 42);
       doc.text(
-        `LAPORAN HASIL EVALUASI & ANALISIS MUTU PME (ISO 15189) - ${sampleTitle}`,
+        language === "en"
+          ? `EXTERNAL QUALITY ASSESSMENT (EQA) ISO 15189 REPORT - ${sampleTitle}`
+          : `LAPORAN HASIL EVALUASI & ANALISIS MUTU PME (ISO 15189) - ${sampleTitle}`,
         pageW / 2,
         y,
         { align: "center" }
@@ -1821,41 +1833,47 @@ export function PmeReportsView() {
       y += 6;
       doc.setFontSize(8.5);
       doc.setFont("helvetica", "bold");
-      doc.text("Kode Peserta", margin, y);
+      doc.text(language === "en" ? "Participant Code" : "Kode Peserta", margin, y);
       doc.setFont("helvetica", "normal");
       doc.text(`: ${targetCode}`, margin + 28, y);
 
       doc.setFont("helvetica", "bold");
-      doc.text("Bidang / Siklus", pageW / 2 + 10, y);
+      doc.text(language === "en" ? "Discipline / Cycle" : "Bidang / Siklus", pageW / 2 + 10, y);
       doc.setFont("helvetica", "normal");
-      doc.text(`: ${category === "ALL" ? "Semua Bidang" : category} / ${data.cycle || cycle}`, pageW / 2 + 40, y);
+      const disciplineText = category === "ALL" 
+        ? (language === "en" ? "All Disciplines" : "Semua Bidang") 
+        : category;
+      doc.text(`: ${disciplineText} / ${data.cycle || cycle}`, pageW / 2 + 40, y);
 
       y += 4.5;
       doc.setFont("helvetica", "bold");
-      doc.text("Nama Laboratorium", margin, y);
+      doc.text(language === "en" ? "Laboratory Name" : "Nama Laboratorium", margin, y);
       doc.setFont("helvetica", "normal");
       doc.text(`: ${targetLab}`, margin + 28, y);
 
       doc.setFont("helvetica", "bold");
-      doc.text("Level / Sampel", pageW / 2 + 10, y);
+      doc.text(language === "en" ? "Sample / Level" : "Level / Sampel", pageW / 2 + 10, y);
       doc.setFont("helvetica", "normal");
       doc.text(`: ${data.sampleLabel || selectedSample}`, pageW / 2 + 40, y);
 
       y += 4.5;
       doc.setFont("helvetica", "bold");
-      doc.text("Alamat Peserta", margin, y);
+      doc.text(language === "en" ? "Address" : "Alamat Peserta", margin, y);
       doc.setFont("helvetica", "normal");
       doc.text(`: ${targetAddress}`, margin + 28, y);
 
       doc.setFont("helvetica", "bold");
-      doc.text("Status Evaluasi", pageW / 2 + 10, y);
+      doc.text(language === "en" ? "Evaluation Status" : "Status Evaluasi", pageW / 2 + 10, y);
       doc.setFont("helvetica", "normal");
-      doc.text(`: Pass Rate ${data.passRate}% (${data.satisfactoryCount} Memuaskan, ${data.warningCount} Peringatan, ${data.unsatisfactoryCount} Tidak Memuaskan)`, pageW / 2 + 40, y);
+      const evalStatusStr = language === "en"
+        ? `: Pass Rate ${data.passRate}% (${data.satisfactoryCount} Satisfactory, ${data.warningCount} Warning, ${data.unsatisfactoryCount} Unsatisfactory)`
+        : `: Pass Rate ${data.passRate}% (${data.satisfactoryCount} Memuaskan, ${data.warningCount} Peringatan, ${data.unsatisfactoryCount} Tidak Memuaskan)`;
+      doc.text(evalStatusStr, pageW / 2 + 40, y);
 
       // Table 1: Rincian Evaluasi Hasil Pengujian per Parameter
-      const findingsHead = [
-        ["No", "Parameter", "Satuan", "Hasil Lab", "Target Konsensus", "SDPA", "Bias %", "Z-Score", "Kategori & Status"]
-      ];
+      const findingsHead = language === "en"
+        ? [["No", "Parameter", "Unit", "Lab Result", "Consensus Target", "SDPA", "Bias %", "Z-Score", "Quality Evaluation"]]
+        : [["No", "Parameter", "Satuan", "Hasil Lab", "Target Konsensus", "SDPA", "Bias %", "Z-Score", "Kategori & Status"]];
 
       const findingsBody = (data.evaluationFindings || []).map((f: any, idx: number) => [
         idx + 1,
@@ -1916,11 +1934,17 @@ export function PmeReportsView() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8.5);
       doc.setTextColor(15, 23, 42);
-      doc.text("MATRIKS INVESTIGASI AKAR MASALAH (FISHBONE ISHIKAWA 6M):", margin, currentY);
+      doc.text(
+        language === "en"
+          ? "ROOT CAUSE INVESTIGATION MATRIX (ISHIKAWA / 6M FISHBONE):"
+          : "MATRIKS INVESTIGASI AKAR MASALAH (FISHBONE ISHIKAWA 6M):",
+        margin,
+        currentY
+      );
 
-      const fishboneHead = [
-        ["No", "Kategori 6M", "Temuan & Analisa Akar Masalah (Root Cause Finding)", "Rekomendasi Tindakan Korektif & Preventif"]
-      ];
+      const fishboneHead = language === "en"
+        ? [["No", "6M Category", "Root Cause Finding & Analysis", "Corrective & Preventive Action"]]
+        : [["No", "Kategori 6M", "Temuan & Analisa Akar Masalah (Root Cause Finding)", "Rekomendasi Tindakan Korektif & Preventif"]];
 
       const fishboneBody = (data.fishbone || []).map((fb: any, idx: number) => [
         idx + 1,
@@ -1972,7 +1996,11 @@ export function PmeReportsView() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(185, 28, 28);
-      doc.text("TINDAKAN KOREKTIF SEGERA (CORRECTIVE ACTIONS):", margin, currentY);
+      doc.text(
+        language === "en" ? "IMMEDIATE CORRECTIVE ACTIONS (CAPA):" : "TINDAKAN KOREKTIF SEGERA (CORRECTIVE ACTIONS):",
+        margin,
+        currentY
+      );
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(6.8);
@@ -1988,7 +2016,11 @@ export function PmeReportsView() {
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(16, 122, 87);
-      doc.text("TINDAKAN PENCEGAHAN BERKELANJUTAN (PREVENTIVE ACTIONS):", margin, capY);
+      doc.text(
+        language === "en" ? "CONTINUOUS PREVENTIVE ACTIONS (CAPA):" : "TINDAKAN PENCEGAHAN BERKELANJUTAN (PREVENTIVE ACTIONS):",
+        margin,
+        capY
+      );
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(6.8);
@@ -2044,21 +2076,27 @@ export function PmeReportsView() {
       doc.setFontSize(6.5);
       doc.setTextColor(148, 163, 184);
       doc.text(
-        `* Laporan Analisis Mutu & Fishbone ISO 15189 diterbitkan resmi dan bersifat RAHASIA untuk ${targetLab}.`,
+        language === "en"
+          ? `* ISO 15189 Quality & Fishbone Analysis Report officially issued and CONFIDENTIAL for ${targetLab}.`
+          : `* Laporan Analisis Mutu & Fishbone ISO 15189 diterbitkan resmi dan bersifat RAHASIA untuk ${targetLab}.`,
         margin,
         pageH - 5
       );
 
-      const safeFilename = `Laporan_Analisis_PME_Model1_${targetLab.replace(/\s+/g, "_")}_${(data.sampleLabel || selectedSample).replace(/\s+/g, "_")}.pdf`;
+      const safeFilename = language === "en"
+        ? `EQA_Quality_Analysis_Report_Model1_${targetLab.replace(/\s+/g, "_")}_${(data.sampleLabel || selectedSample).replace(/\s+/g, "_")}.pdf`
+        : `Laporan_Analisis_PME_Model1_${targetLab.replace(/\s+/g, "_")}_${(data.sampleLabel || selectedSample).replace(/\s+/g, "_")}.pdf`;
       doc.save(safeFilename);
       toast({
-        title: "PDF Analisis Berhasil Diunduh",
-        description: `Format evaluasi Model 1 lengkap dengan Fishbone 6M (${safeFilename}) tersimpan.`,
+        title: language === "en" ? "Analysis PDF Downloaded" : "PDF Analisis Berhasil Diunduh",
+        description: language === "en"
+          ? `Model 1 evaluation sheet with 6M Fishbone (${safeFilename}) has been saved.`
+          : `Format evaluasi Model 1 lengkap dengan Fishbone 6M (${safeFilename}) tersimpan.`,
       });
     } catch (err) {
       console.error("Download Analysis PDF error:", err);
       toast({
-        title: "Gagal Mengunduh PDF Analisis",
+        title: language === "en" ? "Failed to Download Analysis PDF" : "Gagal Mengunduh PDF Analisis",
         description: String(err),
         variant: "destructive",
       });
@@ -2069,15 +2107,19 @@ export function PmeReportsView() {
 
   // Cetak Laporan Hasil Analisis (Format Model 1 Resmi Lengkap Fishbone 6M)
   const handlePrintAnalysis = (dataInput?: any) => {
-    const data = dataInput || analysisResult;
-    if (!data) {
+    const rawData = dataInput || analysisResult;
+    if (!rawData) {
       toast({
-        title: "Data Analisis Belum Tersedia",
-        description: "Silakan klik tombol 'Analisa Hasil PME' terlebih dahulu sebelum mencetak lembar evaluasi.",
+        title: language === "en" ? "Analysis Data Not Available" : "Data Analisis Belum Tersedia",
+        description: language === "en"
+          ? "Please click 'Analyze EQA Results' first before printing the evaluation sheet."
+          : "Silakan klik tombol 'Analisa Hasil PME' terlebih dahulu sebelum mencetak lembar evaluasi.",
         variant: "destructive",
       });
       return;
     }
+
+    const data = formatAnalysisForLanguage(rawData, language);
 
     const targetLab = (isSuperAdmin || isReadOnly)
       ? (activeReport?.participant?.labName || data.participantName || tenantDisplayName)
@@ -2086,13 +2128,15 @@ export function PmeReportsView() {
       ? (activeReport?.participant?.participantCode || data.participantCode || "-")
       : (data.participantCode || "-");
     const targetAddress = activeReport?.participant?.address || "Sumatera Selatan";
-    const sampleTitle = (data.sampleLabel || selectedSample || "Sampel 1").toUpperCase();
+    const sampleTitle = (data.sampleLabel || selectedSample || (language === "en" ? "Sample 1" : "Sampel 1")).toUpperCase();
 
     const printWindow = window.open("", "_blank", "width=1150,height=850");
     if (!printWindow) {
       toast({
-        title: "Popup Diblokir Browser",
-        description: "Mohon izinkan popup di peramban Anda untuk mencetak lembar evaluasi Model 1.",
+        title: language === "en" ? "Popup Blocked by Browser" : "Popup Diblokir Browser",
+        description: language === "en"
+          ? "Please allow popups in your browser to print the Model 1 evaluation sheet."
+          : "Mohon izinkan popup di peramban Anda untuk mencetak lembar evaluasi Model 1.",
         variant: "destructive",
       });
       return;
@@ -2103,7 +2147,7 @@ export function PmeReportsView() {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>Laporan Hasil Evaluasi & Analisis Mutu PME (Model 1) - ${targetLab}</title>
+  <title>${language === "en" ? "EQA Quality Evaluation Report (Model 1)" : "Laporan Hasil Evaluasi & Analisis Mutu PME (Model 1)"} - ${targetLab}</title>
   <style>
     @page {
       size: A4 landscape;
@@ -2339,7 +2383,7 @@ export function PmeReportsView() {
   </style>
 </head>
 <body>
-  <div class="watermark">RAHASIA</div>
+  <div class="watermark">${language === "en" ? "CONFIDENTIAL" : "RAHASIA"}</div>
   <div class="content-wrap">
     <!-- KOP SURAT -->
     <div class="kop-header">
@@ -2359,40 +2403,40 @@ export function PmeReportsView() {
 
     <!-- TITLE -->
     <div class="doc-title">
-      <h1>LAPORAN HASIL EVALUASI & ANALISIS MUTU PME (ISO 15189)</h1>
-      <span class="badge">🧪 BIDANG ${(category === "ALL" ? "SEMUA BIDANG" : category).toUpperCase()} • ${sampleTitle}</span>
+      <h1>${language === "en" ? "EXTERNAL QUALITY ASSESSMENT (EQA) ISO 15189 REPORT" : "LAPORAN HASIL EVALUASI & ANALISIS MUTU PME (ISO 15189)"}</h1>
+      <span class="badge">🧪 ${language === "en" ? "DISCIPLINE" : "BIDANG"} ${(category === "ALL" ? (language === "en" ? "ALL DISCIPLINES" : "SEMUA BIDANG") : category).toUpperCase()} • ${sampleTitle}</span>
     </div>
 
     <!-- METADATA -->
     <div class="meta-grid">
       <div>
-        <div class="meta-row"><span class="meta-label">Kode Peserta</span><span class="meta-val">: ${targetCode}</span></div>
-        <div class="meta-row"><span class="meta-label">Nama Laboratorium</span><span class="meta-val">: ${targetLab}</span></div>
-        <div class="meta-row"><span class="meta-label">Alamat Peserta</span><span class="meta-val">: ${targetAddress}</span></div>
+        <div class="meta-row"><span class="meta-label">${language === "en" ? "Participant Code" : "Kode Peserta"}</span><span class="meta-val">: ${targetCode}</span></div>
+        <div class="meta-row"><span class="meta-label">${language === "en" ? "Laboratory Name" : "Nama Laboratorium"}</span><span class="meta-val">: ${targetLab}</span></div>
+        <div class="meta-row"><span class="meta-label">${language === "en" ? "Address" : "Alamat Peserta"}</span><span class="meta-val">: ${targetAddress}</span></div>
       </div>
       <div>
-        <div class="meta-row"><span class="meta-label">Siklus PME</span><span class="meta-val">: ${data.cycle || cycle}</span></div>
-        <div class="meta-row"><span class="meta-label">Level / Botol</span><span class="meta-val">: ${data.sampleLabel || selectedSample}</span></div>
-        <div class="meta-row"><span class="meta-label">Tanggal Analisis</span><span class="meta-val">: ${new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" })}</span></div>
+        <div class="meta-row"><span class="meta-label">${language === "en" ? "EQA Cycle" : "Siklus PME"}</span><span class="meta-val">: ${data.cycle || cycle}</span></div>
+        <div class="meta-row"><span class="meta-label">${language === "en" ? "Sample / Level" : "Level / Botol"}</span><span class="meta-val">: ${data.sampleLabel || selectedSample}</span></div>
+        <div class="meta-row"><span class="meta-label">${language === "en" ? "Analysis Date" : "Tanggal Analisis"}</span><span class="meta-val">: ${new Date().toLocaleDateString(language === "en" ? "en-US" : "id-ID", { day: "numeric", month: "long", year: "numeric" })}</span></div>
       </div>
     </div>
 
     <!-- KPI -->
     <div class="kpi-row">
       <div class="kpi-box">
-        <div class="kpi-title">Parameter Diuji</div>
+        <div class="kpi-title">${language === "en" ? "Tested Parameters" : "Parameter Diuji"}</div>
         <div class="kpi-val">${data.totalParameters}</div>
       </div>
       <div class="kpi-box green">
-        <div class="kpi-title">Memuaskan (|Z| ≤ 2)</div>
+        <div class="kpi-title">${language === "en" ? "Satisfactory (|Z| ≤ 2)" : "Memuaskan (|Z| ≤ 2)"}</div>
         <div class="kpi-val">${data.satisfactoryCount}</div>
       </div>
       <div class="kpi-box amber">
-        <div class="kpi-title">Peringatan (2 &lt; |Z| &lt; 3)</div>
+        <div class="kpi-title">${language === "en" ? "Warning (2 &lt; |Z| &lt; 3)" : "Peringatan (2 &lt; |Z| &lt; 3)"}</div>
         <div class="kpi-val">${data.warningCount}</div>
       </div>
       <div class="kpi-box red">
-        <div class="kpi-title">Tdk Memuaskan (|Z| ≥ 3)</div>
+        <div class="kpi-title">${language === "en" ? "Unsatisfactory (|Z| ≥ 3)" : "Tdk Memuaskan (|Z| ≥ 3)"}</div>
         <div class="kpi-val">${data.unsatisfactoryCount}</div>
       </div>
       <div class="kpi-box teal">
@@ -2402,24 +2446,24 @@ export function PmeReportsView() {
     </div>
 
     <!-- TABEL EVALUASI BIOSTATISTIK -->
-    <div class="section-title">1. Rincian Evaluasi Hasil Pengujian per Parameter (ISO 13528)</div>
+    <div class="section-title">${language === "en" ? "1. Biostatistical Evaluation Details per Parameter (ISO 13528)" : "1. Rincian Evaluasi Hasil Pengujian per Parameter (ISO 13528)"}</div>
     <table>
       <thead>
         <tr class="th-teal">
           <th style="width: 25px;">No</th>
           <th>Parameter</th>
-          <th style="width: 55px;">Satuan</th>
-          <th style="width: 70px;">Hasil Lab</th>
-          <th style="width: 80px;">Target Konsensus</th>
+          <th style="width: 55px;">${language === "en" ? "Unit" : "Satuan"}</th>
+          <th style="width: 70px;">${language === "en" ? "Lab Result" : "Hasil Lab"}</th>
+          <th style="width: 80px;">${language === "en" ? "Consensus Target" : "Target Konsensus"}</th>
           <th style="width: 65px;">SDPA</th>
           <th style="width: 65px;">Bias %</th>
           <th style="width: 65px;">Z-Score</th>
-          <th style="width: 100px;">Status Evaluasi</th>
+          <th style="width: 100px;">${language === "en" ? "Quality Evaluation" : "Status Evaluasi"}</th>
         </tr>
       </thead>
       <tbody>
         ${(data.evaluationFindings || []).map((f: any, idx: number) => `
-          <tr style="${f.statusText === 'Tidak Memuaskan' ? 'background:#fef2f2;' : f.statusText === 'Peringatan' ? 'background:#fffbeb;' : ''}">
+          <tr style="${f.statusText === 'Tidak Memuaskan' || f.statusText === 'Unsatisfactory' ? 'background:#fef2f2;' : f.statusText === 'Peringatan' || f.statusText === 'Warning' ? 'background:#fffbeb;' : ''}">
             <td class="text-center">${idx + 1}</td>
             <td><strong>${f.parameterName}</strong></td>
             <td class="text-center">${f.unit || '-'}</td>
@@ -2427,9 +2471,9 @@ export function PmeReportsView() {
             <td class="text-right">${f.target !== null && f.target !== undefined ? Number(f.target).toFixed(2) : '-'}</td>
             <td class="text-right">${f.sdpa !== null && f.sdpa !== undefined ? Number(f.sdpa).toFixed(2) : '-'}</td>
             <td class="text-center" style="${Math.abs(f.biasPercent) > 10 ? 'color:#dc2626;font-weight:700;' : ''}">${f.biasPercent !== null && f.biasPercent !== undefined ? (f.biasPercent > 0 ? `+${f.biasPercent}%` : `${f.biasPercent}%`) : '-'}</td>
-            <td class="text-center" style="font-weight:700;color:${f.statusText === 'Tidak Memuaskan' ? '#dc2626' : f.statusText === 'Peringatan' ? '#d97706' : '#16a34a'};">${f.zScore !== null && f.zScore !== undefined ? (f.zScore > 0 ? `+${Number(f.zScore).toFixed(2)}` : Number(f.zScore).toFixed(2)) : '-'}</td>
+            <td class="text-center" style="font-weight:700;color:${f.statusText === 'Tidak Memuaskan' || f.statusText === 'Unsatisfactory' ? '#dc2626' : f.statusText === 'Peringatan' || f.statusText === 'Warning' ? '#d97706' : '#16a34a'};">${f.zScore !== null && f.zScore !== undefined ? (f.zScore > 0 ? `+${Number(f.zScore).toFixed(2)}` : Number(f.zScore).toFixed(2)) : '-'}</td>
             <td class="text-center">
-              <span class="${f.statusText === 'Tidak Memuaskan' ? 'badge-unsat' : f.statusText === 'Peringatan' ? 'badge-warn' : 'badge-sat'}">${f.statusText}</span>
+              <span class="${f.statusText === 'Tidak Memuaskan' || f.statusText === 'Unsatisfactory' ? 'badge-unsat' : f.statusText === 'Peringatan' || f.statusText === 'Warning' ? 'badge-warn' : 'badge-sat'}">${f.statusText}</span>
             </td>
           </tr>
         `).join('')}
@@ -2437,14 +2481,14 @@ export function PmeReportsView() {
     </table>
 
     <!-- FISHBONE MATRIX -->
-    <div class="section-title">2. Matriks Investigasi Akar Masalah 6M (Fishbone Ishikawa)</div>
+    <div class="section-title">${language === "en" ? "2. 6M Root Cause Investigation Matrix (Ishikawa Diagram)" : "2. Matriks Investigasi Akar Masalah 6M (Fishbone Ishikawa)"}</div>
     <table>
       <thead>
         <tr class="th-indigo">
           <th style="width: 25px;">No</th>
-          <th style="width: 130px;">Kategori 6M</th>
-          <th>Temuan Akar Masalah (Root Cause Finding)</th>
-          <th>Rekomendasi Tindakan Korektif & Preventif</th>
+          <th style="width: 130px;">${language === "en" ? "6M Category" : "Kategori 6M"}</th>
+          <th>${language === "en" ? "Root Cause Finding & Analysis" : "Temuan Akar Masalah (Root Cause Finding)"}</th>
+          <th>${language === "en" ? "Corrective & Preventive Action" : "Rekomendasi Tindakan Korektif & Preventif"}</th>
         </tr>
       </thead>
       <tbody>
@@ -2463,13 +2507,13 @@ export function PmeReportsView() {
     <div class="capa-sig-grid">
       <div style="display:flex;flex-direction:column;gap:8px;">
         <div class="capa-box" style="border-left: 3px solid #dc2626;">
-          <h4 style="color:#b91c1c;">TINDAKAN KOREKTIF SEGERA (CORRECTIVE ACTIONS):</h4>
+          <h4 style="color:#b91c1c;">${language === "en" ? "IMMEDIATE CORRECTIVE ACTIONS (CAPA):" : "TINDAKAN KOREKTIF SEGERA (CORRECTIVE ACTIONS):"}</h4>
           <ul>
             ${(data.correctiveActions || []).map((ca: string) => `<li>${ca}</li>`).join('')}
           </ul>
         </div>
         <div class="capa-box" style="border-left: 3px solid #16a34a;">
-          <h4 style="color:#15803d;">TINDAKAN PENCEGAHAN BERKELANJUTAN (PREVENTIVE ACTIONS):</h4>
+          <h4 style="color:#15803d;">${language === "en" ? "CONTINUOUS PREVENTIVE ACTIONS (CAPA):" : "TINDAKAN PENCEGAHAN BERKELANJUTAN (PREVENTIVE ACTIONS):"}</h4>
           <ul>
             ${(data.preventiveActions || []).map((pa: string) => `<li>${pa}</li>`).join('')}
           </ul>
@@ -2477,7 +2521,7 @@ export function PmeReportsView() {
       </div>
 
       <div class="signer-box">
-        <p style="margin:0;">${signer.tempat || "OKU Timur"}, ${signer.tanggal || "14 November 2027"}</p>
+        <p style="margin:0;">${signer.tempat || "OKU Timur"}, ${language === "en" ? new Date().toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" }) : (signer.tanggal || "14 November 2027")}</p>
         <p style="margin:2px 0 0 0;font-size:9.5px;color:#475569;">${signer.jabatan || "Ketua Tim Kerja Mutu, Penguatan SDM dan Kemitraan"}</p>
         <div class="signer-sig">${signer.namaPejabat ? signer.namaPejabat.split(",")[0] : "M.Didik Wahyudi"}</div>
         <div class="signer-name">${signer.namaPejabat || "M.Didik Wahyudi, S.Tr.Kes"}</div>
@@ -2487,7 +2531,9 @@ export function PmeReportsView() {
 
     <!-- FOOTER -->
     <div class="footer-note">
-      * Dokumen Lembar Evaluasi & Analisis Mutu ISO 15189 ini bersifat RAHASIA dan diterbitkan secara resmi untuk ${targetLab}.
+      ${language === "en"
+        ? `* This ISO 15189 Quality Evaluation & Analysis document is CONFIDENTIAL and officially issued for ${targetLab}.`
+        : `* Dokumen Lembar Evaluasi & Analisis Mutu ISO 15189 ini bersifat RAHASIA dan diterbitkan secara resmi untuk ${targetLab}.`}
     </div>
   </div>
 
@@ -2555,28 +2601,35 @@ export function PmeReportsView() {
             <div className="space-y-1">
               <div className="flex flex-wrap items-center gap-2.5">
                 <h1 className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white flex items-center gap-2">
-                  Laporan Hasil PME <span className="text-teal-300">({tenantDisplayName})</span>
+                  {language === "en" ? "EQA Performance Report" : "Laporan Hasil PME"}{" "}
+                  <span className="text-teal-300">({tenantDisplayName})</span>
                 </h1>
                 {isSuperAdmin ? (
                   <Badge className="bg-teal-500 text-slate-950 hover:bg-teal-400 border-none text-xs font-bold font-mono px-2.5 py-0.5 shadow-sm">
-                    Superadmin Mode
+                    {language === "en" ? "Superadmin Mode" : "Superadmin Mode"}
                   </Badge>
                 ) : isReadOnly ? (
                   <Badge className="bg-sky-400 text-slate-950 hover:bg-sky-300 border-none text-xs font-bold font-mono px-2.5 py-0.5 shadow-sm">
-                    ADMIN2 (LIHAT SAJA)
+                    {language === "en" ? "ADMIN2 (READ ONLY)" : "ADMIN2 (LIHAT SAJA)"}
                   </Badge>
                 ) : (
                   <Badge className="bg-emerald-400 text-slate-950 hover:bg-emerald-300 border-none text-xs font-bold font-mono px-2.5 py-0.5 shadow-sm">
-                    Laboratorium Peserta
+                    {language === "en" ? "Participant Laboratory" : "Laboratorium Peserta"}
                   </Badge>
                 )}
               </div>
               <p className="text-xs sm:text-sm font-medium text-teal-100/85 leading-relaxed max-w-3xl">
                 {isSuperAdmin
-                  ? "Validasi, koreksi hasil biostatistik ISO 13528, penandatanganan resmi, dan pengiriman laporan ke peserta"
+                  ? (language === "en"
+                      ? "Validation, ISO 13528 biostatistical correction, official endorsement, and report dispatch to participants"
+                      : "Validasi, koreksi hasil biostatistik ISO 13528, penandatanganan resmi, dan pengiriman laporan ke peserta")
                   : isReadOnly
-                  ? "Pemeriksaan dan peninjauan laporan evaluasi mutu PME seluruh laboratorium peserta (Akses Lihat Saja)"
-                  : "Lembar evaluasi mutu resmi hasil uji PME laboratorium yang diterbitkan oleh Balai Penyelenggara"}
+                  ? (language === "en"
+                      ? "Inspection and quality review of all participant laboratory EQA reports (Read-Only Access)"
+                      : "Pemeriksaan dan peninjauan laporan evaluasi mutu PME seluruh laboratorium peserta (Akses Lihat Saja)")
+                  : (language === "en"
+                      ? "Official laboratory EQA quality evaluation sheet issued by the External Quality Assessment Provider"
+                      : "Lembar evaluasi mutu resmi hasil uji PME laboratorium yang diterbitkan oleh Balai Penyelenggara")}
               </p>
             </div>
           </div>
@@ -2594,7 +2647,7 @@ export function PmeReportsView() {
                 className="text-xs sm:text-sm font-bold bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs"
               >
                 <Building2 className="mr-1.5 h-4 w-4 text-teal-300" />
-                Pengaturan KOP Surat
+                {language === "en" ? "Letterhead Settings" : "Pengaturan KOP Surat"}
               </Button>
             )}
 
@@ -2610,7 +2663,7 @@ export function PmeReportsView() {
                 className="text-xs sm:text-sm font-bold bg-white/10 hover:bg-white/20 text-white border-white/20 shadow-xs"
               >
                 <PenLine className="mr-1.5 h-4 w-4 text-teal-300" />
-                Penandatangan
+                {language === "en" ? "Authorized Signer" : "Penandatangan"}
               </Button>
             )}
 
@@ -2628,7 +2681,9 @@ export function PmeReportsView() {
                 ) : (
                   <FileCheck2 className="mr-1.5 h-4 w-4 text-sky-300" />
                 )}
-                {activeReport.isValidated ? "Validasi Ulang" : "Validasi / Selesai"}
+                {activeReport.isValidated
+                  ? (language === "en" ? "Re-validate" : "Validasi Ulang")
+                  : (language === "en" ? "Validate / Complete" : "Validasi / Selesai")}
               </Button>
             )}
 
@@ -2645,7 +2700,9 @@ export function PmeReportsView() {
                 }`}
               >
                 <Send className="mr-1.5 h-4 w-4" />
-                {activeReport.isPublished ? "Kirim Ulang ke Peserta" : "Kirim Laporan"}
+                {activeReport.isPublished
+                  ? (language === "en" ? "Re-send to Participant" : "Kirim Ulang ke Peserta")
+                  : (language === "en" ? "Send Report" : "Kirim Laporan")}
               </Button>
             )}
 
@@ -2663,7 +2720,7 @@ export function PmeReportsView() {
                 ) : (
                   <RotateCcw className="mr-1.5 h-4 w-4 text-amber-300" />
                 )}
-                Tarik / Batalkan
+                {language === "en" ? "Retract / Cancel" : "Tarik / Batalkan"}
               </Button>
             )}
 
@@ -2679,7 +2736,7 @@ export function PmeReportsView() {
               ) : (
                 <Sparkles className="h-4 w-4 text-slate-950" />
               )}
-              Analisa Hasil PME
+              {language === "en" ? "Analyze EQA Results" : "Analisa Hasil PME"}
               {quotaInfo && (
                 <Badge
                   variant="outline"
@@ -2702,7 +2759,7 @@ export function PmeReportsView() {
                   className="bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-bold shadow-md gap-1.5"
                 >
                   {isExportingPdf ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
-                  PDF Analisis (Model 1)
+                  {language === "en" ? "Analysis PDF (Model 1)" : "PDF Analisis (Model 1)"}
                 </Button>
                 <Button
                   variant="outline"
@@ -2711,7 +2768,7 @@ export function PmeReportsView() {
                   className="bg-white/10 hover:bg-white/20 text-white border-white/25 text-xs sm:text-sm font-bold shadow-xs gap-1.5"
                 >
                   <Printer className="h-4 w-4 text-teal-300" />
-                  Cetak Analisis (Model 1)
+                  {language === "en" ? "Print Analysis (Model 1)" : "Cetak Analisis (Model 1)"}
                 </Button>
               </>
             )}
@@ -2723,7 +2780,7 @@ export function PmeReportsView() {
               className="bg-white/10 hover:bg-white/20 text-white border-white/20 text-xs sm:text-sm font-bold shadow-xs"
             >
               <Printer className="mr-1.5 h-4 w-4 text-teal-300" />
-              Cetak Halaman
+              {language === "en" ? "Print Page" : "Cetak Halaman"}
             </Button>
 
             {activeReport && (
@@ -2734,7 +2791,7 @@ export function PmeReportsView() {
                 className="bg-teal-600 hover:bg-teal-500 text-white text-xs sm:text-sm font-bold shadow-md"
               >
                 {isExportingPdf ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-                Unduh PDF Resmi
+                {language === "en" ? "Download Official PDF" : "Unduh PDF Resmi"}
               </Button>
             )}
           </div>
@@ -2801,7 +2858,7 @@ export function PmeReportsView() {
               <div className="flex items-center justify-between">
                 <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
                   <Calendar className="h-4 w-4 text-blue-600" />
-                  <span>Siklus PME</span>
+                  <span>{language === "en" ? "EQA Cycle" : "Siklus PME"}</span>
                 </Label>
                 <button
                   type="button"
@@ -2811,7 +2868,9 @@ export function PmeReportsView() {
                   }}
                   className="text-xs font-semibold text-blue-600 hover:underline"
                 >
-                  {customCycleMode ? "Pilih Siklus" : "Ketik Manual"}
+                  {customCycleMode
+                    ? (language === "en" ? "Select Cycle" : "Pilih Siklus")
+                    : (language === "en" ? "Type Manual" : "Ketik Manual")}
                 </button>
               </div>
 
@@ -2820,7 +2879,7 @@ export function PmeReportsView() {
                   <Input
                     value={customCycleInput}
                     onChange={(e) => setCustomCycleInput(e.target.value)}
-                    placeholder="Misal: Siklus 1 2027"
+                    placeholder={language === "en" ? "e.g. Cycle 1 2027" : "Misal: Siklus 1 2027"}
                     className="h-9 sm:h-10 text-xs sm:text-sm font-semibold"
                     onKeyDown={(e) => e.key === "Enter" && handleApplyCustomCycle()}
                   />
@@ -2829,13 +2888,13 @@ export function PmeReportsView() {
                     className="h-9 sm:h-10 px-3 text-xs sm:text-sm font-bold bg-blue-600 hover:bg-blue-700 text-white"
                     onClick={handleApplyCustomCycle}
                   >
-                    Terapkan
+                    {language === "en" ? "Apply" : "Terapkan"}
                   </Button>
                 </div>
               ) : (
                 <Select value={cycle} onValueChange={handleCycleSelect}>
                   <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm font-semibold">
-                    <SelectValue placeholder="Pilih Siklus" />
+                    <SelectValue placeholder={language === "en" ? "Select Cycle" : "Pilih Siklus"} />
                   </SelectTrigger>
                   <SelectContent>
                     {availableCycles.map((c) => (
@@ -2857,17 +2916,25 @@ export function PmeReportsView() {
             <div className="space-y-1.5">
               <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
                 <Layers className="h-4 w-4 text-teal-600" />
-                <span>Kategori Paket</span>
+                <span>{language === "en" ? "Package Category" : "Kategori Paket"}</span>
               </Label>
               <Select value={category} onValueChange={setCategory}>
                 <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">Semua Kategori</SelectItem>
-                  <SelectItem value="Kimia Klinik" className="text-xs sm:text-sm font-semibold">Kimia Klinik</SelectItem>
-                  <SelectItem value="Hematologi" className="text-xs sm:text-sm font-semibold">Hematologi</SelectItem>
-                  <SelectItem value="Imunologi" className="text-xs sm:text-sm font-semibold">Imunologi</SelectItem>
+                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "All Categories" : "Semua Kategori"}
+                  </SelectItem>
+                  <SelectItem value="Kimia Klinik" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "Clinical Chemistry" : "Kimia Klinik"}
+                  </SelectItem>
+                  <SelectItem value="Hematologi" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "Hematology" : "Hematologi"}
+                  </SelectItem>
+                  <SelectItem value="Imunologi" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "Immunology" : "Imunologi"}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2876,14 +2943,16 @@ export function PmeReportsView() {
             <div className="space-y-1.5">
               <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
                 <Building2 className="h-4 w-4 text-amber-600" />
-                <span>Pilih Peserta</span>
+                <span>{language === "en" ? "Select Participant" : "Pilih Peserta"}</span>
               </Label>
               <Select value={selectedParticipantId} onValueChange={setSelectedParticipantId}>
                 <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm font-semibold">
-                  <SelectValue placeholder="Semua Peserta" />
+                  <SelectValue placeholder={language === "en" ? "All Participants" : "Semua Peserta"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">Semua Peserta ({participantReports.length})</SelectItem>
+                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? `All Participants (${participantReports.length})` : `Semua Peserta (${participantReports.length})`}
+                  </SelectItem>
                   {participantReports.map((pr) => (
                     <SelectItem key={pr.participant.id} value={pr.participant.id} className="text-xs sm:text-sm font-semibold">
                       {pr.participant.participantCode ? `[${pr.participant.participantCode}] ` : ""}
@@ -2898,14 +2967,16 @@ export function PmeReportsView() {
             <div className="space-y-1.5">
               <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
                 <Activity className="h-4 w-4 text-indigo-600" />
-                <span>Parameter Uji</span>
+                <span>{language === "en" ? "Test Parameter" : "Parameter Uji"}</span>
               </Label>
               <Select value={parameterFilter} onValueChange={setParameterFilter}>
                 <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm font-semibold">
-                  <SelectValue placeholder="Semua Parameter" />
+                  <SelectValue placeholder={language === "en" ? "All Parameters" : "Semua Parameter"} />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">Semua Parameter ({availableParameters.length})</SelectItem>
+                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? `All Parameters (${availableParameters.length})` : `Semua Parameter (${availableParameters.length})`}
+                  </SelectItem>
                   {availableParameters.map((p) => (
                     <SelectItem key={p} value={p} className="text-xs sm:text-sm font-semibold">
                       {p}
@@ -2921,18 +2992,28 @@ export function PmeReportsView() {
             <div className="space-y-1.5">
               <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
                 <Filter className="h-4 w-4 text-purple-600" />
-                <span>Status Evaluasi</span>
+                <span>{language === "en" ? "Evaluation Status" : "Status Evaluasi"}</span>
               </Label>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
                 <SelectTrigger className="h-9 sm:h-10 text-xs sm:text-sm font-semibold">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">Semua Status</SelectItem>
-                  <SelectItem value="SATISFACTORY" className="text-xs sm:text-sm font-semibold">Hanya Memuaskan (OK)</SelectItem>
-                  <SelectItem value="WARNING" className="text-xs sm:text-sm font-semibold">Hanya Peringatan ($)</SelectItem>
-                  <SelectItem value="UNSATISFACTORY" className="text-xs sm:text-sm font-semibold">Hanya Tidak Memuaskan (ACTION)</SelectItem>
-                  <SelectItem value="OUTLIER" className="text-xs sm:text-sm font-semibold">Hanya Outlier</SelectItem>
+                  <SelectItem value="ALL" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "All Statuses" : "Semua Status"}
+                  </SelectItem>
+                  <SelectItem value="SATISFACTORY" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "Satisfactory Only (OK)" : "Hanya Memuaskan (OK)"}
+                  </SelectItem>
+                  <SelectItem value="WARNING" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "Warning Only ($)" : "Hanya Peringatan ($)"}
+                  </SelectItem>
+                  <SelectItem value="UNSATISFACTORY" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "Unsatisfactory Only (ACTION)" : "Hanya Tidak Memuaskan (ACTION)"}
+                  </SelectItem>
+                  <SelectItem value="OUTLIER" className="text-xs sm:text-sm font-semibold">
+                    {language === "en" ? "Outliers Only" : "Hanya Outlier"}
+                  </SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -2940,13 +3021,17 @@ export function PmeReportsView() {
             <div className="space-y-1.5 lg:col-span-2">
               <Label className="text-xs sm:text-sm font-bold text-foreground flex items-center gap-1.5">
                 <Search className="h-4 w-4 text-slate-500" />
-                <span>Pencarian Cepat Parameter / Kode</span>
+                <span>{language === "en" ? "Quick Search Parameter / Code" : "Pencarian Cepat Parameter / Kode"}</span>
               </Label>
               <div className="relative">
                 <Input
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Ketik nama parameter (contoh: Glukosa, Kolesterol), metode, atau alat..."
+                  placeholder={
+                    language === "en"
+                      ? "Type parameter name (e.g. Glucose, Cholesterol), method, or instrument..."
+                      : "Ketik nama parameter (contoh: Glukosa, Kolesterol), metode, atau alat..."
+                  }
                   className="h-9 sm:h-10 text-xs sm:text-sm pl-9 font-semibold"
                 />
                 <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
@@ -2955,7 +3040,7 @@ export function PmeReportsView() {
                     onClick={() => setSearchTerm("")}
                     className="absolute right-3 top-2.5 text-xs font-semibold text-muted-foreground hover:text-foreground"
                   >
-                    Bersihkan
+                    {language === "en" ? "Clear" : "Bersihkan"}
                   </button>
                 )}
               </div>
@@ -2968,23 +3053,33 @@ export function PmeReportsView() {
       {summary && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 no-print">
           <Card className="p-3 border shadow-xs bg-card">
-            <p className="text-[11px] text-muted-foreground font-medium">Peserta Terdaftar</p>
+            <p className="text-[11px] text-muted-foreground font-medium">
+              {language === "en" ? "Registered Labs" : "Peserta Terdaftar"}
+            </p>
             <h4 className="text-xl font-bold mt-1 text-foreground">{summary.totalParticipants} Lab</h4>
           </Card>
           <Card className="p-3 border shadow-xs bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500/20">
-            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">Memuaskan (|Z| ≤ 2)</p>
+            <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+              {language === "en" ? "Satisfactory (|Z| ≤ 2)" : "Memuaskan (|Z| ≤ 2)"}
+            </p>
             <h4 className="text-xl font-bold mt-1 text-emerald-700 dark:text-emerald-400">{summary.totalSatisfactory}</h4>
           </Card>
           <Card className="p-3 border shadow-xs bg-amber-50/50 dark:bg-amber-950/20 border-amber-500/20">
-            <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Peringatan (2 &lt; |Z| &lt; 3)</p>
+            <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+              {language === "en" ? "Warning (2 < |Z| < 3)" : "Peringatan (2 < |Z| < 3)"}
+            </p>
             <h4 className="text-xl font-bold mt-1 text-amber-700 dark:text-amber-400">{summary.totalWarning}</h4>
           </Card>
           <Card className="p-3 border shadow-xs bg-red-50/50 dark:bg-red-950/20 border-red-500/20">
-            <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">Tdk Memuaskan (|Z| ≥ 3)</p>
+            <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">
+              {language === "en" ? "Unsatisfactory (|Z| ≥ 3)" : "Tdk Memuaskan (|Z| ≥ 3)"}
+            </p>
             <h4 className="text-xl font-bold mt-1 text-red-700 dark:text-red-400">{summary.totalUnsatisfactory}</h4>
           </Card>
           <Card className="p-3 border shadow-xs bg-purple-50/50 dark:bg-purple-950/20 border-purple-500/20 col-span-2 sm:col-span-1">
-            <p className="text-[11px] text-purple-700 dark:text-purple-400 font-medium">Tingkat Kelulusan</p>
+            <p className="text-[11px] text-purple-700 dark:text-purple-400 font-medium">
+              {language === "en" ? "Pass Rate" : "Tingkat Kelulusan"}
+            </p>
             <h4 className="text-xl font-bold mt-1 text-purple-700 dark:text-purple-400">{summary.passRate}%</h4>
           </Card>
         </div>
@@ -2995,19 +3090,23 @@ export function PmeReportsView() {
         <TabsList className="bg-muted/60 p-1 no-print">
           <TabsTrigger value="report" className="text-xs flex items-center gap-1.5">
             <Award className="h-3.5 w-3.5 text-teal-600" />
-            <span>Lembar Laporan Resmi Kemenkes</span>
+            <span>{language === "en" ? "Official Evaluation Sheet" : "Lembar Laporan Resmi Kemenkes"}</span>
           </TabsTrigger>
           <TabsTrigger value="recap" className="text-xs flex items-center gap-1.5">
             <FileBarChart className="h-3.5 w-3.5 text-emerald-600" />
-            <span>Rekap Laporan Hasil PME</span>
+            <span>{language === "en" ? "EQA Results Recap" : "Rekap Laporan Hasil PME"}</span>
           </TabsTrigger>
           <TabsTrigger value="comprehensive" className="text-xs flex items-center gap-1.5">
             <TableProperties className="h-3.5 w-3.5 text-indigo-600" />
-            <span>Tabel Statistik Lengkap (Bias%, TE, CV, Outlier, Z-Score)</span>
+            <span>
+              {language === "en"
+                ? "Statistical Summary Table (Bias%, TE, CV, Z-Score)"
+                : "Tabel Statistik Lengkap (Bias%, TE, CV, Outlier, Z-Score)"}
+            </span>
           </TabsTrigger>
           <TabsTrigger value="biostats" className="text-xs flex items-center gap-1.5">
             <Activity className="h-3.5 w-3.5 text-blue-600" />
-            <span>Dashboard Biostatistik ISO 13528 & Dixon</span>
+            <span>{language === "en" ? "ISO 13528 & Dixon Biostatistics Dashboard" : "Dashboard Biostatistik ISO 13528 & Dixon"}</span>
           </TabsTrigger>
         </TabsList>
 
@@ -4894,17 +4993,21 @@ export function PmeReportsView() {
               <div className="space-y-1">
                 <DialogTitle className="flex items-center gap-2 text-base font-bold text-foreground">
                   <Sparkles className="h-5 w-5 text-teal-600" />
-                  <span>Laporan Analisis Mutu PME Cerdas & Rekomendasi CAPA</span>
+                  <span>
+                    {language === "en"
+                      ? "Smart EQA Quality Analysis Report & CAPA Recommendations"
+                      : "Laporan Analisis Mutu PME Cerdas & Rekomendasi CAPA"}
+                  </span>
                 </DialogTitle>
                 <DialogDescription className="text-xs">
-                  {analysisResult?.participantName} ({analysisResult?.participantCode}) • Siklus {analysisResult?.cycle} • {analysisResult?.sampleLabel}
+                  {displayAnalysis?.participantName} ({displayAnalysis?.participantCode}) • {language === "en" ? "Cycle" : "Siklus"} {displayAnalysis?.cycle} • {displayAnalysis?.sampleLabel}
                 </DialogDescription>
               </div>
 
               <div className="flex items-center gap-2">
                 {quotaInfo && (
                   <Badge variant="outline" className="font-mono text-xs bg-teal-50 text-teal-800 border-teal-300 dark:bg-teal-950/40 dark:text-teal-300">
-                    Sisa Kuota: {quotaInfo.remaining} / {quotaInfo.limit}
+                    {language === "en" ? "Quota" : "Sisa Kuota"}: {quotaInfo.remaining} / {quotaInfo.limit}
                   </Badge>
                 )}
                 <Button
@@ -4912,55 +5015,63 @@ export function PmeReportsView() {
                   variant="outline"
                   onClick={() => handlePrintAnalysis(analysisResult)}
                   className="h-7 text-xs font-bold border-slate-300 dark:border-slate-700"
-                  title="Cetak format evaluasi Model 1"
+                  title={language === "en" ? "Print Model 1 evaluation format" : "Cetak format evaluasi Model 1"}
                 >
                   <Printer className="h-3.5 w-3.5 mr-1 text-teal-600" />
-                  Cetak
+                  {language === "en" ? "Print" : "Cetak"}
                 </Button>
                 <Button
                   size="sm"
                   onClick={() => handleDownloadAnalysisPdf(analysisResult)}
                   disabled={isExportingPdf}
                   className="h-7 text-xs font-bold bg-teal-700 hover:bg-teal-800 text-white"
-                  title="Unduh PDF Model 1"
+                  title={language === "en" ? "Download Model 1 PDF" : "Unduh PDF Model 1"}
                 >
                   {isExportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : <Download className="h-3.5 w-3.5 mr-1" />}
-                  PDF Model 1
+                  {language === "en" ? "Model 1 PDF" : "PDF Model 1"}
                 </Button>
               </div>
             </div>
           </DialogHeader>
 
-          {analysisResult && (
+          {displayAnalysis && (
             <div className="space-y-5 py-3 text-xs">
               {/* Top KPI Cards */}
               <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
                 <Card className="p-3 border shadow-xs bg-slate-50 dark:bg-slate-900/60">
-                  <p className="text-[11px] text-muted-foreground font-medium">Parameter Diuji</p>
-                  <h4 className="text-xl font-bold mt-1 text-foreground">{analysisResult.totalParameters}</h4>
+                  <p className="text-[11px] text-muted-foreground font-medium">
+                    {language === "en" ? "Tested Parameters" : "Parameter Diuji"}
+                  </p>
+                  <h4 className="text-xl font-bold mt-1 text-foreground">{displayAnalysis.totalParameters}</h4>
                 </Card>
                 <Card className="p-3 border shadow-xs bg-emerald-50/60 dark:bg-emerald-950/20 border-emerald-500/20">
-                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">Memuaskan (|Z| ≤ 2)</p>
+                  <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-medium">
+                    {language === "en" ? "Satisfactory (|Z| ≤ 2)" : "Memuaskan (|Z| ≤ 2)"}
+                  </p>
                   <h4 className="text-xl font-bold mt-1 text-emerald-700 dark:text-emerald-400">
-                    {analysisResult.satisfactoryCount}
+                    {displayAnalysis.satisfactoryCount}
                   </h4>
                 </Card>
                 <Card className="p-3 border shadow-xs bg-amber-50/60 dark:bg-amber-950/20 border-amber-500/20">
-                  <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">Peringatan (2 &lt; |Z| &lt; 3)</p>
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+                    {language === "en" ? "Warning (2 < |Z| < 3)" : "Peringatan (2 < |Z| < 3)"}
+                  </p>
                   <h4 className="text-xl font-bold mt-1 text-amber-700 dark:text-amber-400">
-                    {analysisResult.warningCount}
+                    {displayAnalysis.warningCount}
                   </h4>
                 </Card>
                 <Card className="p-3 border shadow-xs bg-red-50/60 dark:bg-red-950/20 border-red-500/20">
-                  <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">Tdk Memuaskan (|Z| ≥ 3)</p>
+                  <p className="text-[11px] text-red-700 dark:text-red-400 font-medium">
+                    {language === "en" ? "Unsatisfactory (|Z| ≥ 3)" : "Tdk Memuaskan (|Z| ≥ 3)"}
+                  </p>
                   <h4 className="text-xl font-bold mt-1 text-red-700 dark:text-red-400">
-                    {analysisResult.unsatisfactoryCount}
+                    {displayAnalysis.unsatisfactoryCount}
                   </h4>
                 </Card>
                 <Card className="p-3 border shadow-xs bg-indigo-50/60 dark:bg-indigo-950/20 border-indigo-500/20 col-span-2 sm:col-span-1">
                   <p className="text-[11px] text-indigo-700 dark:text-indigo-400 font-medium">Pass Rate</p>
                   <h4 className="text-xl font-bold mt-1 text-indigo-700 dark:text-indigo-400">
-                    {analysisResult.passRate}%
+                    {displayAnalysis.passRate}%
                   </h4>
                 </Card>
               </div>
@@ -4969,10 +5080,14 @@ export function PmeReportsView() {
               <div className="p-4 rounded-xl border bg-card space-y-2">
                 <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
                   <Award className="h-4 w-4 text-teal-600" />
-                  <span>Ringkasan Klinis & Kinerja Analitik</span>
+                  <span>
+                    {language === "en"
+                      ? "Clinical Performance Summary & Evaluation"
+                      : "Ringkasan Klinis & Kinerja Analitik"}
+                  </span>
                 </h4>
                 <p className="text-slate-700 dark:text-slate-300 leading-relaxed">
-                  {analysisResult.clinicalSummary}
+                  {displayAnalysis.clinicalSummary}
                 </p>
               </div>
 
@@ -4980,10 +5095,14 @@ export function PmeReportsView() {
               <div className="p-4 rounded-xl border bg-card space-y-2.5">
                 <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
                   <Target className="h-4 w-4 text-blue-600" />
-                  <span>Observasi Bias & Deviasi Sistematik per Parameter</span>
+                  <span>
+                    {language === "en"
+                      ? "Bias Observations & Clinical Deviations"
+                      : "Observasi Bias & Deviasi Sistematik per Parameter"}
+                  </span>
                 </h4>
                 <div className="space-y-2">
-                  {analysisResult.biasObservations?.map((obs: string, idx: number) => (
+                  {displayAnalysis.biasObservations?.map((obs: string, idx: number) => (
                     <div
                       key={idx}
                       className="p-2.5 rounded-lg bg-slate-50 dark:bg-slate-900 border flex items-start gap-2.5"
@@ -4999,20 +5118,28 @@ export function PmeReportsView() {
               <div className="space-y-2.5">
                 <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
                   <Activity className="h-4 w-4 text-indigo-600" />
-                  <span>Matriks Investigasi Akar Masalah 6M (Fishbone Ishikawa)</span>
+                  <span>
+                    {language === "en"
+                      ? "6M Root Cause Investigation Matrix (Ishikawa Diagram)"
+                      : "Matriks Investigasi Akar Masalah 6M (Fishbone Ishikawa)"}
+                  </span>
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                  {analysisResult.fishbone?.map((item: any, idx: number) => (
+                  {displayAnalysis.fishbone?.map((item: any, idx: number) => (
                     <Card key={idx} className="p-3 border shadow-2xs space-y-2">
                       <div className="flex items-center justify-between border-b pb-1.5">
                         <span className="font-bold text-xs text-foreground">{item.category}</span>
                       </div>
                       <div className="space-y-1">
-                        <p className="text-[10px] font-semibold text-muted-foreground uppercase">Temuan:</p>
+                        <p className="text-[10px] font-semibold text-muted-foreground uppercase">
+                          {language === "en" ? "Finding:" : "Temuan:"}
+                        </p>
                         <p className="text-[11px] text-slate-700 dark:text-slate-300 leading-snug">{item.finding}</p>
                       </div>
                       <div className="space-y-1 pt-1 border-t">
-                        <p className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase">Rekomendasi Aksi:</p>
+                        <p className="text-[10px] font-semibold text-teal-700 dark:text-teal-400 uppercase">
+                          {language === "en" ? "Recommended Action:" : "Rekomendasi Aksi:"}
+                        </p>
                         <p className="text-[11px] text-slate-800 dark:text-slate-200 leading-snug">{item.action}</p>
                       </div>
                     </Card>
@@ -5026,10 +5153,14 @@ export function PmeReportsView() {
                 <div className="p-4 rounded-xl border bg-card space-y-2.5">
                   <h4 className="font-bold text-xs uppercase tracking-wider text-red-700 dark:text-red-400 flex items-center gap-2">
                     <AlertTriangle className="h-4 w-4" />
-                    <span>Tindakan Korektif Segera (Corrective Actions)</span>
+                    <span>
+                      {language === "en"
+                        ? "Immediate Corrective Actions (CAPA)"
+                        : "Tindakan Korektif Segera (Corrective Actions)"}
+                    </span>
                   </h4>
                   <ul className="space-y-1.5 list-disc list-inside text-slate-700 dark:text-slate-300">
-                    {analysisResult.correctiveActions?.map((act: string, idx: number) => (
+                    {displayAnalysis.correctiveActions?.map((act: string, idx: number) => (
                       <li key={idx} className="leading-snug text-[11px]">
                         {act}
                       </li>
@@ -5040,11 +5171,15 @@ export function PmeReportsView() {
                 {/* Preventive Actions */}
                 <div className="p-4 rounded-xl border bg-card space-y-2.5">
                   <h4 className="font-bold text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-400 flex items-center gap-2">
-                    <CheckCircle className="h-4 w-4" />
-                    <span>Tindakan Pencegahan Berkelanjutan (Preventive Actions)</span>
+                    <CheckCircle2 className="h-4 w-4" />
+                    <span>
+                      {language === "en"
+                        ? "Continuous Preventive Actions (CAPA)"
+                        : "Tindakan Pencegahan Berkelanjutan (Preventive Actions)"}
+                    </span>
                   </h4>
                   <ul className="space-y-1.5 list-disc list-inside text-slate-700 dark:text-slate-300">
-                    {analysisResult.preventiveActions?.map((act: string, idx: number) => (
+                    {displayAnalysis.preventiveActions?.map((act: string, idx: number) => (
                       <li key={idx} className="leading-snug text-[11px]">
                         {act}
                       </li>
@@ -5057,7 +5192,11 @@ export function PmeReportsView() {
               <div className="space-y-2">
                 <h4 className="font-bold text-sm text-foreground flex items-center gap-2">
                   <FileText className="h-4 w-4 text-teal-600" />
-                  <span>Rincian Evaluasi Hasil Pengujian per Parameter</span>
+                  <span>
+                    {language === "en"
+                      ? "Biostatistical Evaluation Details per Parameter"
+                      : "Rincian Evaluasi Hasil Pengujian per Parameter"}
+                  </span>
                 </h4>
                 <div className="overflow-x-auto border rounded-lg">
                   <table className="w-full text-xs">
@@ -5065,18 +5204,18 @@ export function PmeReportsView() {
                       <tr>
                         <th className="p-2 text-center w-8">No</th>
                         <th className="p-2 text-left">Parameter</th>
-                        <th className="p-2 text-right">Hasil Lab</th>
-                        <th className="p-2 text-right">Target Konsensus</th>
+                        <th className="p-2 text-right">{language === "en" ? "Lab Result" : "Hasil Lab"}</th>
+                        <th className="p-2 text-right">{language === "en" ? "Consensus Target" : "Target Konsensus"}</th>
                         <th className="p-2 text-right">SDPA</th>
                         <th className="p-2 text-center">Bias %</th>
                         <th className="p-2 text-center">Z-Score</th>
-                        <th className="p-2 text-center">Status</th>
+                        <th className="p-2 text-center">{language === "en" ? "Evaluation" : "Status"}</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/60">
-                      {analysisResult.evaluationFindings?.map((f: any, idx: number) => {
-                        const isAction = f.statusText === "Tidak Memuaskan";
-                        const isWarn = f.statusText === "Peringatan";
+                      {displayAnalysis.evaluationFindings?.map((f: any, idx: number) => {
+                        const isAction = f.statusText === "Tidak Memuaskan" || f.statusText === "Unsatisfactory";
+                        const isWarn = f.statusText === "Peringatan" || f.statusText === "Warning";
                         return (
                           <tr
                             key={idx}
@@ -5144,7 +5283,7 @@ export function PmeReportsView() {
                   className="text-xs border-amber-600/40 text-amber-800 dark:text-amber-300 hover:bg-amber-50"
                 >
                   <Sparkles className="mr-1.5 h-3.5 w-3.5 text-amber-600" />
-                  Analisa Sampel 2 (Level 2)
+                  {language === "en" ? "Analyze Sample 2 (Level 2)" : "Analisa Sampel 2 (Level 2)"}
                 </Button>
               ) : (
                 <Button
@@ -5158,7 +5297,7 @@ export function PmeReportsView() {
                   className="text-xs border-teal-600/40 text-teal-800 dark:text-teal-300 hover:bg-teal-50"
                 >
                   <Sparkles className="mr-1.5 h-3.5 w-3.5 text-teal-600" />
-                  Analisa Sampel 1 (Level 1)
+                  {language === "en" ? "Analyze Sample 1 (Level 1)" : "Analisa Sampel 1 (Level 1)"}
                 </Button>
               )}
             </div>
@@ -5172,7 +5311,7 @@ export function PmeReportsView() {
                 className="text-xs font-bold border-teal-600/50 text-teal-800 dark:text-teal-300 hover:bg-teal-50 dark:hover:bg-teal-950/40"
               >
                 <Printer className="mr-1.5 h-4 w-4 text-teal-700 dark:text-teal-400" />
-                Cetak Laporan Analisis (Model 1)
+                {language === "en" ? "Print Model 1 Report" : "Cetak Laporan Analisis (Model 1)"}
               </Button>
               <Button
                 type="button"
@@ -5182,7 +5321,7 @@ export function PmeReportsView() {
                 className="bg-teal-700 hover:bg-teal-800 text-white text-xs font-bold shadow-xs"
               >
                 {isExportingPdf ? <Loader2 className="mr-1.5 h-4 w-4 animate-spin" /> : <Download className="mr-1.5 h-4 w-4" />}
-                Unduh PDF Analisis (Format Model 1)
+                {language === "en" ? "Download Analysis PDF (Model 1)" : "Unduh PDF Analisis (Format Model 1)"}
               </Button>
               <Button
                 type="button"
@@ -5191,7 +5330,7 @@ export function PmeReportsView() {
                 onClick={() => setIsAnalysisModalOpen(false)}
                 className="text-xs font-semibold text-slate-700 dark:text-slate-300"
               >
-                Tutup
+                {language === "en" ? "Close" : "Tutup"}
               </Button>
             </div>
           </DialogFooter>

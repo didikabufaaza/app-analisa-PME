@@ -2,6 +2,7 @@
 
 import { create } from "zustand";
 import type { UserInfo } from "@/types/pme";
+import type { Language } from "@/lib/i18n";
 
 export type AppView =
   | "dashboard"
@@ -51,6 +52,15 @@ function getInitialSidebarTheme(): SidebarTheme {
   return DEFAULT_SIDEBAR_THEME;
 }
 
+function getInitialLanguage(): Language {
+  if (typeof window === "undefined") return "id";
+  try {
+    const raw = localStorage.getItem("smartpme_lang");
+    if (raw === "en" || raw === "id") return raw;
+  } catch {}
+  return "id";
+}
+
 interface AppState {
   user: UserInfo | null;
   authLoading: boolean;
@@ -60,6 +70,7 @@ interface AppState {
   viewAsTenantId: string | null;
   logoutReason: string | null;
   sidebarTheme: SidebarTheme;
+  language: Language;
   setUser: (user: UserInfo | null) => void;
   setAuthLoading: (loading: boolean) => void;
   setLogoutReason: (reason: string | null) => void;
@@ -68,6 +79,7 @@ interface AppState {
   setViewAsTenantId: (tenantId: string | null) => void;
   setSidebarTheme: (theme: Partial<SidebarTheme>) => void;
   resetSidebarTheme: () => void;
+  setLanguage: (lang: Language) => void;
   refreshUser: () => Promise<void>;
   logout: (reason?: string | null) => Promise<void>;
 }
@@ -87,6 +99,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   viewAsTenantId: getInitialTenantCookie() || "ALL",
   logoutReason: null,
   sidebarTheme: getInitialSidebarTheme(),
+  language: getInitialLanguage(),
   setUser: (user) => set({ user }),
   setAuthLoading: (authLoading) => set({ authLoading }),
   setLogoutReason: (logoutReason) => set({ logoutReason }),
@@ -121,6 +134,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       } catch {}
     }
     set({ sidebarTheme: DEFAULT_SIDEBAR_THEME });
+  },
+  setLanguage: (language) => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("smartpme_lang", language);
+      } catch {}
+    }
+    set({ language });
   },
   refreshUser: async () => {
     try {

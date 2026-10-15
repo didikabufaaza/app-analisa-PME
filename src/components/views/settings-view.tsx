@@ -18,6 +18,7 @@ import {
   Save,
   Server,
   SlidersHorizontal,
+  Tag,
   Timer,
   Type,
 } from "lucide-react";
@@ -60,6 +61,16 @@ interface TenantItem {
   monthlyAiLimit: number;
   createdAt: string;
   _count?: { users: number; pmeSessions: number };
+}
+
+interface PmePackageItem {
+  id: string;
+  name: string;
+  code: string;
+  category: string;
+  description: string | null;
+  price: number;
+  parameters: { id: string; name: string; unit: string | null }[];
 }
 
 interface ZscoreRulesResponse {
@@ -166,11 +177,87 @@ export function SettingsView() {
     }
   }, [user?.role]);
 
+  // ===== Section 6: PME Package Price Management (SUPERADMIN only) =====
+  const [pmePackages, setPmePackages] = useState<PmePackageItem[]>([]);
+  const [packagePrices, setPackagePrices] = useState<Record<string, number>>({});
+  const [packagesLoading, setPackagesLoading] = useState(false);
+  const [savingPrices, setSavingPrices] = useState(false);
+
+  const fetchPmePackages = useCallback(async () => {
+    if (user?.role !== "SUPERADMIN") return;
+    setPackagesLoading(true);
+    try {
+      const res = await fetch("/api/pme-mgmt/packages", {
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+      });
+      if (!res.ok) throw new Error("Gagal mengambil data paket");
+      const data = await res.json();
+      const list: PmePackageItem[] = data.packages || [];
+      setPmePackages(list);
+      const priceMap: Record<string, number> = {};
+      list.forEach((p) => {
+        priceMap[p.id] = p.price ?? 0;
+      });
+      setPackagePrices(priceMap);
+    } catch {
+      // ignore
+    } finally {
+      setPackagesLoading(false);
+    }
+  }, [user?.role]);
+
+  const handlePriceChange = (pkgId: string, rawVal: string) => {
+    const digitsOnly = rawVal.replace(/[^0-9]/g, "");
+    const val = digitsOnly === "" ? 0 : Number(digitsOnly);
+    setPackagePrices((prev) => ({
+      ...prev,
+      [pkgId]: val,
+    }));
+  };
+
+  const handleSavePackagePrices = async () => {
+    setSavingPrices(true);
+    try {
+      const payload = {
+        packages: Object.entries(packagePrices).map(([id, price]) => ({
+          id,
+          price: Number(price) || 0,
+        })),
+      };
+      const res = await fetch("/api/pme-mgmt/packages", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify(payload),
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Gagal menyimpan harga paket");
+      }
+      toast({
+        title: "Harga Paket Berhasil Disimpan",
+        description: "Semua tarif paket pemeriksaan PME telah diperbarui dan langsung ditampilkan di menu pemilihan paket.",
+      });
+      void fetchPmePackages();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Terjadi kesalahan saat menyimpan harga.";
+      toast({
+        title: "Gagal Menyimpan",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingPrices(false);
+    }
+  };
+
   useEffect(() => {
     if (isSuper) {
       void fetchTenants();
+      void fetchPmePackages();
     }
-  }, [isSuper, fetchTenants]);
+  }, [isSuper, fetchTenants, fetchPmePackages]);
 
   const openQuotaDialogForCurrent = () => {
     if (!user) return;
@@ -338,6 +425,20 @@ export function SettingsView() {
 
   const apiStatusOk = aiConfig?.apiStatus?.toUpperCase() === "CONNECTED";
   const usagePct = Math.min(100, Math.max(0, usage?.summary.usagePct ?? 0));
+
+  if (!isSuper) {
+    return (
+      <div className="flex flex-col items-center justify-center p-12 text-center rounded-2xl border bg-card/60 shadow-xs max-w-lg mx-auto my-12">
+        <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center mb-4 text-amber-600">
+          <AlertTriangle className="h-6 w-6" />
+        </div>
+        <h2 className="text-base font-bold text-foreground">Akses Terbatas (Khusus Superadmin)</h2>
+        <p className="text-xs text-muted-foreground mt-1.5 max-w-sm">
+          Menu Pengaturan Sistem hanya dapat diakses oleh akun Superadmin untuk mengatur konfigurasi platform, kustomisasi sidebar, dan harga paket pemeriksaan PME.
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-6">
@@ -1287,6 +1388,158 @@ export function SettingsView() {
                   </div>
                 </div>
               </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* ===== SECTION 6: PENGATURAN HARGA PAKET PEMERIKSAAN PME (SUPERADMIN ONLY) ===== */}
+      {isSuper && (
+        <Card className="shadow-md border border-emerald-500/20 bg-card overflow-hidden">
+          <CardHeader className="bg-gradient-to-r from-emerald-500/10 via-teal-500/5 to-transparent border-b pb-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Tag className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+                  6. Pengaturan Harga Paket Pemeriksaan PME (Khusus Superadmin)
+                </CardTitle>
+                <CardDescription className="text-xs mt-1">
+                  Atur tarif harga untuk masing-masing paket pemeriksaan PME. Harga yang Anda input di sini akan langsung ditampilkan pada tabel <strong>&ldquo;Pilih Paket Pemeriksaan yang Diikuti&rdquo;</strong> di menu <strong>Pemilihan Paket PME</strong>.
+                </CardDescription>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] px-2.5 py-1">
+                  Superadmin Only
+                </Badge>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void fetchPmePackages()}
+                  disabled={packagesLoading}
+                  className="text-xs h-8 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-800 gap-1.5 cursor-pointer"
+                >
+                  <RefreshCw className={cn("h-3.5 w-3.5", packagesLoading && "animate-spin")} />
+                  Segarkan
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => void handleSavePackagePrices()}
+                  disabled={savingPrices || packagesLoading}
+                  className="text-xs h-8 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold gap-1.5 shadow-sm cursor-pointer"
+                >
+                  {savingPrices ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+                  Simpan Harga Paket
+                </Button>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-6 space-y-4">
+            <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex items-start gap-2.5 text-xs text-emerald-950 dark:text-emerald-200">
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+              <div>
+                <p className="font-semibold text-emerald-900 dark:text-emerald-100">
+                  Sinkronisasi Otomatis Tarif Paket Pemeriksaan
+                </p>
+                <p className="text-[11px] text-muted-foreground mt-0.5 leading-relaxed">
+                  Masukkan nilai nominal harga dalam Rupiah (Rp). Jika diatur ke 0, paket akan ditampilkan sebagai <em>Gratis / Belum Diatur</em>. Seluruh laboratorium peserta akan melihat nominal tarif ini secara transparan saat memilih paket siklus PME.
+                </p>
+              </div>
+            </div>
+
+            {packagesLoading ? (
+              <div className="flex items-center justify-center py-12 text-muted-foreground text-xs gap-2">
+                <Loader2 className="h-5 w-5 animate-spin text-teal-600" />
+                Memuat daftar paket pemeriksaan PME...
+              </div>
+            ) : pmePackages.length === 0 ? (
+              <div className="text-center py-10 border rounded-xl bg-muted/20 text-muted-foreground text-xs">
+                Belum ada paket pemeriksaan yang terdaftar. Buka menu &ldquo;Pemilihan Paket PME &gt; Katalog Master Paket&rdquo; untuk membuat paket.
+              </div>
+            ) : (
+              <div className="rounded-xl border overflow-hidden">
+                <Table>
+                  <TableHeader className="bg-muted/40">
+                    <TableRow>
+                      <TableHead className="w-[50px] text-center font-bold text-xs">No.</TableHead>
+                      <TableHead className="font-bold text-xs">Nama Paket Pemeriksaan</TableHead>
+                      <TableHead className="font-bold text-xs">Kategori & Parameter</TableHead>
+                      <TableHead className="font-bold text-xs w-[240px]">Harga Paket (Rp)</TableHead>
+                      <TableHead className="font-bold text-xs w-[160px] text-right">Tampilan Tarif</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {pmePackages.map((pkg, idx) => {
+                      const curPrice = packagePrices[pkg.id] ?? (pkg.price || 0);
+                      return (
+                        <TableRow key={pkg.id} className="hover:bg-muted/30 transition-colors">
+                          <TableCell className="text-center font-mono text-xs text-muted-foreground">
+                            {idx + 1}
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-semibold text-xs text-foreground">{pkg.name}</div>
+                            <div className="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+                              {pkg.description || "Evaluasi parameter standar laboratorium"}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Badge variant="outline" className="text-[10px] font-semibold">
+                                {pkg.category}
+                              </Badge>
+                              <span className="text-[10px] text-muted-foreground">
+                                {pkg.parameters.length} Parameter Uji
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="relative">
+                              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground select-none">
+                                Rp
+                              </span>
+                              <Input
+                                type="text"
+                                inputMode="numeric"
+                                value={Number(curPrice).toLocaleString("id-ID")}
+                                onChange={(e) => handlePriceChange(pkg.id, e.target.value)}
+                                className="pl-9 font-mono text-xs font-bold h-9 bg-background focus-visible:ring-emerald-500"
+                                placeholder="0"
+                              />
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            {curPrice > 0 ? (
+                              <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold font-mono text-xs">
+                                Rp {Number(curPrice).toLocaleString("id-ID")}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="text-muted-foreground text-[10px]">
+                                Rp 0 (Gratis)
+                              </Badge>
+                            )}
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-2">
+              <p className="text-xs text-muted-foreground">
+                Total <strong>{pmePackages.length}</strong> paket pemeriksaan terdaftar dalam master data.
+              </p>
+              <Button
+                type="button"
+                onClick={() => void handleSavePackagePrices()}
+                disabled={savingPrices || packagesLoading}
+                className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs h-9 gap-1.5 shadow-sm"
+              >
+                {savingPrices ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                Simpan Seluruh Perubahan Harga
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -158,7 +158,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Action: Buat Paket Baru
-    const { name, code, category, description, parameters } = body;
+    const { name, code, category, description, parameters, price } = body;
     if (!name || !name.trim()) {
       return jsonError("Nama paket wajib diisi.", 400);
     }
@@ -172,6 +172,7 @@ export async function POST(req: NextRequest) {
         code: pkgCode,
         category: category?.trim() || "Lainnya",
         description: description?.trim() || null,
+        price: Math.max(0, Number(price) || 0),
       },
     });
 
@@ -199,5 +200,40 @@ export async function POST(req: NextRequest) {
     });
 
     return jsonOk({ package: createdWithParams });
+  });
+}
+
+// Update harga paket pemeriksaan PME (Khusus Superadmin)
+export async function PUT(req: NextRequest) {
+  return withAuth(req, async ({ user }) => {
+    if (user.role !== "SUPERADMIN") {
+      return jsonError("Akses ditolak. Pengaturan harga paket hanya dapat dilakukan oleh Superadmin.", 403, "FORBIDDEN");
+    }
+
+    const body = await req.json();
+
+    // Update batch: { packages: [{ id: string, price: number }] }
+    if (Array.isArray(body.packages)) {
+      for (const item of body.packages) {
+        if (item.id) {
+          await db.pmePackage.update({
+            where: { id: item.id },
+            data: { price: Math.max(0, Number(item.price) || 0) },
+          });
+        }
+      }
+      return jsonOk({ success: true, message: "Harga seluruh paket berhasil diperbarui." });
+    }
+
+    // Single update: { packageId: string, price: number }
+    if (body.packageId) {
+      const updated = await db.pmePackage.update({
+        where: { id: body.packageId },
+        data: { price: Math.max(0, Number(body.price) || 0) },
+      });
+      return jsonOk({ package: updated, message: "Harga paket berhasil diperbarui." });
+    }
+
+    return jsonError("Data paket tidak valid.", 400);
   });
 }

@@ -59,6 +59,7 @@ interface PackageItem {
   name: string;
   code: string;
   category: string;
+  price?: number;
   description: string | null;
   parameters: ParameterItem[];
   _count?: { registrations: number };
@@ -119,6 +120,7 @@ export function PmePackagesView() {
   const [pkgName, setPkgName] = useState("");
   const [pkgCategory, setPkgCategory] = useState("Kimia Klinik");
   const [pkgDescription, setPkgDescription] = useState("");
+  const [pkgPrice, setPkgPrice] = useState<string>("0");
   const [savingPkg, setSavingPkg] = useState(false);
 
   // Modal Tambah Parameter (Superadmin only)
@@ -324,6 +326,7 @@ export function PmePackagesView() {
           name: pkgName.trim(),
           category: pkgCategory,
           description: pkgDescription.trim() || undefined,
+          price: Math.max(0, Number(pkgPrice) || 0),
         }),
       });
 
@@ -332,6 +335,7 @@ export function PmePackagesView() {
         setPkgDialogOpen(false);
         setPkgName("");
         setPkgDescription("");
+        setPkgPrice("0");
         loadData();
       } else {
         const err = await res.json();
@@ -739,7 +743,19 @@ export function PmePackagesView() {
                             <span>📦 2 Botol Sampel:</span>
                             <span className="underline decoration-dotted">Sampel 1 (Level 1) &amp; Sampel 2 (Level 2)</span>
                           </div>
-                          <div className="mt-3 pt-2.5 border-t flex items-center justify-between text-[10px]">
+                          <div className="mt-2.5 pt-2 border-t border-border/70 flex items-center justify-between">
+                            <span className="text-[10px] text-muted-foreground font-semibold">Biaya Paket:</span>
+                            {pkg.price && pkg.price > 0 ? (
+                              <span className="text-xs font-extrabold font-mono text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/25">
+                                Rp {Number(pkg.price).toLocaleString("id-ID")}
+                              </span>
+                            ) : (
+                              <span className="text-[10px] italic text-muted-foreground bg-muted px-2 py-0.5 rounded-md">
+                                Rp 0 (Gratis)
+                              </span>
+                            )}
+                          </div>
+                          <div className="mt-2 pt-2 border-t flex items-center justify-between text-[10px]">
                             <span className="text-teal-700 dark:text-teal-400 font-medium">
                               {pkg.parameters.length} Parameter Uji
                             </span>
@@ -753,10 +769,21 @@ export function PmePackagesView() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-xs text-muted-foreground">
-                    {selectedPackageIds.length} paket dipilih
-                  </span>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 pt-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs text-muted-foreground">
+                      <strong>{selectedPackageIds.length}</strong> paket dipilih
+                    </span>
+                    {selectedPackageIds.length > 0 && (
+                      <Badge variant="outline" className="text-xs font-bold text-emerald-700 dark:text-emerald-300 border-emerald-500/30 bg-emerald-50/70 dark:bg-emerald-950/30">
+                        Total Biaya: Rp{" "}
+                        {packages
+                          .filter((p) => selectedPackageIds.includes(p.id))
+                          .reduce((sum, p) => sum + (p.price || 0), 0)
+                          .toLocaleString("id-ID")}
+                      </Badge>
+                    )}
+                  </div>
                   {!isReadOnly && (() => {
                     const selPart = participants.find((p) => p.id === selectedParticipantId);
                     const isApproved = selPart?.status === "APPROVED";
@@ -937,10 +964,13 @@ export function PmePackagesView() {
                       {getCategoryIcon(pkg.category)}
                     </div>
                     <div>
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
                         <CardTitle className="text-sm font-bold">{pkg.name}</CardTitle>
                         <Badge variant="outline" className="text-[10px]">
                           {pkg.category}
+                        </Badge>
+                        <Badge className="bg-emerald-600/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-bold font-mono text-xs">
+                          {pkg.price && pkg.price > 0 ? `Rp ${Number(pkg.price).toLocaleString("id-ID")}` : "Rp 0 (Gratis / Belum Diatur)"}
                         </Badge>
                       </div>
                       <CardDescription className="text-xs mt-0.5">
@@ -1039,6 +1069,22 @@ export function PmePackagesView() {
                 onChange={(e) => setPkgDescription(e.target.value)}
                 className="text-xs min-h-[60px]"
               />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs font-semibold">Harga Paket (Rp)</Label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground select-none">
+                  Rp
+                </span>
+                <Input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="0"
+                  value={Number(pkgPrice.replace(/[^0-9]/g, "") || 0).toLocaleString("id-ID")}
+                  onChange={(e) => setPkgPrice(e.target.value.replace(/[^0-9]/g, ""))}
+                  className="h-8 text-xs pl-8 font-mono font-bold"
+                />
+              </div>
             </div>
             <DialogFooter className="pt-3">
               <Button type="button" variant="outline" size="sm" onClick={() => setPkgDialogOpen(false)} disabled={savingPkg}>

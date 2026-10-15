@@ -359,6 +359,7 @@ model PmePackage {
   code           String
   category       String       // "Kimia Klinik" | "Hematologi" | "Imunologi" | dll
   description    String?
+  price          Float        @default(0)
   isActive       Boolean      @default(true)
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt

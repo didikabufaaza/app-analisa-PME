@@ -13,8 +13,8 @@ export function isViewAllowed(view: AppView, user: UserInfo | null): boolean {
   // Superadmin has absolute access to every view
   if (user.role === "SUPERADMIN") return true;
 
-  // View 'users' is strictly for Superadmin
-  if (view === "users") return false;
+  // Views 'users' and 'settings' are strictly for Superadmin
+  if (view === "users" || view === "settings") return false;
 
   // Check explicit menuAccess array if present
   if (Array.isArray(user.menuAccess)) {
@@ -39,7 +39,7 @@ export function isViewAllowed(view: AppView, user: UserInfo | null): boolean {
 
   // Fallback defaults for legacy unconfigured users without menuAccess
   const roleDefaults: Record<string, string[]> = {
-    ADMIN2: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "settings", "audit", "pme-management"],
+    ADMIN2: ["dashboard", "sessions", "reports", "review", "capa", "kop-surat", "audit", "pme-management"],
     ADMIN: ["pme-management", "pme-reports"],
     SUPERVISOR: ["pme-management", "pme-reports"],
     ANALYST: ["pme-management", "pme-reports"],

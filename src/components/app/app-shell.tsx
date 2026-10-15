@@ -44,7 +44,7 @@ const NAV: { key: AppView; icon: typeof LayoutDashboard; superAdminOnly?: boolea
   { key: "review", icon: ClipboardCheck },
   { key: "capa", icon: ListChecks },
   { key: "kop-surat", icon: Building2 },
-  { key: "settings", icon: Settings },
+  { key: "settings", icon: Settings, superAdminOnly: true },
   { key: "audit", icon: ScrollText },
   { key: "users", icon: Users, superAdminOnly: true },
 ];
@@ -474,25 +474,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     </div>
   );
 
-  const usageCard = usage ? (
-    <div className="mx-3 mb-3 rounded-xl border border-slate-800/80 bg-slate-900/60 p-3 text-slate-300 shadow-xs">
-      <div className="flex items-center justify-between text-[11.5px] text-slate-400">
-        <span className="flex items-center gap-1.5 font-medium">
-          <Sparkles className="h-3.5 w-3.5 text-teal-400" />{" "}
-          {language === "en" ? "Monthly Evaluation Capacity" : "Kapasitas Evaluasi Bulanan"}
-        </span>
-        <button onClick={() => refreshUser()} aria-label="Segarkan kuota">
-          <RefreshCw className="h-3 w-3 hover:text-teal-300 transition-colors" />
-        </button>
-      </div>
-      <div className="mt-2">
-        <Progress value={usagePct} className="h-1.5 bg-slate-800" aria-label={`Kapasitas evaluasi ${usagePct}%`} />
-      </div>
-      <p className="mt-1.5 text-[11px] text-slate-400 font-mono">
-        {usage.used}/{usage.limit} {language === "en" ? "evaluations · plan " : "evaluasi · plan "} {user.organization.plan}
-      </p>
-    </div>
-  ) : null;
+  const usageCard = null;
 
   const logoutButton = (
     <div className="mt-auto p-3 border-t border-slate-800/80 bg-slate-950/60">
@@ -692,9 +674,11 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                     <Users className="h-4 w-4" /> {language === "en" ? "User Settings" : "Pengaturan User"}
                   </DropdownMenuItem>
                 )}
-                <DropdownMenuItem onClick={() => navigate("settings")}>
-                  <Settings className="h-4 w-4" /> {language === "en" ? "System Settings" : "Pengaturan Sistem"}
-                </DropdownMenuItem>
+                {user.role === "SUPERADMIN" && (
+                  <DropdownMenuItem onClick={() => navigate("settings")}>
+                    <Settings className="h-4 w-4" /> {language === "en" ? "System Settings" : "Pengaturan Sistem"}
+                  </DropdownMenuItem>
+                )}
                 <DropdownMenuSeparator />
                 <DropdownMenuItem onClick={() => void useAppStore.getState().logout()} className="text-destructive focus:text-destructive">
                   <LogOut className="h-4 w-4" /> {language === "en" ? "Sign Out" : "Keluar"}
